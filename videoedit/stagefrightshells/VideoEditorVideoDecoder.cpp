@@ -1352,8 +1352,8 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
     MediaBuffer* pNextBuffer = NULL;
     status_t errStatus;
     bool needSeek = bJump;
-    bool needSave = M4OSA_TRUE;
-
+    bool needSave = M4OSA_FALSE;
+    M4OSA_UInt32 i;
     ALOGV("VideoEditorVideoDecoder_decode begin");
 
     if( M4OSA_TRUE == pDecShellContext->mReachedEOS ) {
@@ -1382,11 +1382,7 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
     while (pDecoderBuffer == NULL || pDecShellContext->m_lastDecodedCTS + tolerance < *pTime) {
         ALOGV("VideoEditorVideoDecoder_decode, frameCTS = %lf, DecodeUpTo = %lf",
             pDecShellContext->m_lastDecodedCTS, *pTime);
-        if (M4OSA_TRUE == needSave) {
             VIDEOEDITOR_BUFFER_getBufferForDecoder(pDecShellContext->m_pDecBufferPool);
-        } else {
-            needSave = M4OSA_TRUE;
-        }
         // Read the buffer from the stagefright decoder
         if (needSeek) {
             MediaSource::ReadOptions options;
@@ -1406,7 +1402,13 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
             // If we decoded a buffer before EOS, we still need to put it
             // into the queue.
             if (pDecoderBuffer && bJump) {
-                pDecoderBuffer->add_ref();
+                for (i=0; i<pDecShellContext->m_pDecBufferPool->NB; i++) {
+                     if(pDecShellContext->m_lastDecodedCTS ==
+                        pDecShellContext->m_pDecBufferPool->pNXPBuffer[i].buffCTS) {
+                        pDecoderBuffer->add_ref();
+                     }
+                }
+                needSave = M4OSA_TRUE;
                 copyBufferToQueue(pDecShellContext, pDecoderBuffer);
             }
             goto VIDEOEDITOR_VideoDecode_cleanUP;
@@ -1415,6 +1417,7 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
             lerr = VideoEditorVideoDecoder_configureFromMetadata(
                 pDecShellContext,
                 pDecShellContext->mVideoDecoder->getFormat().get());
+            needSave = M4OSA_FALSE;
             if( M4NO_ERROR != lerr ) {
                 ALOGV("!!! VideoEditorVideoDecoder_decode ERROR : "
                     "VideoDecoder_configureFromMetadata returns 0x%X", lerr);
@@ -1425,6 +1428,7 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
             ALOGE("VideoEditorVideoDecoder_decode ERROR:0x%x(%d)",
                 errStatus,errStatus);
             lerr = errStatus;
+            needSave = M4OSA_FALSE;
             goto VIDEOEDITOR_VideoDecode_cleanUP;
         }
 
@@ -1435,6 +1439,11 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
             pNextBuffer = NULL;
             needSave = M4OSA_FALSE;
             continue;
+        }
+
+        if (needSave == M4OSA_FALSE && pDecoderBuffer != NULL) {
+            pDecoderBuffer->release();
+            pDecoderBuffer = NULL;
         }
 
         pDecoderBuffer = pNextBuffer;
@@ -1468,8 +1477,10 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
             ALOGV("pDecShellContext->mFrameIntervalMs = %lld, tolerance = %d", (int64_t)pDecShellContext->mFrameIntervalMs, tolerance);
             ALOGI("mThumbnail mode: currTimeMs = %lld, targetTimeMs = %lld", targetTimeMs, (int64_t)*pTime);
             if (targetTimeMs + THUMBNAIL_THRES < (int64_t)*pTime) {
+                needSave = M4OSA_TRUE;
                 lerr = copyBufferToQueue(pDecShellContext, pDecoderBuffer);
                 if (lerr != M4NO_ERROR) {
+                    needSave = M4OSA_FALSE;
                     goto VIDEOEDITOR_VideoDecode_cleanUP;
                 }
                 break;
@@ -1477,15 +1488,13 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
         }
 
         if (!bJump || targetTimeMs > *pTime) {
+            needSave = M4OSA_TRUE;
             lerr = copyBufferToQueue(pDecShellContext, pDecoderBuffer);
             if (lerr != M4NO_ERROR) {
+                needSave = M4OSA_FALSE;
                 goto VIDEOEDITOR_VideoDecode_cleanUP;
             }
         } else {
-            if (pDecoderBuffer != NULL) {
-                pDecoderBuffer->release();
-                pDecoderBuffer = NULL;
-            }
             needSave = M4OSA_FALSE;
         }
     }
@@ -1498,6 +1507,10 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
 
 VIDEOEDITOR_VideoDecode_cleanUP:
     *pTime = pDecShellContext->m_lastDecodedCTS;
+     if (needSave == M4OSA_FALSE && pDecoderBuffer != NULL && lerr != M4WAR_NO_MORE_AU) {
+        pDecoderBuffer->release();
+        pDecoderBuffer = NULL;
+    }
 
     ALOGV("VideoEditorVideoDecoder_decode: end with 0x%x", lerr);
     return lerr;
@@ -1530,7 +1543,9 @@ static M4OSA_ERR copyBufferToQueue(
     // Color convert or copy from the given MediaBuffer to our buffer
     if (pDecShellContext->mI420ColorConverter) {
         tmpDecBuffer->mBuffer = pDecoderBuffer;
-    } else if (pDecShellContext->decOuputColorFormat == OMX_COLOR_FormatYUV420Planar) {
+    }
+#ifndef VIDEOEDITOR_INTEL_NV12_VERSION
+      else if (pDecShellContext->decOuputColorFormat == OMX_COLOR_FormatYUV420Planar) {
         int32_t width = pDecShellContext->m_pVideoStreamhandler->m_videoWidth;
         int32_t height = pDecShellContext->m_pVideoStreamhandler->m_videoHeight;
         int32_t yPlaneSize = width * height;
@@ -1581,10 +1596,12 @@ static M4OSA_ERR copyBufferToQueue(
                 pTmpBuff += pDecShellContext->mGivenWidth >> 1;
             }
         }
-    } else {
-        ALOGE("VideoDecoder_decode: unexpected color format 0x%X",
-            pDecShellContext->decOuputColorFormat);
-        lerr = M4ERR_PARAMETER;
+    }
+#endif
+    else {
+      ALOGE("VideoDecoder_decode: unexpected color format 0x%X",
+          pDecShellContext->decOuputColorFormat);
+      lerr = M4ERR_PARAMETER;
     }
 
     tmpDecBuffer->buffCTS = pDecShellContext->m_lastDecodedCTS;

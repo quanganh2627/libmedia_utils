@@ -62,7 +62,7 @@ LOCAL_SHARED_LIBRARIES :=     \
     libvideoeditorplayer      \
     libsharedbuffer
 
-LOCAL_CFLAGS += \
+LOCAL_CFLAGS += -DVIDEOEDITOR_INTEL_NV12_VERSION
 
 LOCAL_STATIC_LIBRARIES := \
     libstagefright_color_conversion
