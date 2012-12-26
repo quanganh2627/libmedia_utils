@@ -269,6 +269,10 @@ status_t AsfExtractor::initialize() {
             objectSize = *(int64_t *)(objectHeader + 16);
             if (!AsfStreamParser::isSimpleIndexObject(objectHeader)) {
                 offset += objectSize;
+                if (objectSize == 0) {
+                    ALOGW("WARN: The file's objectSize is zero,ingore this header.");
+                    offset += 24;
+                }
                 continue;
             }
             mHasIndexObject = true;
