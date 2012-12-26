@@ -186,18 +186,39 @@ status_t AsfExtractor::read(
 
     int64_t seekTimeUs;
     MediaSource::ReadOptions::SeekMode mode;
+    bool seekTo = false;
+
+    if (options != NULL) {
+        seekTo = options->getSeekTo(&seekTimeUs, &mode);
+    }
+
     if (!mParser->hasVideo() || (mParser->hasVideo() && mHasIndexObject)) {
-        if (options != NULL  && options->getSeekTo(&seekTimeUs, &mode)) {
+        if (seekTo) {
             status_t err = seek_l(track, seekTimeUs, mode);
             if (err != OK) {
                 return err;
             }
         }
-    } else {
-        ALOGW("No index object. Seek may not be supported!!!");
+    } else if (mParser->hasVideo() && !mHasIndexObject){
+        // Add support for auto looping of unseekable clip
+        if (seekTo && seekTimeUs == 0) {
+            // Start over by resetting the offset
+            mDataPacketCurrentOffset = mDataPacketBeginOffset;
+        }
+        //ALOGW("No index object. Seek may not be supported!!!");
     }
 
     return read_l(track, buffer);
+}
+
+uint32_t AsfExtractor::flags() const {
+    uint32_t flags = CAN_PAUSE;
+
+    if (!mParser->hasVideo() || (mParser->hasVideo() && mHasIndexObject)) {
+        flags |= CAN_SEEK_FORWARD | CAN_SEEK_BACKWARD | CAN_SEEK;
+    }
+
+    return flags;
 }
 
 status_t AsfExtractor::initialize() {
@@ -419,9 +440,9 @@ status_t AsfExtractor::setupTracks() {
         track->bufferPool = new MediaBufferPool;
 
         if (audioInfo) {
-            LOGV("streamNumber = %d\n, encryptedContentFlag= %d\n, timeOffset = %lld\n,
-                  codecID = %d\n, numChannels=%d\n, sampleRate=%d\n, avgBitRate = %d\n,
-                  blockAlignment =%d\n, bitsPerSample=%d\n, codecDataSize=%d\n",
+            ALOGV("streamNumber = %d\n, encryptedContentFlag= %d\n, timeOffset = %lld\n,"
+                  "codecID = %d\n, numChannels=%d\n, sampleRate=%d\n, avgBitRate = %d\n,"
+                  "blockAlignment =%d\n, bitsPerSample=%d\n, codecDataSize=%d\n",
                   audioInfo->streamNumber, audioInfo->encryptedContentFlag,
                   audioInfo->timeOffset, audioInfo->codecID, audioInfo->numChannels,
                   audioInfo->sampleRate, audioInfo->avgByteRate*8, audioInfo->blockAlignment,
