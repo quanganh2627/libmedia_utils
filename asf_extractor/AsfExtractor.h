@@ -109,6 +109,7 @@ private:
     status_t seek_l(Track* track, int64_t seekTimeUs, MediaSource::ReadOptions::SeekMode mode);
     status_t read_l(Track *track, MediaBuffer **buffer);
     status_t readPacket();
+    void establishAvgFrameRate(Track *dstTrack, int32_t *avgFrameRate);
 };
 
 

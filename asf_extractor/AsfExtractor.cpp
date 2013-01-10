@@ -221,6 +221,84 @@ uint32_t AsfExtractor::flags() const {
     return flags;
 }
 
+static int compareTime(const int64_t *timeUs1, const int64_t *timeUs2) {
+
+    if (*timeUs1 < *timeUs2)
+        return -1;
+    else if (*timeUs1 > *timeUs2)
+        return 1;
+    else
+        return 0;
+}
+void AsfExtractor::establishAvgFrameRate(Track *dstTrack, int32_t *avgFrameRate) {
+    *avgFrameRate = 0;
+    if (dstTrack == NULL) {
+        return;
+    }
+    Vector<int64_t> timeArray;
+    timeArray.clear();
+    int64_t dataOffSet = mDataPacketCurrentOffset;
+    uint8_t *data = new uint8_t [mDataPacketSize];
+    if (data == NULL) {
+        return;
+    }
+    uint64_t lastTimeStamp = 0;
+    while(timeArray.size() < 20) {
+        if (mDataSource->readAt(dataOffSet, data, mDataPacketSize) != mDataPacketSize) {
+            break;
+        }
+        dataOffSet += mDataPacketSize;
+        AsfPayloadDataInfo *payloads = NULL;
+
+        int status = mParser->parseDataPacket(data, mDataPacketSize, &payloads);
+        if (status != ASF_PARSER_SUCCESS || payloads == NULL) {
+            break;
+        }
+        AsfPayloadDataInfo* payload = payloads;
+        while(payload) {
+            Track* track = getTrackByStreamNumber(payload->streamNumber);
+            if (track == NULL || track != dstTrack) {
+                payload = payload->next;
+                continue;
+            }
+            if (lastTimeStamp == 0) {
+                lastTimeStamp = payload->presentationTime *1000;
+                if (lastTimeStamp != 0) {
+                    timeArray.push_back(lastTimeStamp);
+                }
+            } else {
+                int64_t timestamp = payload->presentationTime *1000;
+                if (lastTimeStamp != timestamp) {
+                    timeArray.push_back(timestamp);
+                    lastTimeStamp = timestamp;
+                    LOGV("Add timestamp = %lld", lastTimeStamp);
+                }
+            }
+            payload = payload->next;
+        }
+        mParser->releasePayloadDataInfo(payloads);
+    }
+    if (data != NULL) {
+        delete [] data;
+        data  = NULL;
+    }
+    if (timeArray.empty()) {
+        return;
+    }
+    timeArray.sort(compareTime); // sort by PTS
+    int32_t count = timeArray.size();
+    if (count <= 1)
+        return;
+    // remove the last 8 items.
+    count = count > 9 ? (count - 8) : count;
+    int64_t beginTimeUs = timeArray.itemAt(0);
+    int64_t endTimeUs = timeArray.itemAt(count - 1);
+    int64_t duration = endTimeUs - beginTimeUs;
+    if (duration != 0) {
+        *avgFrameRate = ((count - 1) * 1000000LL + (duration >> 1)) / duration;
+    }
+}
+
 status_t AsfExtractor::initialize() {
     if (mInitialized) {
         return OK;
@@ -495,6 +573,12 @@ status_t AsfExtractor::setupTracks() {
                 track->meta->setInt64(kKeyThumbnailTime, mParser->getDuration() / (SCALE_100_NANOSEC_TO_USEC * 2));
             } else {
                 track->meta->setInt64(kKeyThumbnailTime, 0);
+            }
+            int32_t avgFrameRate = 0;
+            establishAvgFrameRate(track, &avgFrameRate);
+            if (avgFrameRate > 0) {
+                track->meta->setInt32(kKeyFrameRate, avgFrameRate);
+                ALOGV("get avf frame rate = %d", avgFrameRate);
             }
             videoInfo = videoInfo->next;
         }
