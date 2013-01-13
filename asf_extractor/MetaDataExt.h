@@ -24,7 +24,7 @@ namespace android {
 
 #define MEDIA_MIMETYPE_AUDIO_WMA        "audio/x-ms-wma"
 #define MEDIA_MIMETYPE_AUDIO_AC3        "audio/ac3"
-#define MEDIA_MIMETYPE_VIDEO_WMV        "video/wmv"
+#define MEDIA_MIMETYPE_VIDEO_WMV        "video/x-ms-wmv"
 #define MEDIA_MIMETYPE_CONTAINER_ASF    "video/x-ms-asf"
 #define MEDIA_MIMETYPE_VIDEO_VA         "video/x-va"
 #define MEDIA_MIMETYPE_AUDIO_WMA_VOICE  "audio/wma-voice"
