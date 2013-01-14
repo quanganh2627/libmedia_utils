@@ -784,6 +784,7 @@ M4OSA_ERR queryVideoDecoderCapabilities
     logSupportDecodersAndCapabilities(pDecoders);
     *decoders = pDecoders;
 cleanUp:
+    client.disconnect();
     return err;
 }
 /********************
