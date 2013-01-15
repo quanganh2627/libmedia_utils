@@ -65,7 +65,6 @@ private:
     const ReadOptions     *mReadOptions;
     MediaBufferGroup      *mOutBufGroup;   /* group of output buffers*/
     MediaBuffer           *mLastInputBuffer;
-    int32_t  mCallEncode;
 
 private:
     status_t initCheck(const sp<MetaData>& meta);

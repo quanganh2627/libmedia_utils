@@ -308,8 +308,6 @@ status_t IntelVideoEditorH263Encoder::read(MediaBuffer **out, const ReadOptions 
     }
 
     VideoEncRawBuffer vaInBuf;
-    vaInBuf.flag = 0;
-    vaInBuf.type = FTYPE_UNKNOWN;
 
     vaInBuf.data = (uint8_t *)tmpIn->data();
     vaInBuf.size = tmpIn->size();
