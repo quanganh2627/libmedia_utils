@@ -51,7 +51,8 @@ IntelVideoEditorAVCEncoder::IntelVideoEditorAVCEncoder(
       mFrameCount(0),
       mVAEncoder(NULL),
       mOutBufGroup(NULL),
-      mLastInputBuffer(NULL) {
+      mLastInputBuffer(NULL),
+      mCallEncode(0) {
 
     LOGV("Construct IntelVideoEditorAVCEncoder");
 }
@@ -159,6 +160,7 @@ status_t IntelVideoEditorAVCEncoder::initCheck(const sp<MetaData>& meta) {
     CHECK(encStatus == ENCODE_SUCCESS);
     LOGV("got H264 encoder params ");
 
+    mEncParamsH264.ipPeriod = 1;
     mEncParamsH264.idrInterval = 1;
     mEncParamsH264.sliceNum.iSliceNum = 2;
     mEncParamsH264.sliceNum.pSliceNum = 2;
@@ -353,13 +355,14 @@ sp<MetaData> IntelVideoEditorAVCEncoder::getFormat() {
 
 status_t IntelVideoEditorAVCEncoder::read(MediaBuffer **out, const ReadOptions *options) {
 
-    status_t err = OK;
+    status_t err;
     Encode_Status encRet;
-    MediaBuffer *tmpIn;
-    int64_t timestamp = 0;
+    MediaBuffer *tmpIn = NULL, *tmpIn2 = NULL;
     CHECK(!options);
     mReadOptions = options;
     *out = NULL;
+    MediaBuffer *outputBuffer;
+    VideoEncOutputBuffer vaOutBuf;
 
     LOGV("IntelVideoEditorAVCEncoder::read start");
 
@@ -372,19 +375,65 @@ status_t IntelVideoEditorAVCEncoder::read(MediaBuffer **out, const ReadOptions *
     } while (err == INFO_FORMAT_CHANGED);
 
     if (err == ERROR_END_OF_STREAM) {
-        if (mLastInputBuffer != NULL) {
-            tmpIn = mLastInputBuffer;
-        } else {
-            return err;
+        if (mCallEncode > 0) {
+            LOGV("Get the last encoded frame");
+            CHECK(mOutBufGroup->acquire_buffer(&outputBuffer) == OK);
+            vaOutBuf.bufferSize = outputBuffer->size();
+            vaOutBuf.dataSize = 0;
+            vaOutBuf.data = (uint8_t *) outputBuffer->data();
+            vaOutBuf.format = OUTPUT_EVERYTHING;
+
+            encRet = mVAEncoder->getOutput(&vaOutBuf);
+            if (encRet != ENCODE_SUCCESS) {
+                LOGE("Failed to retrieve encoded video frame: %d", encRet);
+                outputBuffer->release();
+                return UNKNOWN_ERROR;
+            }
+            mCallEncode--;
+
+            if (vaOutBuf.flag & ENCODE_BUFFERFLAG_SYNCFRAME) {
+                outputBuffer->meta_data()->setInt32(kKeyIsSyncFrame,true);
+            }
+
+            outputBuffer->set_range(0, vaOutBuf.dataSize);
+            outputBuffer->meta_data()->setInt64(kKeyTime,vaOutBuf.timeStamp);
+            *out = outputBuffer;
         }
+
+        if (mLastInputBuffer != NULL) {
+            mLastInputBuffer->release();
+            mLastInputBuffer = NULL;
+        }
+        return err;
     }
     else if (err != OK) {
         LOGE("Failed to read input video frame: %d", err);
         return err;
     }
 
+    // For encode async mode
+    if (mFirstFrame) {
+        do {
+            err = mSource->read(&tmpIn2, NULL);
+            if (err == INFO_FORMAT_CHANGED) {
+                stop();
+                start(NULL);
+            }
+        } while (err == INFO_FORMAT_CHANGED);
 
-    VideoEncRawBuffer vaInBuf;
+        if (err == ERROR_END_OF_STREAM) {
+            if (tmpIn == NULL)
+                return err;
+        }
+        else if (err != OK) {
+            LOGE("Failed to read input video frame: %d", err);
+            return err;
+        }
+    }
+
+    VideoEncRawBuffer vaInBuf, vaInBuf2;
+    vaInBuf.flag = 0;
+    vaInBuf.type = FTYPE_UNKNOWN;
 
     vaInBuf.data = (uint8_t *)tmpIn->data();
     vaInBuf.size = tmpIn->size();
@@ -398,22 +447,32 @@ status_t IntelVideoEditorAVCEncoder::read(MediaBuffer **out, const ReadOptions *
         tmpIn->release();
         return UNKNOWN_ERROR;
     }
+    mCallEncode++;
 
-    if (mLastInputBuffer != NULL && err != ERROR_END_OF_STREAM) {
-        mLastInputBuffer->meta_data()->findInt64(kKeyTime, &timestamp);
-        mLastInputBuffer->release();
-        mLastInputBuffer = NULL;
-    } else {
-        timestamp = vaInBuf.timeStamp;
+    if (mFirstFrame && tmpIn2) {
+        vaInBuf2.flag = 0;
+        vaInBuf2.type = FTYPE_UNKNOWN;
+
+        vaInBuf2.data = (uint8_t *)tmpIn2->data();
+        vaInBuf2.size = tmpIn2->size();
+
+        tmpIn2->meta_data()->findInt64(kKeyTime, (int64_t *)&(vaInBuf2.timeStamp));
+        LOGV("For async mode encoding: buffer %p, size = %d, ts= %llu",vaInBuf2.data, vaInBuf2.size, vaInBuf2.timeStamp);
+
+        encRet = mVAEncoder->encode(&vaInBuf2);
+        if (encRet != ENCODE_SUCCESS) {
+            LOGE("Failed to encode input video frame: %d", encRet);
+            tmpIn2->release();
+            return UNKNOWN_ERROR;
+        }
+        mCallEncode++;
     }
-    mLastInputBuffer = tmpIn;
 
     LOGV("Encoding Done, getting output buffer 	");
-    MediaBuffer *outputBuffer;
 
     CHECK(mOutBufGroup->acquire_buffer(&outputBuffer) == OK);
     LOGV("Waiting for outputbuffer");
-    VideoEncOutputBuffer vaOutBuf;
+
     vaOutBuf.bufferSize = outputBuffer->size();
     vaOutBuf.dataSize = 0;
     vaOutBuf.data = (uint8_t *) outputBuffer->data();
@@ -429,6 +488,11 @@ status_t IntelVideoEditorAVCEncoder::read(MediaBuffer **out, const ReadOptions *
         }
         outputBuffer->meta_data()->setInt32(kKeyIsCodecConfig,true);
         outputBuffer->meta_data()->setInt32(kKeyIsSyncFrame,true);
+        if (tmpIn != NULL) {
+            tmpIn->release();
+            tmpIn = NULL;
+        }
+        mLastInputBuffer = tmpIn2;
         mFirstFrame = false;
     } else {
         vaOutBuf.format = OUTPUT_EVERYTHING;
@@ -443,14 +507,25 @@ status_t IntelVideoEditorAVCEncoder::read(MediaBuffer **out, const ReadOptions *
         }
     }
 
-    LOGV("Got it! data= %p, ts=%llu size =%d", vaOutBuf.data, timestamp, vaOutBuf.dataSize);
+    if (mLastInputBuffer != tmpIn2) {
+        if (mLastInputBuffer != NULL) {
+            mLastInputBuffer->release();
+            mLastInputBuffer = NULL;
+        }
+        mLastInputBuffer = tmpIn;
+    } else {
+        tmpIn2 = NULL;
+    }
 
+    LOGV("Got it! data= %p, ts=%llu size =%d", vaOutBuf.data, vaOutBuf.timeStamp, vaOutBuf.dataSize);
+
+    mCallEncode--;
     outputBuffer->set_range(0, vaOutBuf.dataSize);
-    outputBuffer->meta_data()->setInt64(kKeyTime,timestamp);
+    outputBuffer->meta_data()->setInt64(kKeyTime,vaOutBuf.timeStamp);
     *out = outputBuffer;
 
     LOGV("IntelVideoEditorAVCEncoder::read end");
-    return err;
+    return OK;
 }
 
 status_t IntelVideoEditorAVCEncoder::getSharedBuffers() {
