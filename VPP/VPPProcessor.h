@@ -18,6 +18,7 @@
 #ifndef __VPP_PROCESSOR_H
 #define __VPP_PROCESSOR_H
 #include "VPPThread.h"
+#include "VPPWorker.h"
 
 #include <stdint.h>
 
@@ -32,146 +33,172 @@ struct MediaBufferObserver;
 struct OMXCodec;
 class VPPThread;
 
+// Input buffer transition:
+// FREE->LOADED->PROCESSING->READY->FREE
+// Output buffer transition:
+// FREE->PROCESSING->READY->RENDERING->FREE
+//                       |_>FREE
 enum VPPBufferStatus {
-    VPP_BUFFER_FREE = 0,        //vpp output buffer is free
-    VPP_BUFFER_READY_FOR_USE,   //vpp output buffer is full, but it is not put into RenderList
-    VPP_BUFFER_USED             //vpp output is put into RenderList
+    VPP_BUFFER_FREE = 0,        //free, not being used
+    VPP_BUFFER_PROCESSING,      //sent to VSP driver for process
+    VPP_BUFFER_READY,           //VSP process done, ready to use
+    VPP_BUFFER_LOADED,          //input only, decoded buffer loaded
+    VPP_BUFFER_RENDERING        //output only, vpp buffer in RenderList
 };
 
 enum {
     VPP_OK = 0,
+    VPP_BUFFER_NOT_READY,
     VPP_FAIL = -1
 };
 
+struct VPPBufferInfo {
+    MediaBuffer* buffer;
+    VPPBufferStatus status;
+};
+
+struct VPPVideoInfo {
+    uint32_t width;
+    uint32_t height;
+    uint32_t fps;
+};
+
+#define MAX_VPP_BUFFER_NUMBER 32
+
 class VPPProcessor : public MediaBufferObserver {
-
 public:
-    static const uint32_t INPUT_BUFFER_COUNT = 5;
-    static const uint32_t OUTPUT_BUFFER_COUNT = 6;
-
-public:
-    VPPProcessor();
+    VPPProcessor(const sp<ANativeWindow> &native, VPPVideoInfo* pInfo);
     virtual ~VPPProcessor();
 
     /*
-     * seek
-     */
-    void seek();
-
-    /*
-     * check whether there is empty input buffer
+     * Get VPP on/off status from VppSettings
      * @return:
-     *      if yes, canSetDecoderBufferToVPP return true
-     *      else, canSetDecoderBufferToVPP return false
+     *      true: vpp on
+     *      false: vpp off
      */
-    bool canSetDecoderBufferToVPP();
+    static bool isVppOn();
 
     /*
-     * set video decoder buffer to VPPProcesor
-     * @param:
-     *      buff: video decoder buffer
-     * @return:
-     *      VPP_OK: success,
-     *      VPP_FAIL: buff is not set to VPPProcessor
-     */
-    status_t setDecoderBufferToVPP(MediaBuffer *buff);
-
-    /*
-     * Read output from VPPProcessor for rendering
-     * @param:
-     *      buffer: the buffers get from VPPProcessor
-     * @return:
-     *      VPP_OK: success
-     *      VPP_FAIL: fail
-     *      ERROR_END_OF_STREAM: got end of stream
-     */
-    virtual status_t read(MediaBuffer **buffer);
-
-    /*
-     * set native window handle to VPPProcessor and also dequeue VPP buffers
-     * @param:
-     *      native: native window handle
-     * @return:
-     *      VPP_OK: success
-     *      VPP_FAIL: fail
-     */
-    status_t setNativeWindow(const sp<ANativeWindow> &native);
-
-    /*
-     * set decoder's bufferInfo to VPPProcessor
+     * In this init() function, firstly, bufferInfo will be set as OMXCodec's,
+     * and then VPPWorker will be initialized. After both steps succeed,
+     * VPPThread starts to run.
      * @param:
      *      codec: decoder
      * @return:
      *      VPP_OK: success
      *      VPP_FAIL: fail
      */
-    status_t setBufferInfoFromDecoder(OMXCodec *codec);
+    status_t init(OMXCodec *codec);
 
     /*
-     * callback function for release MediaBuffer
+     * Set VPPWorker::mSeek flag to true, send run signal to VPPThread to
+     * make sure VPPThread is activated, and then wait for VPPThread's ready
+     * signal to reset all input and output buffers.
+     */
+    void seek();
+
+    /*
+     * Check whether there is empty input buffer to put decoder buffer in,
+     * or RenderList is empty. Input buffer, output buffer and RenderList
+     * will also be updated in it.
+     * @return:
+     *     true: need to set data into VPP
+     *     false: NO need to set data into VPP
+     */
+    bool canSetDecoderBufferToVPP();
+
+    /*
+     * Set video decoder buffer to VPPProcesor, this buffer will be inserted
+     * into RenderList, as well as input buffer if there is a room.
+     * @param:
+     *      buff: video decoder buffer
+     * @return:
+     *      VPP_OK: success
+     *      VPP_FAIL: fail
+     */
+    status_t setDecoderBufferToVPP(MediaBuffer *buff);
+
+    /*
+     * Read buffer out from RenderList for rendering
+     * @param:
+     *      buffer: the buffers from Renderlist
+     * @return:
+     *      VPP_OK: success
+     *      VPP_FAIL: fail
+     *      VPP_BUFFER_NOT_READY: no buffer available to render
+     *      ERROR_END_OF_STREAM: got end of stream
+     */
+    virtual status_t read(MediaBuffer **buffer);
+
+    /*
+     * Callback function for release MediaBuffer
      * (This is the virtual function of MediaBufferObserver)
      * @param:
      *      buffer: the buffer is releasing
      */
     virtual void signalBufferReturned(MediaBuffer *buffer);
 
-    /*
-     * get VPP status from VppSettings
-     * @return:
-     *      true: vpp on
-     *      false: vpp off
-     */
-    static bool getVppStatus();
+     /*
+      * indicate video stream has reached to end
+      */
+     void setEOS();
+public:
+    // number of extra input buffer needed by VPP
+    uint32_t mInputBufferNum;
+    // number of output buffer needed by VPP
+    uint32_t mOutputBufferNum;
 
 private:
-    /* intialize all buffers */
-    void initBuffers();
-    /*
-     * completely release buffer
-     * which mean reduce its reference count to ZERO
-     */
-    status_t releaseBuffer(MediaBuffer * buff);
-    /* completely release all buffers */
-    void resetBuffers();
+    // init inputBuffer and outBuffer
+    status_t initBuffers();
+    // completely release all buffers
+    void releaseBuffers();
+    //Set video clip info to VppProcessor
+    status_t updateVideoInfo(VPPVideoInfo* info);
+    // flush buffers and renderlist for seek
+    void flush();
+    // stop thread if needed
+    void quitThread();
+    // return the BufferInfo accordingly to MediaBuffer
+    OMXCodec::BufferInfo *findBufferInfo(MediaBuffer *buff);
+    // cancel MediaBuffer to native window
+    status_t cancelBufferToNativeWindow(MediaBuffer *buff);
+    // dequeue MediaBuffer from native window
+    MediaBuffer * dequeueBufferFromNativeWindow();
+    // get MediaBuffer's time stamp from meta data field
+    int64_t getBufferTimestamp(MediaBuffer * buff);
+    // release useless input buffers as well
+    status_t clearInput();
+    // add output buffer into Renderlist
+    status_t updateRenderList();
+    // debug only
     void printBuffers();
     void printRenderList();
-    /* stop thread if needed then release all buffers */
-    void reset();
-
-    OMXCodec::BufferInfo *findBufferInfo(MediaBuffer *buff);
-    status_t dequeueOutputBuffersFromNativeWindow();
-    status_t cancelBufferToNativeWindow(MediaBuffer *buff);
-    MediaBuffer * dequeueBufferFromNativeWindow();
-
-    int64_t getBufferTimestamp(MediaBuffer * buff);
-
-    status_t addOutputBufferToRenderList(uint32_t pos);
 
 private:
-    // mInputBuffer is used to contain decoder buffer
-    MediaBuffer* mInputBuffer[INPUT_BUFFER_COUNT];
-    // mOutputBuffer is used to contain VPP output buffer
-    MediaBuffer* mOutputBuffer[OUTPUT_BUFFER_COUNT];
-    VPPBufferStatus mOutputBufferStatus[OUTPUT_BUFFER_COUNT];
+    // buffer info for VPP input
+    VPPBufferInfo mInput[MAX_VPP_BUFFER_NUMBER];
+    // buffer info for VPP output
+    VPPBufferInfo mOutput[MAX_VPP_BUFFER_NUMBER];
     // mRenderList is used to render
     List<MediaBuffer *> mRenderList;
+    // input load point
+    uint32_t mInputLoadPoint;
+    // output load to RenderList point
+    uint32_t mOutputLoadPoint;
 
-    uint32_t mInputCount;//input buffer total count
-    uint32_t mOutputCount;//output buffer total count
-
-    uint32_t mInputVppPos;//process pos in input buffers
-    uint32_t mOutputVppPos;//process pos in output buffers
-
-    uint32_t mOutputAddToRenderPos;
-
-    int64_t mLastRenderTime;
+    MediaBuffer* mLastRenderBuffer;
 
     sp<VPPThread> mThread;
     friend class VPPThread;
+    VPPWorker* mWorker;
 
     sp<ANativeWindow> mNativeWindow;
     // mBufferInfos is all buffer Infos allocated by OMXCodec
     Vector<OMXCodec::BufferInfo> * mBufferInfos;
+    bool mThreadRunning;
+    bool mEOS;
+    uint32_t mTotalDecodedCount, mInputCount, mVPPProcCount, mVPPRenderCount;
 };
 
 } /* namespace android */

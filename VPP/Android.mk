@@ -11,7 +11,10 @@ LOCAL_SRC_FILES:= \
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include \
         $(TOP)/frameworks/native/include \
-        $(TOP)/frameworks/native/include/media/openmax
+        $(TOP)/frameworks/native/include/media/openmax \
+        $(TARGET_OUT_HEADERS)/libva
+
+LOCAL_SHARED_LIBRARIES := libva
 
 LOCAL_COPY_HEADERS_TO := libmedia_utils_vpp
 

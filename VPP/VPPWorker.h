@@ -15,26 +15,152 @@
  *
  */
 
-#ifndef __VPP_WORKER_H
-#define __VPP_WORKER_H
+#ifndef VPPWorker_H_
+#define VPPWorker_H_
 
-#include <media/stagefright/MediaBuffer.h>
-#include <utils/Errors.h>
-#include <utils/Vector.h>
+#include <va/va.h>
+#include <va/va_vpp.h>
+#include <va/va_tpi.h>
+
+#define ANDROID_DISPLAY_HANDLE 0x18C34078
+#define MAX_GRAPHIC_BUFFER_NUMBER 64 // TODO: use GFX limitation first
+#include "va/va_android.h"
+#define Display unsigned int
+#include <stdint.h>
+
 #include <android/native_window.h>
 
 namespace android {
 
-class VPPWorker {
-public:
-    VPPWorker();
-    ~VPPWorker();
-//    status_t process(sp<ANativeWindow> &native, MediaBuffer *input, MediaBuffer *output);
-    status_t process(sp<ANativeWindow> &native, MediaBuffer *input, Vector<MediaBuffer *> &output,
-                     uint32_t* outputCount, bool isRestart /* TODO: isRestart only used for prototype */);
+typedef enum _FRC_RATE {
+    FRC_RATE_1X = 1,
+    FRC_RATE_2X,
+    FRC_RATE_2_5X,
+    FRC_RATE_4X
+}FRC_RATE;
+
+enum VPPWorkerStatus {
+    STATUS_OK = 0,
+    STATUS_NOT_SUPPORT,
+    STATUS_ALLOCATION_ERROR,
+    STATUS_ERROR
 };
 
-} /* namespace android */
+struct GraphicBufferConfig {
+    uint32_t colorFormat;
+    uint32_t stride;
+    uint32_t width;
+    uint32_t height;
+    uint32_t buffer[MAX_GRAPHIC_BUFFER_NUMBER];
+};
 
-#endif /* __VPP_WORKER_H */
+class VPPWorker {
 
+    public:
+        VPPWorker(const sp<ANativeWindow> &nativeWindow);
+
+        // Initialize: setupVA()->setupFilters()->setupPipelineCaps()
+        status_t init();
+
+        // Get output buffer number needed for processing
+        uint32_t getProcBufCount();
+
+        // Get output buffer number needed for filling
+        uint32_t getFillBufCount();
+
+        // Set video clip info
+        void setVideoInfo(uint32_t width, uint32_t height, uint32_t fps);
+
+        // Send input and output buffers to VSP to begin processing
+        status_t process(sp<GraphicBuffer> input, Vector< sp<GraphicBuffer> > output, uint32_t outputCount, bool isEOS);
+
+        // Fill output buffers given, it's a blocking call
+        status_t fill(Vector< sp<GraphicBuffer> > outputGraphicBuffer, uint32_t outputCount);
+
+        // Initialize graphic configuration buffer
+        status_t setGraphicBufferConfig(sp<GraphicBuffer> graphicBuffer);
+
+        ~VPPWorker();
+
+    private:
+        // Check if VPP is supported
+        bool isSupport() const;
+
+        // Create VA context
+        status_t setupVA();
+
+        // Destroy VA context
+        status_t terminateVA();
+
+        // config filters on or off based on video info
+        status_t configFilters();
+
+        // Check filter caps and create filter buffers
+        status_t setupFilters();
+
+        // Setup pipeline caps
+        status_t setupPipelineCaps();
+
+        // Map GraphicBuffer to VASurface
+        VASurfaceID mapBuffer(sp<GraphicBuffer> graphicBuffer);
+
+        // Get output buffer needed based on input index
+        uint32_t getOutputBufCount(uint32_t index);
+
+        // Debug only
+        // Dump YUV frame
+        status_t dumpYUVFrameData(VASurfaceID surfaceID);
+        status_t writeNV12(int width, int height, unsigned char *out_buf, int y_pitch, int uv_pitch);
+
+    public:
+        uint32_t mNumForwardReferences;
+        FRC_RATE mFrcRate;
+    private:
+        // Graphic buffer
+        sp<ANativeWindow> mNativeWindow;
+        uint32_t mGraphicBufferNum;
+        struct GraphicBufferConfig mGraphicBufferConfig;
+
+        // video info
+        uint32_t mWidth;
+        uint32_t mHeight;
+        uint32_t mInputFps;
+
+        // VA common variables
+        bool mVAStarted;
+        VAContextID mVAContext;
+        Display * mDisplay;
+        VADisplay mVADisplay;
+        VAConfigID mVAConfig;
+        uint32_t mNumSurfaces;
+        VASurfaceID *mSurfaces;
+        VASurfaceAttributeTPI *mVASurfaceAttrib;
+
+        // Forward References Surfaces
+        VASurfaceID *mForwardReferences;
+        VASurfaceID mPrevInput;
+
+        // VPP Filters Buffers
+        uint32_t mNumFilterBuffers;
+        VABufferID mFilterBuffers[VAProcFilterCount];
+
+        // VPP filter configuration
+        bool mDeblockOn;
+        bool mDenoiseOn;
+        bool mSharpenOn;
+        bool mColorOn;
+        bool mFrcOn;
+        VABufferID mFilterFrc;
+
+        // status
+        uint32_t mInputIndex;
+        uint32_t mOutputIndex;
+
+        // FIXME: not very sure how to check color standard
+        VAProcColorStandardType in_color_standards[VAProcColorStandardCount];
+        VAProcColorStandardType out_color_standards[VAProcColorStandardCount];
+
+};
+
+}
+#endif //VPPWorker_H_
