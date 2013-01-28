@@ -71,10 +71,6 @@ bool VPPThread::threadLoop() {
         Mutex::Autolock autoLock(mLock);
         mResetCond.signal();
         mRunCond.wait(mLock);
-        mInputProcIdx = 0;
-        mInputFillIdx = 0;
-        mOutputProcIdx = 0;
-        mOutputFillIdx = 0;
     }
 
     if (mFlagEnd) {
@@ -128,6 +124,7 @@ bool VPPThread::threadLoop() {
                 mFlagEnd = true;
         }
         else {
+            LOGE("process failed");
             mError = true;
             return false;
         }
@@ -163,6 +160,7 @@ bool VPPThread::threadLoop() {
             mOutputFillIdx = (mOutputFillIdx + fillBufNum) % mVPPProcessor->mOutputBufferNum;
         }
         else {
+            LOGE("fill failed");
             mError = true;
             return false;
         }

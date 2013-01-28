@@ -518,16 +518,22 @@ status_t VPPWorker::process(sp<GraphicBuffer> inputGraphicBuffer,
     VAStatus vaStatus;
     uint32_t i;
 
-    if (outputCount < 1)
-       return STATUS_ERROR; 
+    if (outputCount < 1) {
+       LOGE("invalid outputCount");
+       return STATUS_ERROR;
+    }
     // map GraphicBuffer to VASurface
     input = mapBuffer(inputGraphicBuffer);
-    if (input == VA_INVALID_SURFACE)
+    if (input == VA_INVALID_SURFACE && !isEOS) {
+        LOGE("invalid input buffer");
         return STATUS_ERROR;
+    }
     for (i = 0; i < outputCount; i++) {
         output[i] = mapBuffer(outputGraphicBuffer[i]);
-        if (output[i] == VA_INVALID_SURFACE)
+        if (output[i] == VA_INVALID_SURFACE) {
+            LOGE("invalid output buffer");
             return STATUS_ERROR;
+        }
     }
 
     // reference frames setting
@@ -631,8 +637,10 @@ status_t VPPWorker::fill(Vector< sp<GraphicBuffer> > outputGraphicBuffer, uint32
     // map GraphicBuffer to VASurface
     for (uint32_t i = 0; i < outputCount; i++) {
         output[i] = mapBuffer(outputGraphicBuffer[i]);
-        if (output[i] == VA_INVALID_SURFACE)
+        if (output[i] == VA_INVALID_SURFACE) {
+            LOGE("invalid output buffer");
             return STATUS_ERROR;
+        }
         vaStatus = vaSyncSurface(mVADisplay, output[i]);
         CHECK_VASTATUS("vaSyncSurface");
         //dumpYUVFrameData(output[i]);

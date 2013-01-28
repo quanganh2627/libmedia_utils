@@ -37,7 +37,7 @@ VPPProcessor::VPPProcessor(const sp<ANativeWindow> &native, VPPVideoInfo* pInfo)
          mLastRenderBuffer(NULL),
          mNativeWindow(native),
          mBufferInfos(NULL),
-         mThreadRunning(false), mEOS(false),
+         mThreadRunning(false), mEOS(false), mFirstFrameDone(false),
          mTotalDecodedCount(0), mInputCount(0), mVPPProcCount(0), mVPPRenderCount(0) {
 
     LOGI("construction");
@@ -185,11 +185,11 @@ void VPPProcessor::printRenderList() {
 }
 
 status_t VPPProcessor::read(MediaBuffer **buffer) {
-    printBuffers();
-    printRenderList();
+    //printBuffers();
+    //printRenderList();
     if (mThread->mError)
         return VPP_FAIL;
-    if (mRenderList.empty()) {
+    if (mRenderList.empty() || !mFirstFrameDone) {
         if (!mEOS) {
             // no buffer ready to render
             return VPP_BUFFER_NOT_READY;
@@ -254,7 +254,7 @@ void VPPProcessor::releaseBuffers() {
     LOGV("releaseBuffers");
     for (uint32_t i = 0; i < mInputBufferNum; i++) {
         if (mInput[i].buffer != NULL) {
-            while (mInput[i].buffer->refcount() > 0)
+            if (mInput[i].buffer->refcount() > 0)
                 mInput[i].buffer->release();
             mInput[i].buffer = NULL;
             mInput[i].status = VPP_BUFFER_FREE;
@@ -281,17 +281,19 @@ void VPPProcessor::releaseBuffers() {
 
 void VPPProcessor::flush() {
     // flush all input buffers which are not in PROCESSING state
+    LOGV("flush");
     bool monitorNewLoadPoint = false;
     mInputLoadPoint = 0;
     for (uint32_t i = 0; i < mInputBufferNum; i++) {
         if (mInput[i].status != VPP_BUFFER_PROCESSING) {
             if (mInput[i].status != VPP_BUFFER_FREE) {
-                while (mInput[i].buffer->refcount() > 0)
+                if (mInput[i].buffer->refcount() > 0)
                         mInput[i].buffer->release();
                 mInput[i].buffer = NULL;
                 mInput[i].status = VPP_BUFFER_FREE;
             }
             if (monitorNewLoadPoint) {
+                // find the 1st frame after PROCESSING block
                 mInputLoadPoint = i;
                 monitorNewLoadPoint = false;
             }
@@ -300,10 +302,20 @@ void VPPProcessor::flush() {
             monitorNewLoadPoint = true;
     }
     // flush all output buffers which are not in PROCESSING state
+    monitorNewLoadPoint = true;
     for (uint32_t i = 0; i < mOutputBufferNum; i++) {
-        if (mOutput[i].status != VPP_BUFFER_FREE && mOutput[i].status != VPP_BUFFER_PROCESSING) {
-            if (mOutput[i].buffer->refcount() > 0)
-                mOutput[i].buffer->release();
+        if (mOutput[i].status != VPP_BUFFER_PROCESSING) {
+            if (mOutput[i].status != VPP_BUFFER_FREE) {
+                if (mOutput[i].buffer->refcount() > 0)
+                    mOutput[i].buffer->release();
+            }
+            monitorNewLoadPoint = true;
+        } else {
+            if (monitorNewLoadPoint) {
+                // find the 1st frame in PROCESSING state
+                mOutputLoadPoint = i;
+                monitorNewLoadPoint = false;
+            }
         }
     }
 
@@ -318,7 +330,7 @@ status_t VPPProcessor::clearInput() {
         if (mInput[i].status == VPP_BUFFER_READY) {
             if (mInput[i].buffer !=  mLastRenderBuffer) {
                 // to avoid buffer released before rendering
-                while (mInput[i].buffer->refcount() > 0) {
+                if (mInput[i].buffer != NULL && mInput[i].buffer->refcount() > 0) {
                     mInput[i].buffer->release();
                 }
                 mInput[i].buffer = NULL;
@@ -332,6 +344,7 @@ status_t VPPProcessor::clearInput() {
 status_t VPPProcessor::updateRenderList() {
     LOGV("updateRenderList");
     while (mOutput[mOutputLoadPoint].status == VPP_BUFFER_READY) {
+        mFirstFrameDone = true;
         MediaBuffer* buff = mOutput[mOutputLoadPoint].buffer;
         if (buff == NULL) return VPP_FAIL;
 
@@ -360,6 +373,8 @@ status_t VPPProcessor::updateRenderList() {
         } else if (timeBuffer == timeRenderList) {
             LOGV("2. timeBuffer = %lld, timeRenderList = %lld, going to erase %p, insert %p", timeBuffer, timeRenderList, *it, buff);
             //same timestamp, use vpp output to replace the input
+            MediaBuffer* input = *it;
+            input->release();
             List<MediaBuffer*>::iterator erase = mRenderList.erase(it);
             mRenderList.insert(erase, buff);
             mVPPProcCount ++;
@@ -433,6 +448,8 @@ MediaBuffer * VPPProcessor::dequeueBufferFromNativeWindow() {
     CHECK_EQ((int)info->mStatus, (int)OMXCodec::OWNED_BY_NATIVE_WINDOW);
     info->mStatus = OMXCodec::OWNED_BY_VPP;
     info->mMediaBuffer->setObserver(this);
+    sp<MetaData> metaData = info->mMediaBuffer->meta_data();
+    metaData->setInt32(kKeyRendered, 0);
     return info->mMediaBuffer;
 }
 
