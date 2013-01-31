@@ -15,8 +15,8 @@
  *
  */
 
-#ifndef __VPP_THREAD_H
-#define __VPP_THREAD_H
+#ifndef __VPP_FILL_THREAD_H
+#define __VPP_FILL_THREAD_H
 
 #include <media/stagefright/MetaData.h>
 #include "VPPProcessor.h"
@@ -29,11 +29,11 @@ namespace android {
 
 class VPPProcessor;
 
-class VPPThread : public Thread {
+class VPPFillThread : public Thread {
     public:
 
-        VPPThread(bool canCallJava, VPPProcessor* vppProcessor, VPPWorker* vppWorker);
-        virtual ~VPPThread();
+        VPPFillThread(bool canCallJava, VPPProcessor* vppProcessor, VPPWorker* vppWorker);
+        virtual ~VPPFillThread();
 
         virtual status_t readyToRun();
 
@@ -47,13 +47,12 @@ class VPPThread : public Thread {
 
     public:
         Mutex mLock;
-        // main thread send this condition to VPPThread,
-        // VPPThread wait this condition to run
+        // main thread send this condition to VPPFillThread,
+        // VPPFillThread wait this condition to run
         Condition mRunCond;
-        // VPPThread send this condition to main thread,
+        // VPPFillThread send this condition to main thread,
         // so that main thread is able to reset all buffers.
         Condition mResetCond;
-        bool mSeek;
         bool mWait;
         bool mError;
 
@@ -61,12 +60,10 @@ class VPPThread : public Thread {
         android_thread_id_t mThreadId;
         VPPProcessor *mVPPProcessor;
         VPPWorker *mVPPWorker;
-        uint32_t mInputProcIdx;
+        bool mFirstInputFrame;
         uint32_t mInputFillIdx;
-        uint32_t mOutputProcIdx;
         uint32_t mOutputFillIdx;
-        bool mFlagEnd;
 };
 
 } /* END namespace android */
-#endif /* __VPP_THREAD_H*/
+#endif /* __VPP_FILL_THREAD_H*/

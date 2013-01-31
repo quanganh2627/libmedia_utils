@@ -37,7 +37,7 @@ VPPProcessor::VPPProcessor(const sp<ANativeWindow> &native, VPPVideoInfo* pInfo)
          mLastRenderBuffer(NULL),
          mNativeWindow(native),
          mBufferInfos(NULL),
-         mThreadRunning(false), mEOS(false), mFirstFrameDone(false),
+         mThreadRunning(false), mSeeking(false), mEOS(false), mFirstFrameDone(false),
          mTotalDecodedCount(0), mInputCount(0), mVPPProcCount(0), mVPPRenderCount(0) {
 
     LOGI("construction");
@@ -45,7 +45,8 @@ VPPProcessor::VPPProcessor(const sp<ANativeWindow> &native, VPPVideoInfo* pInfo)
     memset(mOutput, 0, MAX_VPP_BUFFER_NUMBER * sizeof(VPPBufferInfo));
 
     mWorker = new VPPWorker (mNativeWindow);
-    mThread = new VPPThread(false, this, mWorker);
+    mProcThread = new VPPProcThread(false, this, mWorker);
+    mFillThread = new VPPFillThread(false, this, mWorker);
     updateVideoInfo(pInfo);
 }
 
@@ -88,7 +89,7 @@ bool VPPProcessor::isVppOn() {
 
 status_t VPPProcessor::init(OMXCodec *codec) {
     LOGV("init");
-    if (codec == NULL || mWorker == NULL || mThread == NULL)
+    if (codec == NULL || mWorker == NULL || mProcThread == NULL)
         return VPP_FAIL;
 
     // set BufferInfo from decoder
@@ -126,19 +127,24 @@ status_t VPPProcessor::init(OMXCodec *codec) {
         return VPP_FAIL;
 
     // VPPThread starts to run
-    mThread->run("VPPThread", ANDROID_PRIORITY_NORMAL);
+    mProcThread->run("VPPProcThread", ANDROID_PRIORITY_NORMAL);
+    mFillThread->run("VPPFillThread", ANDROID_PRIORITY_NORMAL);
     mThreadRunning = true;
 
     return VPP_OK;
 }
 
 bool VPPProcessor::canSetDecoderBufferToVPP() {
-    // invoke VPPThread as many as possible
+    // invoke VPPProcThread as many as possible
     {
-        Mutex::Autolock autoLock(mThread->mLock);
-        mThread->mRunCond.signal();
+        Mutex::Autolock autoLock(mProcThread->mLock);
+        mProcThread->mRunCond.signal();
     }
 
+    {
+        Mutex::Autolock autoLock(mFillThread->mLock);
+        mFillThread->mRunCond.signal();
+    }
     // put VPP output which still in output array to RenderList
     CHECK(updateRenderList() == VPP_OK);
     // release obsolete input buffers
@@ -187,7 +193,7 @@ void VPPProcessor::printRenderList() {
 status_t VPPProcessor::read(MediaBuffer **buffer) {
     //printBuffers();
     //printRenderList();
-    if (mThread->mError)
+    if (mProcThread->mError || mFillThread->mError)
         return VPP_FAIL;
     if (mRenderList.empty() || !mFirstFrameDone) {
         if (!mEOS) {
@@ -223,30 +229,32 @@ int64_t VPPProcessor::getBufferTimestamp(MediaBuffer * buff) {
 
 void VPPProcessor::seek() {
     LOGV("seek");
+    mSeeking = true;
     /* invoke thread if it is waiting */
     if (mThreadRunning) {
-        Mutex::Autolock autoLock(mThread->mLock);
-        mThread->mSeek = true;
-        mThread->mRunCond.signal();
-        LOGV("VPPProcessor::waiting.........................");
-        mThread->mResetCond.wait(mThread->mLock);
+        mProcThread->mRunCond.signal();
+        mProcThread->mResetCond.wait(mProcThread->mLock);
+        
+        mFillThread->mRunCond.signal();
+        mFillThread->mResetCond.wait(mFillThread->mLock);
     }
-
     flush();
 
-    mThread->mSeek = false;
-    mThread->mRunCond.signal();
+    mSeeking = false;
+    mProcThread->mRunCond.signal();
+    mFillThread->mRunCond.signal();
 }
 
 
 void VPPProcessor::quitThread() {
     LOGV("quitThread");
-    /* invoke thread if it is waiting */
     if(mThreadRunning) {
-        Mutex::Autolock autoLock(mThread->mLock);
-        mThread->mRunCond.signal();
+        mFillThread->mRunCond.signal();
+        mFillThread->requestExitAndWait();
+
+        mProcThread->mRunCond.signal();
+        mProcThread->requestExitAndWait();
     }
-        mThread->requestExitAndWait();
     return;
 }
 

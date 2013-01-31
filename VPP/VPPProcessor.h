@@ -17,7 +17,8 @@
 
 #ifndef __VPP_PROCESSOR_H
 #define __VPP_PROCESSOR_H
-#include "VPPThread.h"
+#include "VPPProcThread.h"
+#include "VPPFillThread.h"
 #include "VPPWorker.h"
 
 #include <stdint.h>
@@ -31,7 +32,8 @@ namespace android {
 struct MediaBuffer;
 struct MediaBufferObserver;
 struct OMXCodec;
-class VPPThread;
+class VPPProcThread;
+class VPPFillThread;
 
 // Input buffer transition:
 // FREE->LOADED->PROCESSING->READY->FREE
@@ -189,14 +191,17 @@ private:
 
     MediaBuffer* mLastRenderBuffer;
 
-    sp<VPPThread> mThread;
-    friend class VPPThread;
+    sp<VPPProcThread> mProcThread;
+    sp<VPPFillThread> mFillThread;
+    friend class VPPProcThread;
+    friend class VPPFillThread;
     VPPWorker* mWorker;
 
     sp<ANativeWindow> mNativeWindow;
     // mBufferInfos is all buffer Infos allocated by OMXCodec
     Vector<OMXCodec::BufferInfo> * mBufferInfos;
     bool mThreadRunning;
+    bool mSeeking;
     bool mEOS;
     bool mFirstFrameDone;
     uint32_t mTotalDecodedCount, mInputCount, mVPPProcCount, mVPPRenderCount;

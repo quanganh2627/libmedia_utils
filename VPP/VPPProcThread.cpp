@@ -16,45 +16,40 @@
  */
 
 //#define LOG_NDEBUG 0
-#define LOG_TAG "VPPThread"
-#include "VPPThread.h"
+#define LOG_TAG "VPPProcThread"
+#include "VPPProcThread.h"
 #include <utils/Log.h>
 
 namespace android {
 
-VPPThread::VPPThread(bool canCallJava, VPPProcessor* vppProcessor, VPPWorker* vppWorker):
+VPPProcThread::VPPProcThread(bool canCallJava, VPPProcessor* vppProcessor, VPPWorker* vppWorker):
     Thread(canCallJava),
-    mSeek(false), mWait(false), mError(false),
+    mWait(false), mError(false),
     mThreadId(NULL),
     mVPPProcessor(vppProcessor),
     mVPPWorker(vppWorker),
-    mInputProcIdx(0), mInputFillIdx(0),
-    mOutputProcIdx(0), mOutputFillIdx(0),
+    mInputProcIdx(0),
+    mOutputProcIdx(0),
     mFlagEnd(false) {
 }
 
-VPPThread::~VPPThread() {
-    LOGV("vppthread is deleted");
+VPPProcThread::~VPPProcThread() {
+    LOGV("VPPProcThread is deleted");
 }
 
-status_t VPPThread::readyToRun() {
+status_t VPPProcThread::readyToRun() {
     mThreadId = androidGetThreadId();
     //do init ops here
     return Thread::readyToRun();
 }
 
-bool VPPThread::threadLoop() {
-    LOGV("threadLoop");
+bool VPPProcThread::threadLoop() {
     uint32_t i = 0;
     int64_t timeUs = 0;
     // output buffer number for processing
     uint32_t procBufNum;
-    // output buffer number for filling
-    uint32_t fillBufNum;
     // output vectors for processing
     Vector< sp<GraphicBuffer> > procBufList;
-    // output vectors for output
-    Vector< sp<GraphicBuffer> > fillBufList;
     sp<GraphicBuffer> inputBuf;
     bool isLastFrame = false;
 
@@ -67,7 +62,7 @@ bool VPPThread::threadLoop() {
 
     // if we are asked to seek, send reset signal to notify caller
     // we are ready to seek, and then wait for seek completion signal
-    if (mSeek) {
+    if (mVPPProcessor->mSeeking) {
         Mutex::Autolock autoLock(mLock);
         mResetCond.signal();
         mRunCond.wait(mLock);
@@ -130,45 +125,10 @@ bool VPPThread::threadLoop() {
         }
     }
 
-    // fill output buffer available
-    fillBufNum = mVPPWorker->getFillBufCount();
-    if (fillBufNum > 0) {
-        // prepare output vectors for filling
-        for (i= 0; i < fillBufNum; i++) {
-            uint32_t fillPos = (mOutputFillIdx + i) % mVPPProcessor->mOutputBufferNum;
-            if (mVPPProcessor->mOutput[fillPos].status != VPP_BUFFER_PROCESSING) {
-                mWait = true;
-                return true;
-            }
-            sp<GraphicBuffer> fillBuf = mVPPProcessor->mOutput[fillPos].buffer->graphicBuffer().get();
-            fillBufList.push_back(fillBuf);
-        }
-        status_t ret = mVPPWorker->fill(fillBufList, fillBufNum);
-        if (ret == STATUS_OK) {
-            mVPPProcessor->mInput[mInputFillIdx].status = VPP_BUFFER_READY;
-            mInputFillIdx = (mInputFillIdx + 1) % mVPPProcessor->mInputBufferNum;
-            for(i = 0; i < fillBufNum; i++) {
-                uint32_t outputVppPos = (mOutputFillIdx + i) % mVPPProcessor->mOutputBufferNum;
-                mVPPProcessor->mOutput[outputVppPos].status = VPP_BUFFER_READY;
-                if (fillBufNum > 1) {
-                    // frc is enabled, output fps is 60, change timeStamp
-                    mVPPProcessor->mOutput[outputVppPos].buffer->meta_data()->findInt64(kKeyTime, &timeUs);
-                    timeUs -= 1000000ll * (fillBufNum - i - 1) / 60;
-                    mVPPProcessor->mOutput[outputVppPos].buffer->meta_data()->setInt64(kKeyTime, timeUs);
-                }
-            }
-            mOutputFillIdx = (mOutputFillIdx + fillBufNum) % mVPPProcessor->mOutputBufferNum;
-        }
-        else {
-            LOGE("fill failed");
-            mError = true;
-            return false;
-        }
-    }
     return true;
 }
 
-bool VPPThread::isCurrentThread() const {
+bool VPPProcThread::isCurrentThread() const {
     return mThreadId == androidGetThreadId();
 }
 

@@ -5,7 +5,8 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
         VPPProcessor.cpp \
-        VPPThread.cpp \
+        VPPProcThread.cpp \
+        VPPFillThread.cpp \
         VPPWorker.cpp \
 
 LOCAL_C_INCLUDES:= \
@@ -20,7 +21,8 @@ LOCAL_COPY_HEADERS_TO := libmedia_utils_vpp
 
 LOCAL_COPY_HEADERS := \
     VPPProcessor.h \
-    VPPThread.h \
+    VPPProcThread.h \
+    VPPFillThread.h \
     VPPWorker.h
 
 LOCAL_CFLAGS += -DTARGET_HAS_VPP
