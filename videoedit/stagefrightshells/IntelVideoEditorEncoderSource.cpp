@@ -247,7 +247,13 @@ int32_t IntelVideoEditorEncoderSource::requestBuffer(MediaBuffer **buffer) {
         }
     }
 
-    err = mGroup->acquire_buffer(buffer);
+    if (mGroup) {
+        err = mGroup->acquire_buffer(buffer);
+    } else {
+        LOGE("Fail to get media buffer group");
+        return UNKNOWN_ERROR;
+    }
+
     LOGV("requestBuffer buffer addr = 0x%p",(uint8_t *)(*buffer)->data());
     if (err != OK) {
         LOGE("Fail to get shared buffers");

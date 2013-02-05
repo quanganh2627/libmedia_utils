@@ -292,8 +292,13 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
 
         *pOutputSize = size;
         *pOutputData = (uint8_t*)malloc(size);
-        memcpy(*pOutputData, data, size);
-        return OK;
+        if (*pOutputData != NULL) {
+            memcpy(*pOutputData, data, size);
+            return OK;
+        } else {
+            ALOGE("malloc failed: no more memory");
+            return NO_MEMORY;
+        }
     }
 
     AVCCodecSpecificContext ctx;
@@ -380,6 +385,10 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
     // ISO 14496-15: AVC file format
     outputSize += 7;  // 7 more bytes in the header
     outputData = (uint8_t *)malloc(outputSize);
+    if (!outputData) {
+        ALOGE("malloc failed: no more memory");
+        return NO_MEMORY;
+    }
     uint8_t *header = outputData;
     header[0] = 1;                     // version
     header[1] = ctx.mProfileIdc;           // profile indication
