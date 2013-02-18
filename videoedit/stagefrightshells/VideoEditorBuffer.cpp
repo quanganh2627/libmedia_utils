@@ -88,6 +88,8 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_allocatePool(VIDEOEDITOR_BUFFER_Pool** ppool,
     if(pool->poolName == M4OSA_NULL)
     {
         lerr = M4ERR_ALLOC;
+        VIDEOEDITOR_SAFE_FREE(pool->pNXPBuffer);
+        pool->pNXPBuffer = M4OSA_NULL;
         goto VIDEOEDITOR_BUFFER_allocatePool_Cleanup;
     }
 
@@ -101,11 +103,10 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_allocatePool(VIDEOEDITOR_BUFFER_Pool** ppool,
     pool->NB = nbBuffers;
 
 VIDEOEDITOR_BUFFER_allocatePool_Cleanup:
-    if(M4NO_ERROR != lerr)
+    if(M4NO_ERROR != lerr && pool)
     {
-        VIDEOEDITOR_SAFE_FREE(pool->pNXPBuffer);
-        VIDEOEDITOR_SAFE_FREE(pool->poolName);
         VIDEOEDITOR_SAFE_FREE(pool);
+        pool = M4OSA_NULL;
     }
     *ppool = pool;
     ALOGV("VIDEOEDITOR_BUFFER_allocatePool END");
@@ -129,6 +130,9 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_freePool_Ext(VIDEOEDITOR_BUFFER_Pool* ppool)
 
     ALOGV("VIDEOEDITOR_BUFFER_freePool_Ext : ppool = 0x%x", ppool);
 
+    if(ppool == M4OSA_NULL)
+       return M4ERR_PARAMETER;
+
     err = M4NO_ERROR;
 
     for (j = 0; j < ppool->NB; j++)
@@ -143,12 +147,9 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_freePool_Ext(VIDEOEDITOR_BUFFER_Pool* ppool)
         }
     }
 
-    if(ppool != M4OSA_NULL)
-    {
-        SAFE_FREE(ppool->pNXPBuffer);
-        SAFE_FREE(ppool->poolName);
-        SAFE_FREE(ppool);
-    }
+    SAFE_FREE(ppool->pNXPBuffer);
+    SAFE_FREE(ppool->poolName);
+    SAFE_FREE(ppool);
 
     return(err);
 }

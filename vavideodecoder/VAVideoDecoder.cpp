@@ -268,6 +268,7 @@ status_t VAVideoDecoder::read(MediaBuffer **out, const ReadOptions *options)  {
             return (*out == NULL)  ? err : (status_t)OK;
         }
 
+        CHECK(mInputBuffer != NULL);
         if (mInputBuffer->range_length() > 0) {
             break;
         }

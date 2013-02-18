@@ -302,6 +302,9 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
     }
 
     AVCCodecSpecificContext ctx;
+    ctx.mProfileIdc = 0;
+    ctx.mProfileCompatible = 0;
+    ctx.mLevelIdc = 0;
     uint8_t *outputData = NULL;
     size_t outputSize = 0;
 

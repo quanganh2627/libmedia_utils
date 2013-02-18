@@ -786,7 +786,8 @@ M4OSA_ERR M4xVSS_internalConvertAndResizeARGB8888toNV12(M4OSA_Void* pFileIn,
         rgbPlane1.pac_data[j] = pTmpData[i];
         j++;
     }
-        free(pTmpData);
+    free(pTmpData);
+    pTmpData = M4OSA_NULL;
 
     /* To Check if resizing is required with color conversion */
     if(width != pImagePlanes->u_width || height != pImagePlanes->u_height)
@@ -798,7 +799,6 @@ M4OSA_ERR M4xVSS_internalConvertAndResizeARGB8888toNV12(M4OSA_Void* pFileIn,
         if(rgbPlane2.pac_data == M4OSA_NULL)
         {
             M4OSA_TRACE1_0("Failed to allocate memory for Image clip");
-            free(pTmpData);
             return M4ERR_ALLOC;
         }
 
