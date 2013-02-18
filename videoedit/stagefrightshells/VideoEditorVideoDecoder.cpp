@@ -1090,7 +1090,8 @@ cleanUp:
         ALOGV("VideoEditorVideoDecoder_create no error");
     } else {
         VideoEditorVideoDecoder_destroy(pDecShellContext);
-        *pContext = M4OSA_NULL;
+        if(pContext)
+           *pContext = M4OSA_NULL;
         ALOGV("VideoEditorVideoDecoder_create ERROR 0x%X", err);
     }
     ALOGV("VideoEditorVideoDecoder_create : DONE");
@@ -1239,7 +1240,8 @@ cleanUp:
         ALOGV("VideoEditorVideoDecoder_create no error");
     } else {
         VideoEditorVideoDecoder_destroy(pDecShellContext);
-        *pContext = M4OSA_NULL;
+        if(pContext)
+           *pContext = M4OSA_NULL;
         ALOGV("VideoEditorVideoDecoder_create ERROR 0x%X", err);
     }
     ALOGV("VideoEditorVideoDecoder_create : DONE");

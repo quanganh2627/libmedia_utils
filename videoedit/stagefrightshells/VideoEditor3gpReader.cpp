@@ -1223,6 +1223,7 @@ static M4OSA_ERR VideoEditor3gpReader_AnalyseAvcDsi(
             pStreamHandler->m_decoderSpecificInfoSize = 0;
             pStreamHandler->m_pDecoderSpecificInfo = M4OSA_NULL;
             VideoEditor3gpReader_BitStreamParserCleanUp(pBitParserContext);
+            pBitParserContext = M4OSA_NULL;
         } else {
             /**
              * SPS table */
@@ -1312,6 +1313,7 @@ static M4OSA_ERR VideoEditor3gpReader_AnalyseAvcDsi(
             /**
              * reset the bit parser */
             VideoEditor3gpReader_BitStreamParserCleanUp(pBitParserContext);
+            pBitParserContext = M4OSA_NULL;
         }
     }
 
@@ -1382,6 +1384,7 @@ static M4OSA_ERR VideoEditor3gpReader_AnalyseAvcDsi(
             }
         }
         VideoEditor3gpReader_BitStreamParserCleanUp(pBitParserContext);
+        pBitParserContext = M4OSA_NULL;
         pStreamHandler->m_decoderSpecificInfoSize = uiSpecInfoSize;
         pStreamHandler->m_pDecoderSpecificInfo = (M4OSA_UInt8*)pAvcSpecInfo;
     }
@@ -1398,7 +1401,10 @@ static M4OSA_ERR VideoEditor3gpReader_AnalyseAvcDsi(
         pStreamHandler->m_H264decoderSpecificInfoSize);
     return M4NO_ERROR;
 cleanup:
-    VideoEditor3gpReader_BitStreamParserCleanUp(pBitParserContext);
+    if (pBitParserContext != M4OSA_NULL) {
+        VideoEditor3gpReader_BitStreamParserCleanUp(pBitParserContext);
+        pBitParserContext = M4OSA_NULL;
+    }
     return M4ERR_READER3GP_DECODER_CONFIG_ERROR;
 }
 /**
@@ -2033,8 +2039,10 @@ cleanUp:
     if( M4NO_ERROR == err ) {
         ALOGV("VideoEditor3gpReader_getInterface no error");
     } else {
-        SAFE_FREE(*pRdrGlobalInterface);
-        SAFE_FREE(*pRdrDataInterface);
+        if(pRdrGlobalInterface)
+           SAFE_FREE(*pRdrGlobalInterface);
+        if(pRdrDataInterface)
+           SAFE_FREE(*pRdrDataInterface);
 
         ALOGV("VideoEditor3gpReader_getInterface ERROR 0x%X", err);
     }

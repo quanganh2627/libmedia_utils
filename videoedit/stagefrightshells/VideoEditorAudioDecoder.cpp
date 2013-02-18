@@ -655,7 +655,8 @@ cleanUp:
         ALOGV("VideoEditorAudioDecoder_create no error");
     } else {
         VideoEditorAudioDecoder_destroy(pDecoderContext);
-        *pContext = M4OSA_NULL;
+        if(pContext)
+           *pContext = M4OSA_NULL;
         ALOGV("VideoEditorAudioDecoder_create ERROR 0x%X", err);
     }
     return err;
@@ -779,7 +780,8 @@ cleanUp:
     if( M4NO_ERROR == err ) {
         ALOGV("VideoEditorAudioDecoder_processOutputBuffer no error");
     } else {
-        pOuputBuffer->m_bufferSize = 0;
+        if(pOuputBuffer)
+           pOuputBuffer->m_bufferSize = 0;
         ALOGV("VideoEditorAudioDecoder_processOutputBuffer ERROR 0x%X", err);
     }
     ALOGV("VideoEditorAudioDecoder_processOutputBuffer end");
@@ -1024,7 +1026,8 @@ cleanUp:
     if( M4NO_ERROR == err ) {
         ALOGV("VideoEditorAudioDecoder_getInterface no error");
     } else {
-        *pDecoderInterface = M4OSA_NULL;
+        if(pDecoderInterface)
+           *pDecoderInterface = M4OSA_NULL;
         ALOGV("VideoEditorAudioDecoder_getInterface ERROR 0x%X", err);
     }
     ALOGV("VideoEditorAudioDecoder_getInterface end");

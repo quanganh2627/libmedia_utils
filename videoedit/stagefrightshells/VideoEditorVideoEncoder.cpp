@@ -481,7 +481,8 @@ cleanUp:
         ALOGV("VideoEditorVideoEncoder_init no error");
     } else {
         VideoEditorVideoEncoder_cleanup(pEncoderContext);
-        *pContext = M4OSA_NULL;
+        if (pContext)
+            *pContext = M4OSA_NULL;
         ALOGV("VideoEditorVideoEncoder_init ERROR 0x%X", err);
     }
     ALOGV("VideoEditorVideoEncoder_init end");
@@ -1229,7 +1230,8 @@ cleanUp:
     if( M4NO_ERROR == err ) {
         ALOGV("VideoEditorVideoEncoder_getInterface no error");
     } else {
-        *pEncoderInterface = M4OSA_NULL;
+        if(pEncoderInterface)
+           *pEncoderInterface = M4OSA_NULL;
         ALOGV("VideoEditorVideoEncoder_getInterface ERROR 0x%X", err);
     }
     return err;

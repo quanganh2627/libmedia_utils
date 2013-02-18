@@ -791,8 +791,10 @@ cleanUp:
     }
     else
     {
-        SAFE_FREE(*pRdrGlobalInterface);
-        SAFE_FREE(*pRdrDataInterface);
+        if(pRdrGlobalInterface)
+           SAFE_FREE(*pRdrGlobalInterface);
+        if(pRdrDataInterface)
+           SAFE_FREE(*pRdrDataInterface);
 
         ALOGV("VideoEditorMp3Reader_getInterface ERROR 0x%X", err);
     }
