@@ -120,7 +120,7 @@ status_t IntelVideoEditorAVCEncoder::initCheck(const sp<MetaData>& meta) {
     encStatus = mVAEncoder->getParameters(&mEncParamsCommon);
     CHECK(encStatus == ENCODE_SUCCESS);
     LOGV("got encoder params");
-
+    mEncParamsCommon.profile = VAProfileH264Baseline;
     mEncParamsCommon.resolution.width = mVideoWidth;
     mEncParamsCommon.resolution.height= mVideoHeight;
     mEncParamsCommon.frameRate.frameRateNum = mVideoFrameRate;
