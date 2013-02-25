@@ -359,18 +359,22 @@ status_t AsfExtractor::initialize() {
         // Find simple index object for time seeking.
         // object header include 16 bytes of object GUID and 8 bytes of object size.
         uint8_t objectHeader[24];
-        int64_t objectSize;
+        uint64_t objectSize;
         for (;;) {
             if (mDataSource->readAt(offset, objectHeader, 24) != 24) {
                 break;
             }
 
-            objectSize = *(int64_t *)(objectHeader + 16);
+            objectSize = *(uint64_t *)(objectHeader + 16);
             if (!AsfStreamParser::isSimpleIndexObject(objectHeader)) {
                 offset += objectSize;
                 if (objectSize == 0) {
                     ALOGW("WARN: The file's objectSize is zero,ingore this header.");
                     offset += 24;
+                }
+                if (offset >= fileMediaInfo->fileSize) {
+                    ALOGW("WARN: the file's simple index objectSize is illegal,break");
+                    break;
                 }
                 continue;
             }
