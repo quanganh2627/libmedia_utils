@@ -489,7 +489,7 @@ status_t VPPWorker::setupPipelineCaps() {
     pipelineCaps.input_color_standards = in_color_standards;
     pipelineCaps.num_input_color_standards = VAProcColorStandardCount;
     pipelineCaps.output_color_standards = out_color_standards;
-    pipelineCaps.num_input_color_standards = VAProcColorStandardCount;
+    pipelineCaps.num_output_color_standards = VAProcColorStandardCount;
 
     vaStatus = vaQueryVideoProcPipelineCaps(mVADisplay, mVAContext,
         mFilterBuffers, mNumFilterBuffers,
