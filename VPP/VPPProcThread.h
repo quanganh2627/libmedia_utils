@@ -50,9 +50,6 @@ class VPPProcThread : public Thread {
         // main thread send this condition to VPPProcThread,
         // VPPProcThread wait this condition to run
         Condition mRunCond;
-        // VPPProcThread send this condition to main thread,
-        // so that main thread is able to reset all buffers.
-        Condition mResetCond;
         bool mWait;
         bool mError;
 

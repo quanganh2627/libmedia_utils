@@ -201,7 +201,6 @@ private:
     // mBufferInfos is all buffer Infos allocated by OMXCodec
     Vector<OMXCodec::BufferInfo> * mBufferInfos;
     bool mThreadRunning;
-    bool mSeeking;
     bool mEOS;
     bool mFirstFrameDone;
     uint32_t mTotalDecodedCount, mInputCount, mVPPProcCount, mVPPRenderCount;

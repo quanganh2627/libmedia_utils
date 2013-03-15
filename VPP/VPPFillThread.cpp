@@ -58,23 +58,22 @@ bool VPPFillThread::threadLoop() {
         mRunCond.wait(mLock);
     }
 
-    // if we are asked to seek, send reset signal to notify caller
-    // we are ready to seek, and then wait for seek completion signal
-    if (mVPPProcessor->mSeeking) {
-        Mutex::Autolock autoLock(mLock);
-        mResetCond.signal();
-        mRunCond.wait(mLock);
-    }
-
     // fill output buffer available
     fillBufNum = mVPPWorker->getFillBufCount();
     if (fillBufNum > 0) {
+    Mutex::Autolock autoLock(mLock);
         // prepare output vectors for filling
         for (i= 0; i < fillBufNum; i++) {
             uint32_t fillPos = (mOutputFillIdx + i) % mVPPProcessor->mOutputBufferNum;
             if (mVPPProcessor->mOutput[fillPos].status != VPP_BUFFER_PROCESSING) {
-                mWait = true;
-                return true;
+                if (mVPPProcessor->mOutput[mOutputFillIdx].status == VPP_BUFFER_PROCESSING && mVPPProcessor->mEOS) {
+                    // END FLAG
+                    LOGV("last frame");
+                    fillBufNum = 1;
+                } else {
+                    mWait = true;
+                    return true;
+                }
             }
             sp<GraphicBuffer> fillBuf = mVPPProcessor->mOutput[fillPos].buffer->graphicBuffer().get();
             fillBufList.push_back(fillBuf);

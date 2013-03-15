@@ -50,9 +50,6 @@ class VPPFillThread : public Thread {
         // main thread send this condition to VPPFillThread,
         // VPPFillThread wait this condition to run
         Condition mRunCond;
-        // VPPFillThread send this condition to main thread,
-        // so that main thread is able to reset all buffers.
-        Condition mResetCond;
         bool mWait;
         bool mError;
 

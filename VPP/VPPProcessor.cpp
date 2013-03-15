@@ -37,7 +37,7 @@ VPPProcessor::VPPProcessor(const sp<ANativeWindow> &native, VPPVideoInfo* pInfo)
          mLastRenderBuffer(NULL),
          mNativeWindow(native),
          mBufferInfos(NULL),
-         mThreadRunning(false), mSeeking(false), mEOS(false), mFirstFrameDone(false),
+         mThreadRunning(false), mEOS(false), mFirstFrameDone(false),
          mTotalDecodedCount(0), mInputCount(0), mVPPProcCount(0), mVPPRenderCount(0) {
 
     LOGI("construction");
@@ -136,15 +136,8 @@ status_t VPPProcessor::init(OMXCodec *codec) {
 
 bool VPPProcessor::canSetDecoderBufferToVPP() {
     // invoke VPPProcThread as many as possible
-    {
-        Mutex::Autolock autoLock(mProcThread->mLock);
-        mProcThread->mRunCond.signal();
-    }
-
-    {
-        Mutex::Autolock autoLock(mFillThread->mLock);
-        mFillThread->mRunCond.signal();
-    }
+    mProcThread->mRunCond.signal();
+    mFillThread->mRunCond.signal();
     // put VPP output which still in output array to RenderList
     CHECK(updateRenderList() == VPP_OK);
     // release obsolete input buffers
@@ -191,8 +184,8 @@ void VPPProcessor::printRenderList() {
 }
 
 status_t VPPProcessor::read(MediaBuffer **buffer) {
-    //printBuffers();
-    //printRenderList();
+    printBuffers();
+    printRenderList();
     if (mProcThread->mError || mFillThread->mError)
         return VPP_FAIL;
     if (mRenderList.empty() || !mFirstFrameDone) {
@@ -229,20 +222,12 @@ int64_t VPPProcessor::getBufferTimestamp(MediaBuffer * buff) {
 
 void VPPProcessor::seek() {
     LOGV("seek");
-    mSeeking = true;
     /* invoke thread if it is waiting */
     if (mThreadRunning) {
-        mProcThread->mRunCond.signal();
-        mProcThread->mResetCond.wait(mProcThread->mLock);
-        
-        mFillThread->mRunCond.signal();
-        mFillThread->mResetCond.wait(mFillThread->mLock);
+        Mutex::Autolock procLock(mProcThread->mLock);
+        Mutex::Autolock fillLock(mFillThread->mLock);
+        flush();
     }
-    flush();
-
-    mSeeking = false;
-    mProcThread->mRunCond.signal();
-    mFillThread->mRunCond.signal();
 }
 
 
@@ -284,6 +269,13 @@ void VPPProcessor::releaseBuffers() {
     mInputLoadPoint = 0;
     mOutputLoadPoint = 0;
 
+    List<MediaBuffer*>::iterator it;
+    for (it = mRenderList.begin(); it != mRenderList.end(); it++) {
+        if (*it == NULL) break;
+        MediaBuffer* renderBuffer = *it;
+        if (renderBuffer->refcount() > 0)
+            renderBuffer->release();
+    }
     mRenderList.clear();
 }
 
@@ -327,6 +319,13 @@ void VPPProcessor::flush() {
         }
     }
 
+    List<MediaBuffer*>::iterator it;
+    for (it = mRenderList.begin(); it != mRenderList.end(); it++) {
+        if (*it == NULL) break;
+        MediaBuffer* renderBuffer = *it;
+        if (renderBuffer->refcount() > 0)
+            renderBuffer->release();
+    }
     mRenderList.clear();
     printBuffers();
     printRenderList();
@@ -336,14 +335,11 @@ status_t VPPProcessor::clearInput() {
     // release useless input buffer
     for (uint32_t i = 0; i < mInputBufferNum; i++) {
         if (mInput[i].status == VPP_BUFFER_READY) {
-            if (mInput[i].buffer !=  mLastRenderBuffer) {
-                // to avoid buffer released before rendering
-                if (mInput[i].buffer != NULL && mInput[i].buffer->refcount() > 0) {
-                    mInput[i].buffer->release();
-                }
-                mInput[i].buffer = NULL;
-                mInput[i].status = VPP_BUFFER_FREE;
+            if (mInput[i].buffer != NULL && mInput[i].buffer->refcount() > 0) {
+                mInput[i].buffer->release();
             }
+            mInput[i].buffer = NULL;
+            mInput[i].status = VPP_BUFFER_FREE;
         }
     }
     return VPP_OK;

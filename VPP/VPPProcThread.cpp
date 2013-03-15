@@ -60,14 +60,6 @@ bool VPPProcThread::threadLoop() {
         mRunCond.wait(mLock);
     }
 
-    // if we are asked to seek, send reset signal to notify caller
-    // we are ready to seek, and then wait for seek completion signal
-    if (mVPPProcessor->mSeeking) {
-        Mutex::Autolock autoLock(mLock);
-        mResetCond.signal();
-        mRunCond.wait(mLock);
-    }
-
     if (mFlagEnd) {
         // FlagEnd has been submitted, no need to continue processing
     } else if (mVPPProcessor->mInput[mInputProcIdx].status != VPP_BUFFER_LOADED && !mVPPProcessor->mEOS) {
@@ -75,6 +67,7 @@ bool VPPProcThread::threadLoop() {
         mWait = true;
         return true;
     } else {
+        Mutex::Autolock autoLock(mLock);
         mWait = false;
         if (mVPPProcessor->mInput[mInputProcIdx].status != VPP_BUFFER_LOADED && mVPPProcessor->mEOS) {
             // It's the time to send END FLAG
