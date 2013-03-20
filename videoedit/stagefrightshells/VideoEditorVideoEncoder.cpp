@@ -759,8 +759,14 @@ M4OSA_ERR VideoEditorVideoEncoder_processInputBuffer(
     if ( M4OSA_FALSE == bReachedEOS ) {
         M4OSA_UInt32 sizeY = pEncoderContext->mCodecParams->FrameWidth *
             pEncoderContext->mCodecParams->FrameHeight;
-        M4OSA_UInt32 sizeU = sizeY >> 2;
-        M4OSA_UInt32 size  = sizeY + 2*sizeU;
+        M4OSA_UInt32 strideAligned = pEncoderContext->mCodecParams->FrameWidth;
+#ifdef RUN_IN_MERRIFIELD
+        if (strideAligned & 0x3f) {
+            //on Merr, stride must be 64 aligned.
+            strideAligned = (pEncoderContext->mCodecParams->FrameWidth + 0x3f) & ~0x3f;
+            sizeY = strideAligned * pEncoderContext->mCodecParams->FrameHeight;
+        }
+#endif
         M4OSA_UInt8* pData = M4OSA_NULL;
         pEncoderContext->mEncoderSource->requestBuffer(&buffer);
         pData = (M4OSA_UInt8*)buffer->data() + buffer->range_offset();
@@ -769,7 +775,7 @@ M4OSA_ERR VideoEditorVideoEncoder_processInputBuffer(
         pOutPlane[0].u_width   = pEncoderContext->mCodecParams->FrameWidth;
         pOutPlane[0].u_height  = pEncoderContext->mCodecParams->FrameHeight;
         pOutPlane[0].u_topleft = 0;
-        pOutPlane[0].u_stride  = pOutPlane[0].u_width;
+        pOutPlane[0].u_stride  = strideAligned;
         pOutPlane[1].u_width   = pOutPlane[0].u_width;
         pOutPlane[1].u_height  = pOutPlane[0].u_height/2;
         pOutPlane[1].u_topleft = 0;

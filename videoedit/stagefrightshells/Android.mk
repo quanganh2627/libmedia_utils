@@ -64,6 +64,10 @@ LOCAL_SHARED_LIBRARIES :=     \
 
 LOCAL_CFLAGS += -DVIDEOEDITOR_INTEL_NV12_VERSION
 
+# Add specific code for Merrifield
+ifeq ($(TARGET_BOARD_PLATFORM),merrifield)
+LOCAL_CFLAGS += -DRUN_IN_MERRIFIELD
+endif
 LOCAL_STATIC_LIBRARIES := \
     libstagefright_color_conversion
 

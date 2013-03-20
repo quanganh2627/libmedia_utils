@@ -387,6 +387,12 @@ status_t IntelVideoEditorH263Encoder::getSharedBuffers() {
         paramsUsrptrBuffer.format = STRING_TO_FOURCC("NV12");
         paramsUsrptrBuffer.width = mVideoWidth;
         paramsUsrptrBuffer.height = mVideoHeight;
+#ifdef RUN_IN_MERRIFIELD
+        if (mVideoWidth & 0x3f) {
+            paramsUsrptrBuffer.width = (mVideoWidth + 0x3f) & ~0x3f;
+            paramsUsrptrBuffer.expectedSize = paramsUsrptrBuffer.width * paramsUsrptrBuffer.height * 1.5;
+        }
+#endif
         LOGV("Share buffer request=");
         encRet = mVAEncoder->getParameters(&paramsUsrptrBuffer);
         if (encRet != ENCODE_SUCCESS  ) {
