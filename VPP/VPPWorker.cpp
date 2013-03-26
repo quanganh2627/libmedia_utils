@@ -14,6 +14,7 @@
  * limitations under the License.
  *
  */
+#include <cutils/properties.h>
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "VPPWorker"
@@ -34,7 +35,12 @@ enum STRENGTH {
 
 #define DENOISE_DEBLOCK_STRENGTH STRENGTH_MEDIUM
 #define COLOR_STRENGTH STRENGTH_MEDIUM
+#ifdef TARGET_VPP_USE_GEN
+#define COLOR_NUM 1
+#else
 #define COLOR_NUM 2
+#endif
+
 #define MAX_FRC_OUTPUT 4 /*for frcx4*/
 
 #define QVGA_AREA (320 * 240)
@@ -234,10 +240,19 @@ status_t VPPWorker::setupVA() {
     for (uint32_t i = 0; i < mNumSurfaces; i++) {
         mVASurfaceAttrib->buffers[i] = (uint32_t)mGraphicBufferConfig.buffer[i];
     }
+
+    int width, height;
+#ifdef TARGET_VPP_USE_GEN
+    width = mWidth;
+    height = mHeight;
+#else
+    width = mVASurfaceAttrib->width;
+    height = mVASurfaceAttrib->height;
+#endif
     vaStatus = vaCreateSurfacesWithAttribute(
         mVADisplay,
-        mVASurfaceAttrib->width,
-        mVASurfaceAttrib->height,
+        width,
+        height,
         VA_RT_FORMAT_YUV420,
         mNumSurfaces,
         mSurfaces,
@@ -295,10 +310,20 @@ status_t VPPWorker::terminateVA() {
 }
 
 status_t VPPWorker::configFilters() {
+    uint32_t area = mWidth * mHeight;
+
+#ifdef TARGET_VPP_USE_GEN
+    if (area <= VGA_AREA) {
+        mDenoiseOn = true;
+    }
+    mColorOn = true;
+
+    return STATUS_OK;
+#endif
+
     // <QCIF or >1080P
     if (mHeight < 144 || mHeight > 1080)
         return STATUS_NOT_SUPPORT;
-    uint32_t area = mWidth * mHeight;
 
     // QCIF to QVGA
     if (area <= QVGA_AREA) {
@@ -329,6 +354,7 @@ status_t VPPWorker::configFilters() {
         mFrcOn = true;
         mFrcRate = FRC_RATE_2X;
     }
+
     LOGV("mDeblockOn=%d, mDenoiseOn=%d, mSharpenOn=%d, mColorOn=%d, mFrcOn=%d, mFrcRate=%d",
           mDeblockOn, mDenoiseOn, mSharpenOn, mColorOn, mFrcOn, mFrcRate);
     return STATUS_OK;
@@ -343,7 +369,7 @@ status_t VPPWorker::setupFilters() {
     VAProcFilterCap deblockCaps, denoiseCaps, sharpenCaps, frcCaps;
     VAProcFilterCapColorBalance colorCaps[COLOR_NUM];
     VAStatus vaStatus;
-    uint32_t numSupportedFilters;
+    uint32_t numSupportedFilters = VAProcFilterCount;
     VAProcFilterType supportedFilters[VAProcFilterCount];
 
     // query supported filters
@@ -384,7 +410,17 @@ status_t VPPWorker::setupFilters() {
                     CHECK_VASTATUS("vaQueryVideoProcFilterCaps for denoising");
                     // create parameter buffer
                     denoise.type = VAProcFilterNoiseReduction;
+#ifdef TARGET_VPP_USE_GEN
+                    char propValueString[32];
+
+                    // placeholder for vpg driver: can't support denoise factor auto adjust, so leave config to user.
+                    property_get("vpp.filter.denoise.factor", propValueString, "32.0");
+                    denoise.value = atof(propValueString);
+                    denoise.value = (denoise.value < 0.0f) ? 0.0f : denoise.value;
+                    denoise.value = (denoise.value > 64.0f) ? 64.0f : denoise.value;
+#else
                     denoise.value = denoiseCaps.range.min_value + DENOISE_DEBLOCK_STRENGTH * denoiseCaps.range.step;
+#endif
                     vaStatus = vaCreateBuffer(mVADisplay, mVAContext,
                         VAProcFilterParameterBufferType, sizeof(denoise), 1,
                         &denoise, &denoiseId);
@@ -435,9 +471,23 @@ status_t VPPWorker::setupFilters() {
                         else if (colorCaps[i].type == VAProcColorBalanceAutoBrightness) {
                             color[i].type = VAProcFilterColorBalance;
                             color[i].attrib = VAProcColorBalanceAutoBrightness;
-                            color[i].value = colorCaps[i].range.min_value + COLOR_STRENGTH * colorCaps[i].range.step;;
+                            color[i].value = colorCaps[i].range.min_value + COLOR_STRENGTH * colorCaps[i].range.step;
                             featureCount++;
                         }
+#ifdef TARGET_VPP_USE_GEN
+                        else if (colorCaps[i].type == VAProcColorBalanceHue) {
+                            char propValueString[32];
+                            color[i].type = VAProcFilterColorBalance;
+                            color[i].attrib = VAProcColorBalanceHue;
+
+                            // placeholder for vpg driver: can't support auto color balance, so leave config to user.
+                            property_get("vpp.filter.colorbalance.hue", propValueString, "0.0");
+                            color[i].value = atof(propValueString);
+                            color[i].value = (color[i].value < -180.0f) ? -180.0f : color[i].value;
+                            color[i].value = (color[i].value > 180.0f) ? 180.0f : color[i].value;
+                            featureCount++;
+                        }
+#endif
                     }
                     vaStatus = vaCreateBuffer(mVADisplay, mVAContext,
                         VAProcFilterParameterBufferType, sizeof(*color), featureCount,
@@ -578,11 +628,17 @@ status_t VPPWorker::process(sp<GraphicBuffer> inputGraphicBuffer,
     }
 
     // pipeline parameter setting
-    /*VARectangle output_region;
-    output_region.x = 0;
-    output_region.y = 0;
-    output_region.width = mWidth;
-    output_region.height = mHeight;*/
+    VARectangle dst_region;
+    dst_region.x = 0;
+    dst_region.y = 0;
+    dst_region.width = mWidth;
+    dst_region.height = mHeight;
+
+    VARectangle src_region;
+    src_region.x = 0;
+    src_region.y = 0;
+    src_region.width = mWidth;
+    src_region.height = mHeight;
 
     if (isEOS) {
         pipeline->surface = 0;
@@ -592,8 +648,19 @@ status_t VPPWorker::process(sp<GraphicBuffer> inputGraphicBuffer,
         pipeline->surface = input;
         pipeline->pipeline_flags = 0;
     }
+#ifdef TARGET_VPP_USE_GEN
+    pipeline->surface_region = &src_region;
+    pipeline->output_region = &dst_region;
+    pipeline->surface_color_standard = VAProcColorStandardBT601;
+    pipeline->output_color_standard = VAProcColorStandardBT601;
+    pipeline->output_background_color = 0xff108080;
+#else
     pipeline->surface_region = NULL;
     pipeline->output_region = NULL;//&output_region;
+    pipeline->surface_color_standard = VAProcColorStandardNone;
+    pipeline->output_color_standard = VAProcColorStandardNone;
+    pipeline->output_background_color = 0;
+#endif
     /* FIXME: set more meaningful background color */
     pipeline->output_background_color = 0;
     pipeline->filter_flags = 0;//VA_FILTER_SCALING_HQ;
@@ -603,8 +670,6 @@ status_t VPPWorker::process(sp<GraphicBuffer> inputGraphicBuffer,
     pipeline->num_forward_references = mNumForwardReferences;
     pipeline->backward_references = NULL;
     pipeline->num_backward_references = 0;
-    pipeline->surface_color_standard = VAProcColorStandardNone;
-    pipeline->output_color_standard = VAProcColorStandardNone;
 
     if (mFrcOn) {
         vaStatus = vaUnmapBuffer(mVADisplay, mFilterFrc);
