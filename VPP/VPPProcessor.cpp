@@ -156,6 +156,10 @@ status_t VPPProcessor::setDecoderBufferToVPP(MediaBuffer *buff) {
         // put buff in inputBuffers when there is empty buffer
         if (mInput[mInputLoadPoint].status == VPP_BUFFER_FREE) {
             buff->add_ref();
+
+            OMXCodec::BufferInfo *info = findBufferInfo(buff);
+            if (info == NULL) return VPP_FAIL;
+            mInput[mInputLoadPoint].flags = info->mFlags;
             mInput[mInputLoadPoint].status = VPP_BUFFER_LOADED;
             mInput[mInputLoadPoint].buffer = buff;
             mInputLoadPoint = (mInputLoadPoint + 1) % mInputBufferNum;

@@ -44,7 +44,7 @@ status_t VPPProcThread::readyToRun() {
 }
 
 bool VPPProcThread::threadLoop() {
-    uint32_t i = 0;
+    uint32_t i = 0, flags = 0;
     int64_t timeUs = 0;
     // output buffer number for processing
     uint32_t procBufNum;
@@ -76,6 +76,7 @@ bool VPPProcThread::threadLoop() {
         }
         if (!isLastFrame) {
             MediaBuffer* inputMediaBuffer = mVPPProcessor->mInput[mInputProcIdx].buffer;
+            flags = mVPPProcessor->mInput[mInputProcIdx].flags;
             procBufNum = mVPPWorker->getProcBufCount();
             inputBuf = inputMediaBuffer->graphicBuffer().get();
             // get input buffer timestamp
@@ -96,7 +97,7 @@ bool VPPProcThread::threadLoop() {
         }
 
         // submit input and output pairs into VSP for process
-        status_t ret = mVPPWorker->process(inputBuf, procBufList, procBufNum, isLastFrame);
+        status_t ret = mVPPWorker->process(inputBuf, procBufList, procBufNum, isLastFrame, flags);
         if (ret == STATUS_OK) {
             mVPPProcessor->mInput[mInputProcIdx].status = VPP_BUFFER_PROCESSING;
             mInputProcIdx = (mInputProcIdx + 1) % mVPPProcessor->mInputBufferNum;

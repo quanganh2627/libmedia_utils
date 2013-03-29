@@ -72,7 +72,7 @@ class VPPWorker {
         void setVideoInfo(uint32_t width, uint32_t height, uint32_t fps);
 
         // Send input and output buffers to VSP to begin processing
-        status_t process(sp<GraphicBuffer> input, Vector< sp<GraphicBuffer> > output, uint32_t outputCount, bool isEOS);
+        status_t process(sp<GraphicBuffer> input, Vector< sp<GraphicBuffer> > output, uint32_t outputCount, bool isEOS, uint32_t flags);
 
         // Fill output buffers given, it's a blocking call
         status_t fill(Vector< sp<GraphicBuffer> > outputGraphicBuffer, uint32_t outputCount);
@@ -147,6 +147,7 @@ class VPPWorker {
         // VPP filter configuration
         bool mDeblockOn;
         bool mDenoiseOn;
+        bool mDeinterlacingOn;
         bool mSharpenOn;
         bool mColorOn;
         bool mFrcOn;

@@ -15,6 +15,7 @@
  *
  */
 #include <cutils/properties.h>
+#include <OMX_Core.h>
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "VPPWorker"
@@ -46,6 +47,8 @@ enum STRENGTH {
 #define QVGA_AREA (320 * 240)
 #define VGA_AREA (640 * 480)
 #define HD1080P_AREA (1920 * 1080)
+//in khronos/openmax/OMX_Core.h
+#define OMX_BUFFERFLAG_FIELD 0x00010000
 
 namespace android {
 
@@ -58,7 +61,8 @@ VPPWorker::VPPWorker(const sp<ANativeWindow> &nativeWindow)
         mNumSurfaces(0), mSurfaces(NULL), mVASurfaceAttrib(NULL),
         mNumForwardReferences(3), mForwardReferences(NULL), mPrevInput(0),
         mNumFilterBuffers(0),
-        mDeblockOn(false), mDenoiseOn(false), mSharpenOn(false), mColorOn(false),
+        mDeblockOn(false), mDenoiseOn(false), mDeinterlacingOn(false),
+        mSharpenOn(false), mColorOn(false),
         mFrcOn(false), mFrcRate(FRC_RATE_1X),
         mInputIndex(0), mOutputIndex(0) {
     memset(&mFilterBuffers, 0, VAProcFilterCount * sizeof(VABufferID));
@@ -317,6 +321,7 @@ status_t VPPWorker::configFilters() {
         mDenoiseOn = true;
     }
     mColorOn = true;
+    mDeinterlacingOn = true;
 
     return STATUS_OK;
 #endif
@@ -362,11 +367,13 @@ status_t VPPWorker::configFilters() {
 
 status_t VPPWorker::setupFilters() {
     VAProcFilterParameterBuffer deblock, denoise, sharpen;
+    VAProcFilterParameterBufferDeinterlacing deint;
     VAProcFilterParameterBufferColorBalance color[COLOR_NUM];
     VAProcFilterParameterBufferFrameRateConversion frc;
-    VABufferID deblockId, denoiseId, sharpenId, colorId, frcId;
+    VABufferID deblockId, denoiseId, deintId, sharpenId, colorId, frcId;
     uint32_t numCaps;
     VAProcFilterCap deblockCaps, denoiseCaps, sharpenCaps, frcCaps;
+    VAProcFilterCapDeinterlacing deinterlacingCaps[VAProcDeinterlacingCount];
     VAProcFilterCapColorBalance colorCaps[COLOR_NUM];
     VAStatus vaStatus;
     uint32_t numSupportedFilters = VAProcFilterCount;
@@ -427,6 +434,33 @@ status_t VPPWorker::setupFilters() {
                     CHECK_VASTATUS("vaCreateBuffer for denoising");
                     mFilterBuffers[mNumFilterBuffers] = denoiseId;
                     mNumFilterBuffers++;
+                }
+                break;
+            case VAProcFilterDeinterlacing:
+                if (mDeinterlacingOn) {
+                    numCaps = VAProcDeinterlacingCount;
+                    vaStatus = vaQueryVideoProcFilterCaps(mVADisplay, mVAContext,
+                            VAProcFilterDeinterlacing,
+                            &deinterlacingCaps[0],
+                            &numCaps);
+                    CHECK_VASTATUS("vaQueryVideoProcFilterCaps for deinterlacing");
+                    for (int i = 0; i < numCaps; i++)
+                    {
+                        VAProcFilterCapDeinterlacing * const cap = &deinterlacingCaps[i];
+                        if (cap->type != VAProcDeinterlacingBob) // desired Deinterlacing Type
+                            continue;
+
+                        deint.type = VAProcFilterDeinterlacing;
+                        deint.algorithm = VAProcDeinterlacingBob;
+                        vaStatus = vaCreateBuffer(mVADisplay,
+                                mVAContext,
+                                VAProcFilterParameterBufferType,
+                                sizeof(deint), 1,
+                                &deint, &deintId);
+                        CHECK_VASTATUS("vaCreateBuffer for deinterlacing");
+                        mFilterBuffers[mNumFilterBuffers] = deintId;
+                        mNumFilterBuffers++;
+                    }
                 }
                 break;
             case VAProcFilterSharpening:
@@ -558,7 +592,7 @@ status_t VPPWorker::setupPipelineCaps() {
 
 status_t VPPWorker::process(sp<GraphicBuffer> inputGraphicBuffer,
                              Vector< sp<GraphicBuffer> > outputGraphicBuffer,
-                             uint32_t outputCount, bool isEOS) {
+                             uint32_t outputCount, bool isEOS, uint32_t flags) {
     LOGV("process: outputCount=%d, mInputIndex=%d", outputCount, mInputIndex);
     VASurfaceID input;
     VASurfaceID output[MAX_FRC_OUTPUT];
@@ -653,23 +687,27 @@ status_t VPPWorker::process(sp<GraphicBuffer> inputGraphicBuffer,
     pipeline->output_region = &dst_region;
     pipeline->surface_color_standard = VAProcColorStandardBT601;
     pipeline->output_color_standard = VAProcColorStandardBT601;
-    pipeline->output_background_color = 0xff108080;
 #else
     pipeline->surface_region = NULL;
     pipeline->output_region = NULL;//&output_region;
     pipeline->surface_color_standard = VAProcColorStandardNone;
     pipeline->output_color_standard = VAProcColorStandardNone;
-    pipeline->output_background_color = 0;
 #endif
     /* FIXME: set more meaningful background color */
     pipeline->output_background_color = 0;
-    pipeline->filter_flags = 0;//VA_FILTER_SCALING_HQ;
     pipeline->filters = mFilterBuffers;
     pipeline->num_filters = mNumFilterBuffers;
     pipeline->forward_references = mForwardReferences;
     pipeline->num_forward_references = mNumForwardReferences;
     pipeline->backward_references = NULL;
     pipeline->num_backward_references = 0;
+
+    //currently, we only transfer TOP field to frame, no frame rate change.
+    if (flags & OMX_BUFFERFLAG_FIELD) {
+        pipeline->filter_flags = VA_TOP_FIELD;
+    } else {
+        pipeline->filter_flags = VA_FRAME_PICTURE;
+    }
 
     if (mFrcOn) {
         vaStatus = vaUnmapBuffer(mVADisplay, mFilterFrc);

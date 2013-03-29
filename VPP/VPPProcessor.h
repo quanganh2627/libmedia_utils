@@ -57,6 +57,7 @@ enum {
 struct VPPBufferInfo {
     MediaBuffer* buffer;
     VPPBufferStatus status;
+    uint32_t flags;
 };
 
 struct VPPVideoInfo {
