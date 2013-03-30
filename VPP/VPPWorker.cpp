@@ -37,7 +37,7 @@ enum STRENGTH {
 #define DENOISE_DEBLOCK_STRENGTH STRENGTH_MEDIUM
 #define COLOR_STRENGTH STRENGTH_MEDIUM
 #ifdef TARGET_VPP_USE_GEN
-#define COLOR_NUM 1
+#define COLOR_NUM 4
 #else
 #define COLOR_NUM 2
 #endif
@@ -508,21 +508,45 @@ status_t VPPWorker::setupFilters() {
                             color[i].value = colorCaps[i].range.min_value + COLOR_STRENGTH * colorCaps[i].range.step;
                             featureCount++;
                         }
-#ifdef TARGET_VPP_USE_GEN
-                        else if (colorCaps[i].type == VAProcColorBalanceHue) {
-                            char propValueString[32];
-                            color[i].type = VAProcFilterColorBalance;
-                            color[i].attrib = VAProcColorBalanceHue;
-
-                            // placeholder for vpg driver: can't support auto color balance, so leave config to user.
-                            property_get("vpp.filter.colorbalance.hue", propValueString, "0.0");
-                            color[i].value = atof(propValueString);
-                            color[i].value = (color[i].value < -180.0f) ? -180.0f : color[i].value;
-                            color[i].value = (color[i].value > 180.0f) ? 180.0f : color[i].value;
-                            featureCount++;
-                        }
-#endif
                     }
+#ifdef TARGET_VPP_USE_GEN
+                    //TODO: VPG need to support check input value by colorCaps.
+                    enum {kHue = 0, kSaturation, kBrightness, kContrast};
+                    char propValueString[32];
+                    color[kHue].type = VAProcFilterColorBalance;
+                    color[kHue].attrib = VAProcColorBalanceHue;
+
+                    // placeholder for vpg driver: can't support auto color balance, so leave config to user.
+                    property_get("vpp.filter.procamp.hue", propValueString, "0.0");
+                    color[kHue].value = atof(propValueString);
+                    color[kHue].value = (color[kHue].value < -180.0f) ? -180.0f : color[kHue].value;
+                    color[kHue].value = (color[kHue].value > 180.0f) ? 180.0f : color[kHue].value;
+                    featureCount++;
+
+                    color[kSaturation].type   = VAProcFilterColorBalance;
+                    color[kSaturation].attrib = VAProcColorBalanceSaturation;
+                    property_get("vpp.filter.procamp.saturation", propValueString, "1.0");
+                    color[kSaturation].value = atof(propValueString);
+                    color[kSaturation].value = (color[kSaturation].value < 0.0f) ? 0.0f : color[kSaturation].value;
+                    color[kSaturation].value = (color[kSaturation].value > 10.0f) ? 10.0f : color[kSaturation].value;
+                    featureCount++;
+
+                    color[kBrightness].type   = VAProcFilterColorBalance;
+                    color[kBrightness].attrib = VAProcColorBalanceBrightness;
+                    property_get("vpp.filter.procamp.brightness", propValueString, "0.0");
+                    color[kBrightness].value = atof(propValueString);
+                    color[kBrightness].value = (color[kBrightness].value < -100.0f) ? -100.0f : color[kBrightness].value;
+                    color[kBrightness].value = (color[kBrightness].value > 100.0f) ? 100.0f : color[kBrightness].value;
+                    featureCount++;
+
+                    color[kContrast].type   = VAProcFilterColorBalance;
+                    color[kContrast].attrib = VAProcColorBalanceContrast;
+                    property_get("vpp.filter.procamp.contrast", propValueString, "1.0");
+                    color[kContrast].value = atof(propValueString);
+                    color[kContrast].value = (color[kContrast].value < 0.0f) ? 0.0f : color[kContrast].value;
+                    color[kContrast].value = (color[kContrast].value > 10.0f) ? 10.0f : color[kContrast].value;
+                    featureCount++;
+#endif
                     vaStatus = vaCreateBuffer(mVADisplay, mVAContext,
                         VAProcFilterParameterBufferType, sizeof(*color), featureCount,
                         color, &colorId);
