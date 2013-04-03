@@ -37,7 +37,7 @@ VPPProcessor::VPPProcessor(const sp<ANativeWindow> &native, VPPVideoInfo* pInfo)
          mLastRenderBuffer(NULL),
          mNativeWindow(native),
          mBufferInfos(NULL),
-         mThreadRunning(false), mEOS(false), mFirstFrameDone(false),
+         mThreadRunning(false), mEOS(false),
          mTotalDecodedCount(0), mInputCount(0), mVPPProcCount(0), mVPPRenderCount(0) {
 
     LOGI("construction");
@@ -192,7 +192,7 @@ status_t VPPProcessor::read(MediaBuffer **buffer) {
     printRenderList();
     if (mProcThread->mError || mFillThread->mError)
         return VPP_FAIL;
-    if (mRenderList.empty() || !mFirstFrameDone) {
+    if (mRenderList.empty()) {
         if (!mEOS) {
             // no buffer ready to render
             return VPP_BUFFER_NOT_READY;
@@ -352,7 +352,6 @@ status_t VPPProcessor::clearInput() {
 status_t VPPProcessor::updateRenderList() {
     LOGV("updateRenderList");
     while (mOutput[mOutputLoadPoint].status == VPP_BUFFER_READY) {
-        mFirstFrameDone = true;
         MediaBuffer* buff = mOutput[mOutputLoadPoint].buffer;
         if (buff == NULL) return VPP_FAIL;
 

@@ -203,7 +203,6 @@ private:
     Vector<OMXCodec::BufferInfo> * mBufferInfos;
     bool mThreadRunning;
     bool mEOS;
-    bool mFirstFrameDone;
     uint32_t mTotalDecodedCount, mInputCount, mVPPProcCount, mVPPRenderCount;
 };
 
