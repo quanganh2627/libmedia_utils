@@ -31,11 +31,11 @@
 
 namespace android {
 
-VPPProcessor::VPPProcessor(const sp<ANativeWindow> &native, VPPVideoInfo* pInfo)
+VPPProcessor::VPPProcessor(const sp<ANativeWindow> &native, OMXCodec *codec, VPPVideoInfo* pInfo)
         :mInputBufferNum(0), mOutputBufferNum(0),
          mInputLoadPoint(0), mOutputLoadPoint(0),
          mLastRenderBuffer(NULL),
-         mNativeWindow(native),
+         mNativeWindow(native), mCodec(codec),
          mBufferInfos(NULL),
          mThreadRunning(false), mEOS(false),
          mTotalDecodedCount(0), mInputCount(0), mVPPProcCount(0), mVPPRenderCount(0) {
@@ -87,14 +87,14 @@ bool VPPProcessor::isVppOn() {
     return true;
 }
 
-status_t VPPProcessor::init(OMXCodec *codec) {
+status_t VPPProcessor::init() {
     LOGV("init");
-    if (codec == NULL || mWorker == NULL || mProcThread == NULL)
+    if (mCodec == NULL || mWorker == NULL || mProcThread == NULL)
         return VPP_FAIL;
 
     // set BufferInfo from decoder
     if (mBufferInfos == NULL) {
-        mBufferInfos = &codec->mPortBuffers[codec->kPortIndexOutput];
+        mBufferInfos = &mCodec->mPortBuffers[mCodec->kPortIndexOutput];
         if(mBufferInfos == NULL)
             return VPP_FAIL;
         uint32_t size = mBufferInfos->size();
@@ -135,6 +135,8 @@ status_t VPPProcessor::init(OMXCodec *codec) {
 }
 
 bool VPPProcessor::canSetDecoderBufferToVPP() {
+    if (!mThreadRunning)
+        return true;
     // invoke VPPProcThread as many as possible
     mProcThread->mRunCond.signal();
     mFillThread->mRunCond.signal();
@@ -150,6 +152,10 @@ bool VPPProcessor::canSetDecoderBufferToVPP() {
 }
 
 status_t VPPProcessor::setDecoderBufferToVPP(MediaBuffer *buff) {
+    if (!mThreadRunning) {
+        if (init() != VPP_OK)
+            return VPP_FAIL;
+    }
     if (buff != NULL) {
         mRenderList.push_back(buff);
         mTotalDecodedCount ++;
@@ -368,7 +374,8 @@ status_t VPPProcessor::updateRenderList() {
             if (timeRenderList == -1)
                 return VPP_FAIL;
 
-            if (timeBuffer <= timeRenderList) {
+            if ((mWorker->mFrcRate > FRC_RATE_1X && timeBuffer <= timeRenderList) ||
+                    (mWorker->mFrcRate == FRC_RATE_1X && timeBuffer == timeRenderList)) {
                 break;
             }
         }

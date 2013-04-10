@@ -70,7 +70,7 @@ struct VPPVideoInfo {
 
 class VPPProcessor : public MediaBufferObserver {
 public:
-    VPPProcessor(const sp<ANativeWindow> &native, VPPVideoInfo* pInfo);
+    VPPProcessor(const sp<ANativeWindow> &native, OMXCodec* codec, VPPVideoInfo* pInfo);
     virtual ~VPPProcessor();
 
     /*
@@ -80,18 +80,6 @@ public:
      *      false: vpp off
      */
     static bool isVppOn();
-
-    /*
-     * In this init() function, firstly, bufferInfo will be set as OMXCodec's,
-     * and then VPPWorker will be initialized. After both steps succeed,
-     * VPPThread starts to run.
-     * @param:
-     *      codec: decoder
-     * @return:
-     *      VPP_OK: success
-     *      VPP_FAIL: fail
-     */
-    status_t init(OMXCodec *codec);
 
     /*
      * Set VPPWorker::mSeek flag to true, send run signal to VPPThread to
@@ -152,6 +140,10 @@ public:
     uint32_t mOutputBufferNum;
 
 private:
+    // In this init() function, firstly, bufferInfo will be set as OMXCodec's,
+    // and then VPPWorker will be initialized. After both steps succeed,
+    // VPPThread starts to run.
+    status_t init();
     // init inputBuffer and outBuffer
     status_t initBuffers();
     // completely release all buffers
@@ -199,6 +191,7 @@ private:
     VPPWorker* mWorker;
 
     sp<ANativeWindow> mNativeWindow;
+    OMXCodec* mCodec;
     // mBufferInfos is all buffer Infos allocated by OMXCodec
     Vector<OMXCodec::BufferInfo> * mBufferInfos;
     bool mThreadRunning;
