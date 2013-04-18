@@ -47,8 +47,6 @@ enum STRENGTH {
 #define QVGA_AREA (320 * 240)
 #define VGA_AREA (640 * 480)
 #define HD1080P_AREA (1920 * 1080)
-//in khronos/openmax/OMX_Core.h
-#define OMX_BUFFERFLAG_FIELD 0x00010000
 
 namespace android {
 
@@ -727,7 +725,7 @@ status_t VPPWorker::process(sp<GraphicBuffer> inputGraphicBuffer,
     pipeline->num_backward_references = 0;
 
     //currently, we only transfer TOP field to frame, no frame rate change.
-    if (flags & OMX_BUFFERFLAG_FIELD) {
+    if (flags & (OMX_BUFFERFLAG_TFF | OMX_BUFFERFLAG_BFF)) {
         pipeline->filter_flags = VA_TOP_FIELD;
     } else {
         pipeline->filter_flags = VA_FRAME_PICTURE;
