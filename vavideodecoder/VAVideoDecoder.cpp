@@ -85,13 +85,6 @@ status_t VAVideoDecoder::start(MetaData *params) {
         return UNKNOWN_ERROR;
     }
 
-    int32_t ret;
-    char str[255];
-    sprintf(str, "%d", gettid());
-    ret = setenv("PSB_VIDEO_THUMBNAIL", str, 1);
-    if (ret) {
-        LOGW("Set environmnet'PSB_VIDEO_SURFACE_MMU' fail\n");
-    }
     uint32_t type;
     const void *data;
     size_t size;
@@ -149,7 +142,6 @@ status_t VAVideoDecoder::start(MetaData *params) {
     }
 
     mSource->start();
-    unsetenv("PSB_VIDEO_THUMBNAIL");
 
     mFrameIndex = 0;
     mErrorCount = 0;
