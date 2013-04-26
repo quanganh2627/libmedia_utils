@@ -1703,11 +1703,27 @@ M4OSA_ERR VideoEditorVideoDecoder_render(M4OSA_Context context,
         M4OSA_UInt32 tempHeight =
             pDecShellContext->m_pVideoStreamhandler->m_videoHeight;
 
+#ifdef RUN_IN_MERRIFIELD
+        M4OSA_MemAddr8 tempBuffDst = (M4OSA_MemAddr8)(pOutputPlane[0].pac_data + pOutputPlane[0].u_topleft);
+        for(i = tempHeight; i != 0; i--) {
+            memcpy((void *) tempBuffDst, (void *)tempBuffPtr, tempWidth);
+            tempBuffDst += pOutputPlane[0].u_stride;
+            tempBuffPtr += tempWidth;
+        }
+        tempBuffDst = (M4OSA_MemAddr8)(pOutputPlane[1].pac_data + pOutputPlane[1].u_topleft);
+        for(i = tempHeight/2; i != 0; i--) {
+            memcpy((void *) tempBuffDst, (void *)tempBuffPtr, tempWidth);
+            tempBuffDst += pOutputPlane[1].u_stride;
+            tempBuffPtr += tempWidth;
+        }
+#else
         memcpy((void *) pOutputPlane[0].pac_data, (void *)tempBuffPtr,
             tempWidth * tempHeight);
         tempBuffPtr += (tempWidth * tempHeight);
         memcpy((void *) pOutputPlane[1].pac_data, (void *)tempBuffPtr,
             tempWidth * (tempHeight>>1));
+#endif
+
     }
 
     pDecShellContext->mNbRenderedFrames++;
