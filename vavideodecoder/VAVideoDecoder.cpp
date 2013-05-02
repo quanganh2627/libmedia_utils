@@ -326,7 +326,7 @@ status_t VAVideoDecoder::read(MediaBuffer **out, const ReadOptions *options)  {
     else if (res == DECODE_SUCCESS) {
         mErrorCount = 0;
         err = OK;
-        MediaBuffer *mbuf = getOutputBuffer();
+        MediaBuffer *mbuf = getOutputBuffer(true);
         if (mbuf == NULL) {
             *out = new MediaBuffer(0);
         } else {
