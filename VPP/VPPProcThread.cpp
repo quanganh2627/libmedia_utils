@@ -60,6 +60,7 @@ bool VPPProcThread::threadLoop() {
         mRunCond.wait(mLock);
     }
 
+    Mutex::Autolock autoLock(mLock);
     if (mFlagEnd) {
         // FlagEnd has been submitted, no need to continue processing
     } else if (mVPPProcessor->mInput[mInputProcIdx].status != VPP_BUFFER_LOADED && !mVPPProcessor->mEOS) {
@@ -67,7 +68,6 @@ bool VPPProcThread::threadLoop() {
         mWait = true;
         return true;
     } else {
-        Mutex::Autolock autoLock(mLock);
         mWait = false;
         if (mVPPProcessor->mInput[mInputProcIdx].status != VPP_BUFFER_LOADED && mVPPProcessor->mEOS) {
             // It's the time to send END FLAG
