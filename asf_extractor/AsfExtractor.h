@@ -91,6 +91,7 @@ private:
     int64_t mDataPacketSize;
     uint8_t *mDataPacketData;
 
+    bool mNeedKeyFrame;
     enum {
         // 100 nano seconds to micro second
         SCALE_100_NANOSEC_TO_USEC = 10,

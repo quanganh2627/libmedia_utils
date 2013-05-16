@@ -106,6 +106,7 @@ AsfExtractor::AsfExtractor(const sp<DataSource> &source)
       mDataPacketEndOffset(0),
       mDataPacketCurrentOffset(0),
       mDataPacketSize(0),
+      mNeedKeyFrame(false),
       mDataPacketData(NULL) {
     mParser = new AsfStreamParser;
 }
@@ -666,7 +667,7 @@ status_t AsfExtractor::seek_l(Track* track, int64_t seekTimeUs, MediaSource::Rea
         }
         temp = temp->next;
     }
-
+    mNeedKeyFrame =true;
     return OK;
 }
 
@@ -717,6 +718,15 @@ status_t AsfExtractor::readPacket() {
         }
         if (payload->mediaObjectLength == payload->payloadSize ||
             payload->offsetIntoMediaObject == 0) {
+            if (mNeedKeyFrame) {
+                if (!payload->keyframe) {
+                    ALOGW("Non-keyframe received during seek mode!");
+                    payload = payload->next;
+                    continue;
+                } else {
+                    mNeedKeyFrame = false;
+                }
+            }
             // a comple object or the first payload of fragmented object
             MediaBuffer *buffer = NULL;
             status = track->bufferPool->acquire_buffer(
