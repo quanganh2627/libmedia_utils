@@ -1510,6 +1510,10 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                 (*pStreamHandler)  = (M4_StreamHandler*)(pVideoStreamHandler);
                 meta->findInt64(kKeyDuration,
                     (int64_t*)&(Duration));
+                if (Duration <= 0) {
+                    ALOGE("The video duration(%lld) can't be supported",Duration);
+                    return M4ERR_PARAMETER;
+                }
                 ((*pStreamHandler)->m_duration) =
                     (int32_t)((Duration)/1000); // conversion to mS
                 pC->mMaxDuration = ((*pStreamHandler)->m_duration);
