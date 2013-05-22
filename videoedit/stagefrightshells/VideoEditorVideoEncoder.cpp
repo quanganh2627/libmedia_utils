@@ -834,12 +834,15 @@ M4OSA_ERR VideoEditorVideoEncoder_processOutputBuffer(
     }
     VIDEOEDITOR_CHECK(0 == ((M4OSA_UInt32)buffer->data())%4, M4ERR_PARAMETER);
     VIDEOEDITOR_CHECK(buffer->meta_data().get(), M4ERR_PARAMETER);
+#ifndef RUN_IN_MERRIFIELD
+    // Don't remove AVC codec data for the first IDR frame to align the encode behavior
+    // in Merrifield platform
     if ( buffer->meta_data()->findInt32(kKeyIsCodecConfig, &i32Tmp) && i32Tmp ){
         LOGV("VideoEditorVideoEncoder_processOutputBuffer DSI %d",buffer->range_length());
         removeAVCCodecSpecificData(&data,&length,(const uint8_t*) buffer->data(),buffer->range_length(),NULL);
         buffer->set_range(buffer->range_offset() + length, buffer->range_length() - length);
     }
-
+#endif
     // Check the CTS
     VIDEOEDITOR_CHECK(buffer->meta_data()->findInt64(kKeyTime, &i64Tmp),
         M4ERR_STATE);
