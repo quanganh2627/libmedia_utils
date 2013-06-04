@@ -667,7 +667,9 @@ status_t AsfExtractor::seek_l(Track* track, int64_t seekTimeUs, MediaSource::Rea
         }
         temp = temp->next;
     }
-    mNeedKeyFrame =true;
+    if (mParser->hasVideo()) {
+        mNeedKeyFrame =true;
+    }
     return OK;
 }
 
@@ -718,7 +720,9 @@ status_t AsfExtractor::readPacket() {
         }
         if (payload->mediaObjectLength == payload->payloadSize ||
             payload->offsetIntoMediaObject == 0) {
-            if (mNeedKeyFrame) {
+            const char *mime;
+            CHECK(track->meta->findCString(kKeyMIMEType, &mime));
+            if (mNeedKeyFrame && (!strncasecmp(mime, "video/", 6))) {
                 if (!payload->keyframe) {
                     ALOGW("Non-keyframe received during seek mode!");
                     payload = payload->next;
