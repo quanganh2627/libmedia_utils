@@ -244,11 +244,21 @@ void VPPProcessor::seek() {
 void VPPProcessor::quitThread() {
     LOGV("quitThread");
     if(mThreadRunning) {
-        mFillThread->mRunCond.signal();
+        mFillThread->requestExit();
+        {
+            Mutex::Autolock autoLock(mFillThread->mLock);
+            mFillThread->mRunCond.signal();
+        }
         mFillThread->requestExitAndWait();
+        mFillThread.clear();
 
-        mProcThread->mRunCond.signal();
+        mProcThread->requestExit();
+        {
+            Mutex::Autolock autoLock(mProcThread->mLock);
+            mProcThread->mRunCond.signal();
+        }
         mProcThread->requestExitAndWait();
+        mProcThread.clear();
     }
     return;
 }
