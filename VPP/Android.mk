@@ -8,6 +8,7 @@ LOCAL_SRC_FILES:= \
         VPPProcThread.cpp \
         VPPFillThread.cpp \
         VPPWorker.cpp \
+        NuPlayerVPPProcessor.cpp
 
 LOCAL_C_INCLUDES:= \
         $(call include-path-for, frameworks-av) \
@@ -25,6 +26,7 @@ LOCAL_COPY_HEADERS := \
     VPPProcThread.h \
     VPPFillThread.h \
     VPPWorker.h \
+    NuPlayerVPPProcessor.h
 
 LOCAL_CFLAGS += -DTARGET_HAS_VPP
 ifeq ($(TARGET_VPP_USE_GEN),true)
