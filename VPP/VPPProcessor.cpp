@@ -208,6 +208,7 @@ status_t VPPProcessor::read(MediaBuffer **buffer) {
 
         LOGD("======mTotalDecodedCount=%d, mInputCount=%d, mVPPProcCount=%d, mVPPRenderCount=%d======",
             mTotalDecodedCount, mInputCount, mVPPProcCount, mVPPRenderCount);
+        mEOS = false;
         return ERROR_END_OF_STREAM;
     }
 
