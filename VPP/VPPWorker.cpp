@@ -834,10 +834,12 @@ status_t VPPWorker::writeNV12(int width, int height, unsigned char *out_buf, int
 
     if (out_buf == NULL)
     {
+        fclose(ofile);
         return STATUS_ERROR;
     }
     if ((width % 2) || (height % 2))
     {
+        fclose(ofile);
         return STATUS_ERROR;
     }
     // Set frame size

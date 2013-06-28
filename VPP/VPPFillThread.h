@@ -19,7 +19,7 @@
 #define __VPP_FILL_THREAD_H
 
 #include <media/stagefright/MetaData.h>
-#include "VPPProcessor.h"
+#include "VPPBuffer.h"
 #include "VPPWorker.h"
 
 #include <utils/threads.h>
@@ -32,7 +32,10 @@ class VPPProcessor;
 class VPPFillThread : public Thread {
     public:
 
-        VPPFillThread(bool canCallJava, VPPProcessor* vppProcessor, VPPWorker* vppWorker);
+        VPPFillThread(bool canCallJava, VPPWorker* vppWorker,
+                    VPPBuffer *inputBuffer, const uint32_t inputBufferNum,
+                    VPPBuffer *outputBuffer, const uint32_t outputBufferNum,
+                    const bool *eos);
         virtual ~VPPFillThread();
 
         virtual status_t readyToRun();
@@ -54,13 +57,22 @@ class VPPFillThread : public Thread {
         bool mError;
 
     private:
+        VPPFillThread(const VPPFillThread &);
+        VPPFillThread &operator=(const VPPFillThread &);
+
+    private:
         android_thread_id_t mThreadId;
-        VPPProcessor *mVPPProcessor;
         VPPWorker *mVPPWorker;
+        VPPBuffer *mInput;
+        VPPBuffer *mOutput;
+        const uint32_t mInputBufferNum;
+        const uint32_t mOutputBufferNum;
+        const bool *mEOS;
         bool mFirstInputFrame;
         uint32_t mInputFillIdx;
         uint32_t mOutputFillIdx;
 };
+
 
 } /* END namespace android */
 #endif /* __VPP_FILL_THREAD_H*/

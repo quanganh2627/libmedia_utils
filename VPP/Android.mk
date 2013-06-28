@@ -21,9 +21,10 @@ LOCAL_COPY_HEADERS_TO := libmedia_utils_vpp
 
 LOCAL_COPY_HEADERS := \
     VPPProcessor.h \
+    VPPBuffer.h \
     VPPProcThread.h \
     VPPFillThread.h \
-    VPPWorker.h
+    VPPWorker.h \
 
 LOCAL_CFLAGS += -DTARGET_HAS_VPP
 ifeq ($(TARGET_VPP_USE_GEN),true)

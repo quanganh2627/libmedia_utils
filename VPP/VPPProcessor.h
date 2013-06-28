@@ -17,8 +17,9 @@
 
 #ifndef __VPP_PROCESSOR_H
 #define __VPP_PROCESSOR_H
-#include "VPPProcThread.h"
+#include "VPPBuffer.h"
 #include "VPPFillThread.h"
+#include "VPPProcThread.h"
 #include "VPPWorker.h"
 
 #include <stdint.h>
@@ -34,39 +35,6 @@ struct MediaBufferObserver;
 struct OMXCodec;
 class VPPProcThread;
 class VPPFillThread;
-
-// Input buffer transition:
-// FREE->LOADED->PROCESSING->READY->FREE
-// Output buffer transition:
-// FREE->PROCESSING->READY->RENDERING->FREE
-//                       |_>FREE
-enum VPPBufferStatus {
-    VPP_BUFFER_FREE = 0,        //free, not being used
-    VPP_BUFFER_PROCESSING,      //sent to VSP driver for process
-    VPP_BUFFER_READY,           //VSP process done, ready to use
-    VPP_BUFFER_LOADED,          //input only, decoded buffer loaded
-    VPP_BUFFER_RENDERING        //output only, vpp buffer in RenderList
-};
-
-enum {
-    VPP_OK = 0,
-    VPP_BUFFER_NOT_READY,
-    VPP_FAIL = -1
-};
-
-struct VPPBufferInfo {
-    MediaBuffer* buffer;
-    VPPBufferStatus status;
-    uint32_t flags;
-};
-
-struct VPPVideoInfo {
-    uint32_t width;
-    uint32_t height;
-    uint32_t fps;
-};
-
-#define MAX_VPP_BUFFER_NUMBER 32
 
 class VPPProcessor : public MediaBufferObserver {
 public:
@@ -166,15 +134,20 @@ private:
     status_t clearInput();
     // add output buffer into Renderlist
     status_t updateRenderList();
+    // return MediaBuffer according to VPPBuffer
+    MediaBuffer * findMediaBuffer(VPPBuffer &buff);
     // debug only
     void printBuffers();
     void printRenderList();
 
+    VPPProcessor(const VPPProcessor &);
+    VPPProcessor &operator=(const VPPProcessor &);
+
 private:
     // buffer info for VPP input
-    VPPBufferInfo mInput[MAX_VPP_BUFFER_NUMBER];
+    VPPBuffer mInput[VPPBuffer::MAX_VPP_BUFFER_NUMBER];
     // buffer info for VPP output
-    VPPBufferInfo mOutput[MAX_VPP_BUFFER_NUMBER];
+    VPPBuffer mOutput[VPPBuffer::MAX_VPP_BUFFER_NUMBER];
     // mRenderList is used to render
     List<MediaBuffer *> mRenderList;
     // input load point

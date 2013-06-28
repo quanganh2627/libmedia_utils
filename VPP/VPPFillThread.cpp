@@ -22,12 +22,19 @@
 
 namespace android {
 
-VPPFillThread::VPPFillThread(bool canCallJava, VPPProcessor* vppProcessor, VPPWorker* vppWorker):
+VPPFillThread::VPPFillThread(bool canCallJava, VPPWorker* vppWorker,
+                VPPBuffer *inputBuffer, const uint32_t inputBufferNum,
+                VPPBuffer *outputBuffer, const uint32_t outputBufferNum,
+                const bool *eos):
     Thread(canCallJava),
     mWait(false), mError(false),
     mThreadId(NULL),
-    mVPPProcessor(vppProcessor),
     mVPPWorker(vppWorker),
+    mInput(inputBuffer),
+    mOutput(outputBuffer),
+    mInputBufferNum(inputBufferNum),
+    mOutputBufferNum(outputBufferNum),
+    mEOS(eos),
     mFirstInputFrame(true),
     mInputFillIdx(0),
     mOutputFillIdx(0) {
@@ -64,9 +71,9 @@ bool VPPFillThread::threadLoop() {
     Mutex::Autolock autoLock(mLock);
         // prepare output vectors for filling
         for (i= 0; i < fillBufNum; i++) {
-            uint32_t fillPos = (mOutputFillIdx + i) % mVPPProcessor->mOutputBufferNum;
-            if (mVPPProcessor->mOutput[fillPos].status != VPP_BUFFER_PROCESSING) {
-                if (mVPPProcessor->mOutput[mOutputFillIdx].status == VPP_BUFFER_PROCESSING && mVPPProcessor->mEOS) {
+            uint32_t fillPos = (mOutputFillIdx + i) % mOutputBufferNum;
+            if (mOutput[fillPos].mStatus != VPP_BUFFER_PROCESSING) {
+                if (mOutput[mOutputFillIdx].mStatus == VPP_BUFFER_PROCESSING && (*mEOS)) {
                     // END FLAG
                     LOGV("last frame");
                     fillBufNum = 1;
@@ -75,7 +82,7 @@ bool VPPFillThread::threadLoop() {
                     return true;
                 }
             }
-            sp<GraphicBuffer> fillBuf = mVPPProcessor->mOutput[fillPos].buffer->graphicBuffer().get();
+            sp<GraphicBuffer> fillBuf = mOutput[fillPos].mGraphicBuffer.get();
             fillBufList.push_back(fillBuf);
         }
         status_t ret = mVPPWorker->fill(fillBufList, fillBufNum);
@@ -83,20 +90,20 @@ bool VPPFillThread::threadLoop() {
             if(mFirstInputFrame) {
                 mFirstInputFrame = false;
             } else {
-                mVPPProcessor->mInput[mInputFillIdx].status = VPP_BUFFER_READY;
-                mInputFillIdx = (mInputFillIdx + 1) % mVPPProcessor->mInputBufferNum;
+                mInput[mInputFillIdx].mStatus = VPP_BUFFER_READY;
+                mInputFillIdx = (mInputFillIdx + 1) % mInputBufferNum;
             }
             for(i = 0; i < fillBufNum; i++) {
-                uint32_t outputVppPos = (mOutputFillIdx + i) % mVPPProcessor->mOutputBufferNum;
-                mVPPProcessor->mOutput[outputVppPos].status = VPP_BUFFER_READY;
+                uint32_t outputVppPos = (mOutputFillIdx + i) % mOutputBufferNum;
+                mOutput[outputVppPos].mStatus = VPP_BUFFER_READY;
                 if (fillBufNum > 1) {
                     // frc is enabled, output fps is 60, change timeStamp
-                    mVPPProcessor->mOutput[outputVppPos].buffer->meta_data()->findInt64(kKeyTime, &timeUs);
+                    timeUs = mOutput[outputVppPos].mTimeUs;
                     timeUs -= 1000000ll * (fillBufNum - i - 1) / 60;
-                    mVPPProcessor->mOutput[outputVppPos].buffer->meta_data()->setInt64(kKeyTime, timeUs);
+                    mOutput[outputVppPos].mTimeUs = timeUs;
                 }
             }
-            mOutputFillIdx = (mOutputFillIdx + fillBufNum) % mVPPProcessor->mOutputBufferNum;
+            mOutputFillIdx = (mOutputFillIdx + fillBufNum) % mOutputBufferNum;
         }
         else {
             ALOGE("FillError! Thread EXIT...");

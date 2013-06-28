@@ -112,6 +112,9 @@ class VPPWorker {
         status_t dumpYUVFrameData(VASurfaceID surfaceID);
         status_t writeNV12(int width, int height, unsigned char *out_buf, int y_pitch, int uv_pitch);
 
+        VPPWorker(const VPPWorker &);
+        VPPWorker &operator=(const VPPWorker &);
+
     public:
         uint32_t mNumForwardReferences;
         FRC_RATE mFrcRate;
@@ -160,7 +163,6 @@ class VPPWorker {
         // FIXME: not very sure how to check color standard
         VAProcColorStandardType in_color_standards[VAProcColorStandardCount];
         VAProcColorStandardType out_color_standards[VAProcColorStandardCount];
-
 };
 
 }

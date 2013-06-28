@@ -22,12 +22,19 @@
 
 namespace android {
 
-VPPProcThread::VPPProcThread(bool canCallJava, VPPProcessor* vppProcessor, VPPWorker* vppWorker):
+VPPProcThread::VPPProcThread(bool canCallJava, VPPWorker* vppWorker,
+                VPPBuffer *inputBuffer, const uint32_t inputBufferNum,
+                VPPBuffer *outputBuffer, const uint32_t outputBufferNum,
+                const bool *eos):
     Thread(canCallJava),
     mWait(false), mError(false),
     mThreadId(NULL),
-    mVPPProcessor(vppProcessor),
     mVPPWorker(vppWorker),
+    mInput(inputBuffer),
+    mOutput(outputBuffer),
+    mInputBufferNum(inputBufferNum),
+    mOutputBufferNum(outputBufferNum),
+    mEOS(eos),
     mInputProcIdx(0),
     mOutputProcIdx(0),
     mFlagEnd(false) {
@@ -63,52 +70,50 @@ bool VPPProcThread::threadLoop() {
     Mutex::Autolock autoLock(mLock);
     if (mFlagEnd) {
         // FlagEnd has been submitted, no need to continue processing
-    } else if (mVPPProcessor->mInput[mInputProcIdx].status != VPP_BUFFER_LOADED && !mVPPProcessor->mEOS) {
+    } else if (mInput[mInputProcIdx].mStatus != VPP_BUFFER_LOADED && !(*mEOS)) {
         // if not in EOS and no valid input, wait!
         mWait = true;
         return true;
     } else {
         mWait = false;
-        if (mVPPProcessor->mInput[mInputProcIdx].status != VPP_BUFFER_LOADED && mVPPProcessor->mEOS) {
+        if (mInput[mInputProcIdx].mStatus != VPP_BUFFER_LOADED && (*mEOS)) {
             // It's the time to send END FLAG
             LOGV("set isLastFrame flag");
             isLastFrame = true;
         }
         if (!isLastFrame) {
-            MediaBuffer* inputMediaBuffer = mVPPProcessor->mInput[mInputProcIdx].buffer;
-            flags = mVPPProcessor->mInput[mInputProcIdx].flags;
+            flags = mInput[mInputProcIdx].mFlags;
             procBufNum = mVPPWorker->getProcBufCount();
-            inputBuf = inputMediaBuffer->graphicBuffer().get();
+            inputBuf = mInput[mInputProcIdx].mGraphicBuffer.get();
             // get input buffer timestamp
-            inputMediaBuffer->meta_data()->findInt64(kKeyTime, &timeUs);
+            timeUs = mInput[mInputProcIdx].mTimeUs;
         } else {
             procBufNum = 1;
             inputBuf = NULL;
         }
         // prepare output vectors for processing
         for (i = 0; i < procBufNum; i++) {
-            uint32_t procPos = (mOutputProcIdx + i) % mVPPProcessor->mOutputBufferNum;
-            if (mVPPProcessor->mOutput[procPos].status != VPP_BUFFER_FREE) {
+            uint32_t procPos = (mOutputProcIdx + i) % mOutputBufferNum;
+            if (mOutput[procPos].mStatus != VPP_BUFFER_FREE) {
                 mWait = true;
                 return true;
             }
-            sp<GraphicBuffer> procBuf = mVPPProcessor->mOutput[procPos].buffer->graphicBuffer().get();
+            sp<GraphicBuffer> procBuf = mOutput[procPos].mGraphicBuffer.get();
             procBufList.push_back(procBuf);
         }
 
         // submit input and output pairs into VSP for process
         status_t ret = mVPPWorker->process(inputBuf, procBufList, procBufNum, isLastFrame, flags);
         if (ret == STATUS_OK) {
-            mVPPProcessor->mInput[mInputProcIdx].status = VPP_BUFFER_PROCESSING;
-            mInputProcIdx = (mInputProcIdx + 1) % mVPPProcessor->mInputBufferNum;
+            mInput[mInputProcIdx].mStatus = VPP_BUFFER_PROCESSING;
+            mInputProcIdx = (mInputProcIdx + 1) % mInputBufferNum;
             for(i = 0; i < procBufNum; i++) {
-                uint32_t procPos = (mOutputProcIdx + i) % mVPPProcessor->mOutputBufferNum;
-                mVPPProcessor->mOutput[procPos].status = VPP_BUFFER_PROCESSING;
-                mVPPProcessor->mOutput[procPos].buffer->add_ref();
+                uint32_t procPos = (mOutputProcIdx + i) % mOutputBufferNum;
+                mOutput[procPos].mStatus = VPP_BUFFER_PROCESSING;
                 // set output buffer timestamp as the same as input
-                mVPPProcessor->mOutput[procPos].buffer->meta_data()->setInt64(kKeyTime, timeUs);
+                mOutput[procPos].mTimeUs = timeUs;
             }
-            mOutputProcIdx = (mOutputProcIdx + procBufNum) % mVPPProcessor->mOutputBufferNum;
+            mOutputProcIdx = (mOutputProcIdx + procBufNum) % mOutputBufferNum;
             if (isLastFrame)
                 mFlagEnd = true;
         }
