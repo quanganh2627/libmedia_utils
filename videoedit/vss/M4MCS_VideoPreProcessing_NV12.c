@@ -58,10 +58,17 @@
 
 #define UV_PLANE_BORDER_VALUE   0x80
 
+M4OSA_ERR M4VSS3GPP_intRotateVideo_NV12(M4VIFI_ImagePlane* pPlaneIn,
+    M4OSA_UInt32 rotationDegree);
+
+M4OSA_ERR M4VSS3GPP_intSetNV12Plane(M4VIFI_ImagePlane* planeIn,
+    M4OSA_UInt32 width, M4OSA_UInt32 height);
+
 M4OSA_ERR M4MCS_intApplyVPP_NV12(M4VPP_Context pContext,
     M4VIFI_ImagePlane* pPlaneIn, M4VIFI_ImagePlane* pPlaneOut)
 {
     M4OSA_ERR        err = M4NO_ERROR;
+    M4OSA_UInt32     yuvFrameWidth = 0, yuvFrameHeight = 0;
 
 /* This part is used only if video codecs are compiled*/
 #ifndef M4MCS_AUDIOONLY
@@ -146,6 +153,18 @@ M4OSA_ERR M4MCS_intApplyVPP_NV12(M4VPP_Context pContext,
                 M4OSA_UInt8* pInPlaneY = M4OSA_NULL;
                 M4OSA_UInt8* pInPlaneUV = M4OSA_NULL;
                 M4OSA_UInt32 i = 0;
+
+                // Rotate the buffer if the original video has rotation information in MCS process.
+                if (pC->pReaderVideoStream->videoRotationDegrees != 0) {
+                   yuvFrameWidth = pC->pPreResizeFrame[0].u_width;
+                   yuvFrameHeight = pC->pPreResizeFrame[0].u_height;
+                   err = M4VSS3GPP_intRotateVideo_NV12(pC->pPreResizeFrame, pC->pReaderVideoStream->videoRotationDegrees);
+                   if (M4NO_ERROR != err)
+                   {
+                       M4OSA_TRACE1_1("M4MCS_intApplyVPP_NV12: M4VSS3GPP_intRotateVideo_NV12 returns 0x%x!", err);
+                       return err;
+                   }
+                }
 
                 /*FB 2008/10/20: to keep media aspect ratio*/
                 /*Initialize AIR Params*/
@@ -360,6 +379,11 @@ M4OSA_ERR M4MCS_intApplyVPP_NV12(M4VPP_Context pContext,
                     }
                 }
             }
+
+            if(pC->pReaderVideoStream->videoRotationDegrees !=0 && pC->pReaderVideoStream->videoRotationDegrees !=180) {
+               M4VSS3GPP_intSetNV12Plane(pC->pPreResizeFrame,yuvFrameWidth, yuvFrameHeight);
+            }
+
         }
         else
         {

@@ -28,6 +28,9 @@ M4OSA_ERR M4VSS3GPP_intApplyRenderingMode_NV12(M4VSS3GPP_InternalEditContext *pC
     M4xVSS_MediaRendering renderingMode, M4VIFI_ImagePlane* pInplane,
     M4VIFI_ImagePlane* pOutplane);
 
+M4OSA_ERR M4VSS3GPP_intSetNV12Plane(M4VIFI_ImagePlane* planeIn,
+    M4OSA_UInt32 width, M4OSA_UInt32 height);
+
 unsigned char M4VFL_modifyLumaWithScale_NV12(M4ViComImagePlane *plane_in,
     M4ViComImagePlane *plane_out, unsigned long lum_factor,
     void *user_data);

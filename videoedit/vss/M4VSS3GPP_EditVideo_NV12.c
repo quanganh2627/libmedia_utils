@@ -638,3 +638,24 @@ M4OSA_ERR M4VSS3GPP_intRotateVideo_NV12(M4VIFI_ImagePlane* pPlaneIn,
     return err;
 }
 
+M4OSA_ERR M4VSS3GPP_intSetNV12Plane(M4VIFI_ImagePlane* planeIn,
+                                      M4OSA_UInt32 width, M4OSA_UInt32 height) {
+
+    M4OSA_ERR err = M4NO_ERROR;
+
+    if (planeIn == M4OSA_NULL) {
+        M4OSA_TRACE1_0("NULL in plane, error");
+        return M4ERR_PARAMETER;
+    }
+
+    planeIn[0].u_width = width;
+    planeIn[0].u_height = height;
+    planeIn[0].u_stride = planeIn[0].u_width;
+
+    planeIn[1].u_width = width;
+    planeIn[1].u_height = height/2;
+    planeIn[1].u_stride = planeIn[1].u_width;
+
+    return err;
+}
+
