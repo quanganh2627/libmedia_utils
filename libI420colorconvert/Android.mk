@@ -5,8 +5,8 @@ LOCAL_SRC_FILES := \
     ColorConvert.cpp
 
 LOCAL_C_INCLUDES:= \
-        $(TOP)/frameworks/native/include/media/openmax \
-        $(TOP)/frameworks/native/include/media/editor
+        $(call include-path-for, frameworks-native)/media/openmax \
+        $(call include-path-for, frameworks-native)/media/editor
 
 LOCAL_SHARED_LIBRARIES :=       \
 

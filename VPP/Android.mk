@@ -10,9 +10,9 @@ LOCAL_SRC_FILES:= \
         VPPWorker.cpp \
 
 LOCAL_C_INCLUDES:= \
-        $(TOP)/frameworks/av/include \
-        $(TOP)/frameworks/native/include \
-        $(TOP)/frameworks/native/include/media/openmax \
+        $(call include-path-for, frameworks-av) \
+        $(call include-path-for, frameworks-native) \
+        $(call include-path-for, frameworks-native)/media/openmax \
         $(TARGET_OUT_HEADERS)/libva
 
 LOCAL_SHARED_LIBRARIES := libva

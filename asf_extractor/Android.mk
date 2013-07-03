@@ -11,8 +11,8 @@ LOCAL_SRC_FILES := \
 LOCAL_C_INCLUDES := \
     $(LOCAL_PATH) \
     $(TARGET_OUT_HEADERS)/libmix_asfparser \
-    $(TOP)/frameworks/av/media/libstagefright/include \
-    $(TOP)/frameworks/native/include/media/openmax
+    $(call include-path-for, libstagefright) \
+    $(call include-path-for, frameworks-native)/media/openmax
 
 LOCAL_COPY_HEADERS_TO := libmix_asf_extractor
 

@@ -32,19 +32,19 @@ LOCAL_SRC_FILES:= \
     IntelVideoEditorH263Encoder.cpp
 
 LOCAL_C_INCLUDES += \
-    $(TOP)/frameworks/av/media/libmediaplayerservice \
-    $(TOP)/frameworks/av/media/libstagefright \
-    $(TOP)/frameworks/av/media/libstagefright/include \
-    $(TOP)/frameworks/av/media/libstagefright/rtsp \
+    $(call include-path-for, libmediaplayerservice) \
+    $(call include-path-for, libstagefright)/.. \
+    $(call include-path-for, libstagefright) \
+    $(call include-path-for, libstagefright-rtsp) \
     $(call include-path-for, corecg graphics) \
-    $(TOP)/frameworks/av/libvideoeditor/lvpp \
-    $(TOP)/frameworks/av/libvideoeditor/osal/inc \
-    $(TOP)/frameworks/av/libvideoeditor/vss/inc \
-    $(TOP)/frameworks/av/libvideoeditor/vss/common/inc \
-    $(TOP)/frameworks/av/libvideoeditor/vss/mcs/inc \
-    $(TOP)/frameworks/av/libvideoeditor/vss/stagefrightshells/inc \
-    $(TOP)/frameworks/native/include/media/editor \
-    $(TOP)/frameworks/native/include/media/openmax \
+    $(call include-path-for, osal) \
+    $(call include-path-for, vss-common) \
+    $(call include-path-for, vss-mcs) \
+    $(call include-path-for, vss) \
+    $(call include-path-for, vss-stagefrightshells) \
+    $(call include-path-for, lvpp) \
+    $(call include-path-for, frameworks-native)/media/editor \
+    $(call include-path-for, frameworks-native)/media/openmax \
     $(TARGET_OUT_HEADERS)/libsharedbuffer \
     $(TARGET_OUT_HEADERS)/libmix_videoencoder \
     $(TARGET_OUT_HEADERS)/libva

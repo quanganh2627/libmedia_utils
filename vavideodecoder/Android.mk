@@ -11,8 +11,8 @@ LOCAL_SRC_FILES := \
 
 
 LOCAL_C_INCLUDES := \
-    $(TOP)/frameworks/av/media/libstagefright/include \
-    $(TOP)/frameworks/native/include/media/openmax \
+    $(call include-path-for, libstagefright) \
+    $(call include-path-for, frameworks-native)/media/openmax \
     $(TARGET_OUT_HEADERS)/libmix_videodecoder \
     $(TARGET_OUT_HEADERS)/libmix_asf_extractor \
     $(TARGET_OUT_HEADERS)/libva/

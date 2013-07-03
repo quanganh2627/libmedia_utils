@@ -45,13 +45,13 @@ LOCAL_STATIC_LIBRARIES :=     \
 
 
 LOCAL_C_INCLUDES += \
-    $(TOP)/frameworks/av/libvideoeditor/osal/inc \
-    $(TOP)/frameworks/av/libvideoeditor/vss/common/inc \
-    $(TOP)/frameworks/av/libvideoeditor/vss/mcs/inc \
-    $(TOP)/frameworks/av/libvideoeditor/vss/inc \
-    $(TOP)/frameworks/av/libvideoeditor/vss/stagefrightshells/inc \
-    $(TOP)/frameworks/av/libvideoeditor/lvpp \
-    $(TOP)/frameworks/native/include/media/openmax \
+    $(call include-path-for, osal) \
+    $(call include-path-for, vss-common) \
+    $(call include-path-for, vss-mcs) \
+    $(call include-path-for, vss) \
+    $(call include-path-for, vss-stagefrightshells) \
+    $(call include-path-for, lvpp) \
+    $(call include-path-for, frameworks-native)/media/openmax \
     $(TARGET_OUT_HEADERS)/videoeditornv12
 
 LOCAL_SHARED_LIBRARIES += libdl
