@@ -363,7 +363,7 @@ void NuPlayerVPPProcessor::resetBuffer(int32_t index, int32_t type, sp<GraphicBu
 
     if (type == VPP_INPUT) {
         vppBuffer = &mInput[index];
-    } else if (type == VPP_OUTPUT) {
+    } else {
         vppBuffer = &mOutput[index];
     }
 
