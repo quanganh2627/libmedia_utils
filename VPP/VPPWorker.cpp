@@ -76,10 +76,6 @@ status_t VPPWorker::init() {
             return ret;
     }
 
-    ret = configFilters();
-    if (ret != STATUS_OK)
-        return ret;
-
     if (mNumFilterBuffers == 0) {
         ret = setupFilters();
         if(ret != STATUS_OK)
@@ -111,13 +107,6 @@ bool VPPWorker::isSupport() const {
     entrypoints = NULL;
 
     return support;
-}
-
-void VPPWorker::setVideoInfo(uint32_t width, uint32_t height, uint32_t fps) {
-    mWidth = width;
-    mHeight = height;
-    mInputFps = fps;
-    configFilters();
 }
 
 status_t VPPWorker::setGraphicBufferConfig(sp<GraphicBuffer> graphicBuffer) {
@@ -311,7 +300,10 @@ status_t VPPWorker::terminateVA() {
     return STATUS_OK;
 }
 
-status_t VPPWorker::configFilters() {
+status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, const uint32_t fps) {
+    mWidth = width;
+    mHeight = height;
+    mInputFps = fps;
     uint32_t area = mWidth * mHeight;
 
 #ifdef TARGET_VPP_USE_GEN

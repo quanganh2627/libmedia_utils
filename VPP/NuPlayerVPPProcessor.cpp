@@ -29,7 +29,6 @@ namespace android {
 
 NuPlayerVPPProcessor::NuPlayerVPPProcessor(
         const sp<AMessage> &notify,
-        VPPVideoInfo *info,
         const sp<NativeWindowWrapper> &nativeWindow)
     : mNotify(notify),
       mNativeWindow(nativeWindow),
@@ -40,22 +39,11 @@ NuPlayerVPPProcessor::NuPlayerVPPProcessor(
       mInputLoadPoint(0),
       mOutputLoadPoint(0),
       mInputCount(0),
-      mACodecWhat(0),
-      mACodecID(0),
+      mACodec(NULL),
       mEOS(false),
       mLastInputTimeUs(-1) {
 
     mWorker = new VPPWorker(mNativeWindow->getNativeWindow());
-    updateVideoInfo(info);
-    mProcThread = new VPPProcThread(false, mWorker,
-            mInput, mInputBufferNum,
-            mOutput, mOutputBufferNum,
-            &mEOS);
-    mFillThread = new VPPFillThread(false, mWorker,
-            mInput, mInputBufferNum,
-            mOutput, mOutputBufferNum,
-            &mEOS);
-    LOGI("NuPlayerVPPProcessor construct");
 }
 
 
@@ -70,8 +58,6 @@ NuPlayerVPPProcessor::~NuPlayerVPPProcessor() {
     if (mThreadRunning == false) {
         releaseBuffers();
     }
-    mACodecWhat = 0;
-    mACodecID = 0;
     LOGI("===== VPPInputCount = %d  =====", mInputCount);
 }
 
@@ -112,11 +98,6 @@ status_t NuPlayerVPPProcessor::setBufferToVPP(const sp<ABuffer> &buffer, const s
         return VPP_OK;
     }
 
-    if (mACodecWhat == 0) {
-        mACodecWhat = notifyConsumed->what();
-        mACodecID = notifyConsumed->target();
-    }
-
     IOMX::buffer_id bufferID;
     CHECK(notifyConsumed->findPointer("buffer-id", &bufferID));
 
@@ -145,7 +126,7 @@ void NuPlayerVPPProcessor::getBufferFromVPP() {
 
     while (mOutput[mOutputLoadPoint].mStatus == VPP_BUFFER_READY) {
 
-        sp<AMessage> notifyConsumed = new AMessage(mACodecWhat, mACodecID);
+        sp<AMessage> notifyConsumed = new AMessage(ACodec::kWhatOutputBufferDrained, mACodec->id());
         ACodec::BufferInfo *info = findBufferByGraphicBuffer(mOutput[mOutputLoadPoint].mGraphicBuffer);
         CHECK(info != NULL);
 
@@ -222,10 +203,11 @@ int64_t NuPlayerVPPProcessor::getBufferTimestamp(sp<ABuffer> buffer) {
     return timeUs;
 }
 
-status_t NuPlayerVPPProcessor::updateVideoInfo(VPPVideoInfo *videoInfo){
+status_t NuPlayerVPPProcessor::validateVideoInfo(VPPVideoInfo *videoInfo){
     if (videoInfo == NULL || mWorker == NULL)
         return VPP_FAIL;
-    mWorker->setVideoInfo(videoInfo->width, videoInfo->height, videoInfo->fps);
+    if (mWorker->configFilters(videoInfo->width, videoInfo->height, videoInfo->fps) != VPP_OK)
+        return VPP_FAIL;
     mInputBufferNum = mWorker->mNumForwardReferences + 3;
     mOutputBufferNum = (mWorker->mNumForwardReferences + 2) * mWorker->mFrcRate;
     if (mInputBufferNum > VPPBuffer::MAX_VPP_BUFFER_NUMBER
@@ -273,8 +255,10 @@ ACodec::BufferInfo * NuPlayerVPPProcessor::findBufferByGraphicBuffer(sp<GraphicB
 
 status_t NuPlayerVPPProcessor::init(sp<ACodec> &codec) {
     LOGI("init");
-    if (codec == NULL || mWorker == NULL || mProcThread == NULL)
+    if (codec == NULL || mWorker == NULL)
         return VPP_FAIL;
+
+    mACodec = codec;
 
     // set BufferInfo from decoder
     if (mBufferInfos == NULL) {
@@ -282,10 +266,11 @@ status_t NuPlayerVPPProcessor::init(sp<ACodec> &codec) {
         if(mBufferInfos == NULL)
             return VPP_FAIL;
         uint32_t size = mBufferInfos->size();
-        CHECK(size > mInputBufferNum + mOutputBufferNum);
-        if (mInputBufferNum > VPPBuffer::MAX_VPP_BUFFER_NUMBER
+        if (mInputBufferNum == 0 || mOutputBufferNum == 0
+                || size <= mInputBufferNum + mOutputBufferNum
+                || mInputBufferNum > VPPBuffer::MAX_VPP_BUFFER_NUMBER
                 || mOutputBufferNum > VPPBuffer::MAX_VPP_BUFFER_NUMBER) {
-            LOGE("input or output buffer number exceeds limitation");
+            LOGE("input or output buffer number is invalid");
             return VPP_FAIL;
         }
         for (uint32_t i = 0; i < size; i++) {
@@ -309,6 +294,16 @@ status_t NuPlayerVPPProcessor::init(sp<ACodec> &codec) {
         return VPP_FAIL;
 
     // VPPThread starts to run
+    mProcThread = new VPPProcThread(false, mWorker,
+            mInput, mInputBufferNum,
+            mOutput, mOutputBufferNum,
+            &mEOS);
+    mFillThread = new VPPFillThread(false, mWorker,
+            mInput, mInputBufferNum,
+            mOutput, mOutputBufferNum,
+            &mEOS);
+    if (mProcThread == NULL || mFillThread == NULL)
+        return VPP_FAIL;
     mProcThread->run("VPPProcThread", ANDROID_PRIORITY_NORMAL);
     mFillThread->run("VPPFillThread", ANDROID_PRIORITY_NORMAL);
     mThreadRunning = true;

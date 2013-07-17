@@ -59,6 +59,9 @@ class VPPWorker {
     public:
         VPPWorker(const sp<ANativeWindow> &nativeWindow);
 
+        // config filters on or off based on video info
+        status_t configFilters(const uint32_t width, const uint32_t height, const uint32_t fps);
+
         // Initialize: setupVA()->setupFilters()->setupPipelineCaps()
         status_t init();
 
@@ -67,9 +70,6 @@ class VPPWorker {
 
         // Get output buffer number needed for filling
         uint32_t getFillBufCount();
-
-        // Set video clip info
-        void setVideoInfo(uint32_t width, uint32_t height, uint32_t fps);
 
         // Send input and output buffers to VSP to begin processing
         status_t process(sp<GraphicBuffer> input, Vector< sp<GraphicBuffer> > output, uint32_t outputCount, bool isEOS, uint32_t flags);
@@ -91,9 +91,6 @@ class VPPWorker {
 
         // Destroy VA context
         status_t terminateVA();
-
-        // config filters on or off based on video info
-        status_t configFilters();
 
         // Check filter caps and create filter buffers
         status_t setupFilters();

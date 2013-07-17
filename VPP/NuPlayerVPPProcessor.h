@@ -32,7 +32,6 @@ struct ACodec;
 struct NuPlayerVPPProcessor : public AHandler {
 public:
     NuPlayerVPPProcessor(const sp<AMessage> &notify,
-            VPPVideoInfo *info,
             const sp<NativeWindowWrapper> &nativeWindow = NULL);
 
     /*
@@ -44,6 +43,16 @@ public:
      *      VPP_FAIL: fail
      */
     status_t init(sp<ACodec>& codec);
+
+    /*
+     * set video clip info to VPPProcessor
+     * @param:
+     *      videoInfo: video info need to set to vpp
+     * @return:
+     *      VPP_OK: success
+     *      VPP_FAIL: fail
+     */
+    status_t validateVideoInfo(VPPVideoInfo *videoInfo);
 
     /*
      * invoke VPPFillThread and VPPProcThread
@@ -148,12 +157,9 @@ private:
     bool mEOS;
     int64_t mLastInputTimeUs;
 
-    uint32_t mACodecWhat;
-    ALooper::handler_id mACodecID;
+    sp<ACodec> mACodec;
 
 private:
-    //set video clip info to VPPProcessor
-    status_t updateVideoInfo(VPPVideoInfo *videoInfo);
     // init inputBuffer and outBuffer
     status_t initBuffers();
     // completely release all buffers

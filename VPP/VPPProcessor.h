@@ -38,8 +38,17 @@ class VPPFillThread;
 
 class VPPProcessor : public MediaBufferObserver {
 public:
-    VPPProcessor(const sp<ANativeWindow> &native, OMXCodec* codec, VPPVideoInfo* pInfo);
+    VPPProcessor(const sp<ANativeWindow> &native, OMXCodec* codec);
     virtual ~VPPProcessor();
+
+    /* Set video clip info and calculate buffer number needed
+     * @param
+     *      info: video clip info
+     * @return:
+     *      VPP_OK: success
+     *      VPP_FAIL: fail
+     */
+    status_t validateVideoInfo(VPPVideoInfo* info);
 
     /*
      * Get VPP on/off status from VppSettings
@@ -48,6 +57,15 @@ public:
      *      false: vpp off
      */
     static bool isVppOn();
+
+    /* In this init() function, firstly, bufferInfo will be set as OMXCodec's,
+     * and then VPPWorker will be initialized. After both steps succeed,
+     * VPPThread starts to run.
+     * @return:
+     *      VPP_OK: success
+     *      VPP_FAIL:fail
+     */
+    status_t init();
 
     /*
      * Set VPPWorker::mSeek flag to true, send run signal to VPPThread to
@@ -108,16 +126,10 @@ public:
     uint32_t mOutputBufferNum;
 
 private:
-    // In this init() function, firstly, bufferInfo will be set as OMXCodec's,
-    // and then VPPWorker will be initialized. After both steps succeed,
-    // VPPThread starts to run.
-    status_t init();
     // init inputBuffer and outBuffer
     status_t initBuffers();
     // completely release all buffers
     void releaseBuffers();
-    //Set video clip info to VppProcessor
-    status_t updateVideoInfo(VPPVideoInfo* info);
     // flush buffers and renderlist for seek
     void flush();
     // stop thread if needed

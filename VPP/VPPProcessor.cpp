@@ -29,7 +29,7 @@
 
 namespace android {
 
-VPPProcessor::VPPProcessor(const sp<ANativeWindow> &native, OMXCodec *codec, VPPVideoInfo* pInfo)
+VPPProcessor::VPPProcessor(const sp<ANativeWindow> &native, OMXCodec *codec)
         :mInputBufferNum(0), mOutputBufferNum(0),
          mInputLoadPoint(0), mOutputLoadPoint(0),
          mLastRenderBuffer(NULL),
@@ -42,16 +42,6 @@ VPPProcessor::VPPProcessor(const sp<ANativeWindow> &native, OMXCodec *codec, VPP
     memset(mOutput, 0, VPPBuffer::MAX_VPP_BUFFER_NUMBER * sizeof(VPPBuffer));
 
     mWorker = new VPPWorker (mNativeWindow);
-    updateVideoInfo(pInfo);
-    mProcThread = new VPPProcThread(false, mWorker,
-            mInput, mInputBufferNum,
-            mOutput, mOutputBufferNum,
-            &mEOS);
-    mFillThread = new VPPFillThread(false, mWorker,
-            mInput, mInputBufferNum,
-            mOutput, mOutputBufferNum,
-            &mEOS);
-    LOGI("DONE");
 }
 
 VPPProcessor::~VPPProcessor() {
@@ -74,7 +64,7 @@ bool VPPProcessor::isVppOn() {
 
 status_t VPPProcessor::init() {
     LOGV("init");
-    if (mCodec == NULL || mWorker == NULL || mProcThread == NULL)
+    if (mCodec == NULL || mWorker == NULL)
         return VPP_FAIL;
 
     // set BufferInfo from decoder
@@ -84,10 +74,11 @@ status_t VPPProcessor::init() {
             return VPP_FAIL;
         uint32_t size = mBufferInfos->size();
         LOGI("mBufferInfo size is %d",size);
-        CHECK(size > mInputBufferNum + mOutputBufferNum);
-        if (mInputBufferNum > VPPBuffer::MAX_VPP_BUFFER_NUMBER 
+        if (mInputBufferNum == 0 || mOutputBufferNum == 0
+                || size <= mInputBufferNum + mOutputBufferNum
+                || mInputBufferNum > VPPBuffer::MAX_VPP_BUFFER_NUMBER
                 || mOutputBufferNum > VPPBuffer::MAX_VPP_BUFFER_NUMBER) {
-            LOGE("input or output buffer number exceeds limitation");
+            LOGE("input or output buffer number is invalid");
             return VPP_FAIL;
         }
         for (uint32_t i = 0; i < size; i++) {
@@ -113,6 +104,16 @@ status_t VPPProcessor::init() {
         return VPP_FAIL;
 
     // VPPThread starts to run
+    mProcThread = new VPPProcThread(false, mWorker,
+            mInput, mInputBufferNum,
+            mOutput, mOutputBufferNum,
+            &mEOS);
+    mFillThread = new VPPFillThread(false, mWorker,
+            mInput, mInputBufferNum,
+            mOutput, mOutputBufferNum,
+            &mEOS);
+    if (mProcThread == NULL || mFillThread == NULL)
+        return VPP_FAIL;
     mProcThread->run("VPPProcThread", ANDROID_PRIORITY_NORMAL);
     mFillThread->run("VPPFillThread", ANDROID_PRIORITY_NORMAL);
     mThreadRunning = true;
@@ -138,10 +139,6 @@ bool VPPProcessor::canSetDecoderBufferToVPP() {
 }
 
 status_t VPPProcessor::setDecoderBufferToVPP(MediaBuffer *buff) {
-    if (!mThreadRunning) {
-        if (init() != VPP_OK)
-            return VPP_FAIL;
-    }
     if (buff != NULL) {
         mRenderList.push_back(buff);
         mTotalDecodedCount ++;
@@ -152,9 +149,9 @@ status_t VPPProcessor::setDecoderBufferToVPP(MediaBuffer *buff) {
             OMXCodec::BufferInfo *info = findBufferInfo(buff);
             if (info == NULL) return VPP_FAIL;
             mInput[mInputLoadPoint].mFlags = info->mFlags;
-            mInput[mInputLoadPoint].mStatus = VPP_BUFFER_LOADED;
             mInput[mInputLoadPoint].mGraphicBuffer = buff->graphicBuffer();
             mInput[mInputLoadPoint].mTimeUs = getBufferTimestamp(buff);
+            mInput[mInputLoadPoint].mStatus = VPP_BUFFER_LOADED;
             mInputLoadPoint = (mInputLoadPoint + 1) % mInputBufferNum;
             mInputCount ++;
             return VPP_OK;
@@ -262,8 +259,8 @@ void VPPProcessor::releaseBuffers() {
             if (mediaBuffer->refcount() > 0)
                 mediaBuffer->release();
             mInput[i].mGraphicBuffer = NULL;
-            mInput[i].mStatus = VPP_BUFFER_FREE;
             mInput[i].mTimeUs = 0;
+            mInput[i].mStatus = VPP_BUFFER_FREE;
         }
     }
 
@@ -275,8 +272,8 @@ void VPPProcessor::releaseBuffers() {
             else {
                 cancelBufferToNativeWindow(mediaBuffer);
                 mOutput[i].mGraphicBuffer = NULL;
-                mOutput[i].mStatus = VPP_BUFFER_FREE;
                 mOutput[i].mTimeUs = 0;
+                mOutput[i].mStatus = VPP_BUFFER_FREE;
             }
         }
     }
@@ -306,8 +303,8 @@ void VPPProcessor::flush() {
                 if (mediaBuffer != NULL && mediaBuffer->refcount() > 0)
                         mediaBuffer->release();
                 mInput[i].mGraphicBuffer = NULL;
-                mInput[i].mStatus = VPP_BUFFER_FREE;
                 mInput[i].mTimeUs = 0;
+                mInput[i].mStatus = VPP_BUFFER_FREE;
             }
             if (monitorNewLoadPoint) {
                 // find the 1st frame after PROCESSING block
@@ -358,8 +355,8 @@ status_t VPPProcessor::clearInput() {
                 mediaBuffer->release();
             }
             mInput[i].mGraphicBuffer = NULL;
-            mInput[i].mStatus = VPP_BUFFER_FREE;
             mInput[i].mTimeUs = 0;
+            mInput[i].mStatus = VPP_BUFFER_FREE;
         }
     }
     return VPP_OK;
@@ -489,8 +486,8 @@ status_t VPPProcessor::initBuffers() {
     uint32_t i;
     for (i = 0; i < mInputBufferNum; i++) {
         mInput[i].mGraphicBuffer = NULL;
-        mInput[i].mStatus = VPP_BUFFER_FREE;
         mInput[i].mTimeUs = 0;
+        mInput[i].mStatus = VPP_BUFFER_FREE;
     }
 
     for (i = 0; i < mOutputBufferNum; i++) {
@@ -499,8 +496,8 @@ status_t VPPProcessor::initBuffers() {
             return VPP_FAIL;
 
         mOutput[i].mGraphicBuffer = buf->graphicBuffer();
-        mOutput[i].mStatus = VPP_BUFFER_FREE;
         mOutput[i].mTimeUs = 0;
+        mOutput[i].mStatus = VPP_BUFFER_FREE;
     }
     return VPP_OK;
 }
@@ -534,8 +531,8 @@ void VPPProcessor::signalBufferReturned(MediaBuffer *buff) {
         for (uint32_t i = 0; i < mOutputBufferNum; i++) {
             if (buff->graphicBuffer() == mOutput[i].mGraphicBuffer) {
                 mOutput[i].mGraphicBuffer = mediaBuffer->graphicBuffer();
-                mOutput[i].mStatus = VPP_BUFFER_FREE;
                 mOutput[i].mTimeUs = 0;
+                mOutput[i].mStatus = VPP_BUFFER_FREE;
                 break;
             }
         }
@@ -550,8 +547,8 @@ void VPPProcessor::signalBufferReturned(MediaBuffer *buff) {
             for (uint32_t i = 0; i < mOutputBufferNum; i++) {
                 if (buff->graphicBuffer() == mOutput[i].mGraphicBuffer) {
                     mOutput[i].mGraphicBuffer = NULL;
-                    mOutput[i].mStatus = VPP_BUFFER_FREE;
                     mOutput[i].mTimeUs = 0;
+                    mOutput[i].mStatus = VPP_BUFFER_FREE;
                     break;
                 }
             }
@@ -568,8 +565,8 @@ void VPPProcessor::signalBufferReturned(MediaBuffer *buff) {
             for (uint32_t i = 0; i < mOutputBufferNum; i++) {
                 if (buff->graphicBuffer() == mOutput[i].mGraphicBuffer) {
                     mOutput[i].mGraphicBuffer = mediaBuffer->graphicBuffer();
-                    mOutput[i].mStatus = VPP_BUFFER_FREE;
                     mOutput[i].mTimeUs = 0;
+                    mOutput[i].mStatus = VPP_BUFFER_FREE;
                     break;
                 }
             }
@@ -579,11 +576,12 @@ void VPPProcessor::signalBufferReturned(MediaBuffer *buff) {
     return;
 }
 
-status_t VPPProcessor::updateVideoInfo(VPPVideoInfo * videoInfo)
+status_t VPPProcessor::validateVideoInfo(VPPVideoInfo * videoInfo)
 {
     if (videoInfo == NULL || mWorker == NULL)
         return VPP_FAIL;
-    mWorker->setVideoInfo(videoInfo->width, videoInfo->height, videoInfo->fps);
+    if (mWorker->configFilters(videoInfo->width, videoInfo->height, videoInfo->fps) != VPP_OK)
+        return VPP_FAIL;
     mInputBufferNum = mWorker->mNumForwardReferences + 3;
     mOutputBufferNum = (mWorker->mNumForwardReferences + 2) * mWorker->mFrcRate;
     if (mInputBufferNum > VPPBuffer::MAX_VPP_BUFFER_NUMBER 
