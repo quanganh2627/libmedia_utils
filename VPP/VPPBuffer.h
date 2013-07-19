@@ -42,7 +42,8 @@ enum VPPBufferStatus {
     VPP_BUFFER_PROCESSING,      //sent to VSP driver for process
     VPP_BUFFER_READY,           //VSP process done, ready to use
     VPP_BUFFER_LOADED,          //input only, decoded buffer loaded
-    VPP_BUFFER_RENDERING        //output only, vpp buffer in RenderList
+    VPP_BUFFER_RENDERING,       //output only, vpp buffer in RenderList
+    VPP_BUFFER_END_FLAG
 };
 
 struct VPPVideoInfo {

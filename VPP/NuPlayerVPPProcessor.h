@@ -168,7 +168,7 @@ private:
     // completely release all buffers
     void releaseBuffers();
     // clear input buffer array
-    void clearInput();
+    void postAndResetInput(uint32_t index);
     // reset one input or output buffer
     void resetBuffer(int32_t index, int32_t type, sp<GraphicBuffer> buffer);
     // find buffer info by buffer id
@@ -185,6 +185,8 @@ private:
     void quitThread();
     // flush buffers without quit threads
     void flushNoShutdown();
+    // bofore flush
+    bool hasProcessingBuffer();
 
     DISALLOW_EVIL_CONSTRUCTORS(NuPlayerVPPProcessor);
 };

@@ -82,6 +82,8 @@ class VPPWorker {
 
         // Check if the input NativeWindow handle is the same as the one when construction
         bool validateNativeWindow(const sp<ANativeWindow> &nativeWindow);
+        // reset index
+        status_t reset();
 
         ~VPPWorker();
 

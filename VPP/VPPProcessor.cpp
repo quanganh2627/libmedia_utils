@@ -127,12 +127,10 @@ status_t VPPProcessor::init() {
     // VPPThread starts to run
     mProcThread = new VPPProcThread(false, mWorker,
             mInput, mInputBufferNum,
-            mOutput, mOutputBufferNum,
-            &mEOS);
+            mOutput, mOutputBufferNum);
     mFillThread = new VPPFillThread(false, mWorker,
             mInput, mInputBufferNum,
-            mOutput, mOutputBufferNum,
-            &mEOS);
+            mOutput, mOutputBufferNum);
     if (mProcThread == NULL || mFillThread == NULL)
         return VPP_FAIL;
     mProcThread->run("VPPProcThread", ANDROID_PRIORITY_NORMAL);
@@ -185,11 +183,11 @@ void VPPProcessor::printBuffers() {
     MediaBuffer *mediaBuffer = NULL;
     for (uint32_t i = 0; i < mInputBufferNum; i++) {
         mediaBuffer = findMediaBuffer(mInput[i]);
-        LOGI("input %d.   %p,  status = %d, time = %lld", i, mediaBuffer, mInput[i].mStatus, mInput[i].mTimeUs);
+        LOGV("input %d.   %p,  status = %d, time = %lld", i, mediaBuffer, mInput[i].mStatus, mInput[i].mTimeUs);
     }
     for (uint32_t i = 0; i < mOutputBufferNum; i++) {
         mediaBuffer = findMediaBuffer(mOutput[i]);
-        LOGI("output %d.   %p,  status = %d, time = %lld", i, mediaBuffer, mOutput[i].mStatus, mOutput[i].mTimeUs);
+        LOGV("output %d.   %p,  status = %d, time = %lld", i, mediaBuffer, mOutput[i].mStatus, mOutput[i].mTimeUs);
     }
 
 }
@@ -202,8 +200,8 @@ void VPPProcessor::printRenderList() {
 }
 
 status_t VPPProcessor::read(MediaBuffer **buffer) {
-//    printBuffers();
-//    printRenderList();
+    printBuffers();
+    printRenderList();
     if (mProcThread->mError || mFillThread->mError)
         return VPP_FAIL;
     if (mRenderList.empty()) {
@@ -240,15 +238,28 @@ int64_t VPPProcessor::getBufferTimestamp(MediaBuffer * buff) {
 }
 
 void VPPProcessor::seek() {
-    LOGV("seek");
+    LOGI("seek");
     /* invoke thread if it is waiting */
     if (mThreadRunning) {
-        Mutex::Autolock procLock(mProcThread->mLock);
-        Mutex::Autolock fillLock(mFillThread->mLock);
+        Mutex::Autolock endLock(mFillThread->mEndLock);
+        {
+            Mutex::Autolock fillLock(mFillThread->mLock);
+            {
+                Mutex::Autolock procLock(mProcThread->mLock);
+                if (!hasProcessingBuffer()) return;
+                mProcThread->mSeek = true;
+                mProcThread->mRunCond.signal();
+            }
+            mFillThread->mSeek = true;
+            mFillThread->mRunCond.signal();
+        }
+        LOGV("wait signal");
+        mFillThread->mEndCond.wait(mFillThread->mEndLock);
         flush();
+        mWorker->reset();
+        LOGI("seek done");
     }
 }
-
 
 void VPPProcessor::quitThread() {
     LOGI("quitThread");
@@ -312,59 +323,77 @@ void VPPProcessor::releaseBuffers() {
     mRenderList.clear();
 }
 
-void VPPProcessor::flush() {
-    // flush all input buffers which are not in PROCESSING state
-    LOGI("flush");
-    bool monitorNewLoadPoint = false;
-    mInputLoadPoint = 0;
+bool VPPProcessor::hasProcessingBuffer() {
+    bool hasProcBuffer = false;
     for (uint32_t i = 0; i < mInputBufferNum; i++) {
-        if (mInput[i].mStatus != VPP_BUFFER_PROCESSING) {
-            if (mInput[i].mStatus != VPP_BUFFER_FREE) {
-                MediaBuffer *mediaBuffer = findMediaBuffer(mInput[i]);
-                if (mediaBuffer != NULL && mediaBuffer->refcount() > 0)
-                        mediaBuffer->release();
-                mInput[i].mGraphicBuffer = NULL;
-                mInput[i].mTimeUs = 0;
-                mInput[i].mStatus = VPP_BUFFER_FREE;
-            }
-            if (monitorNewLoadPoint) {
-                // find the 1st frame after PROCESSING block
-                mInputLoadPoint = i;
-                monitorNewLoadPoint = false;
+        if (mInput[i].mStatus == VPP_BUFFER_PROCESSING)
+            hasProcBuffer = true;
+        if (mInput[i].mStatus != VPP_BUFFER_PROCESSING && mInput[i].mStatus != VPP_BUFFER_FREE) {
+            MediaBuffer *mediaBuffer = findMediaBuffer(mInput[i]);
+            if (mediaBuffer != NULL && mediaBuffer->refcount() > 0)
+                mediaBuffer->release();
+            mInput[i].mGraphicBuffer = NULL;
+            mInput[i].mTimeUs = 0;
+            mInput[i].mStatus = VPP_BUFFER_FREE;
+        }
+    }
+    for (uint32_t i = 0; i < mOutputBufferNum; i++) {
+        if (mOutput[i].mStatus != VPP_BUFFER_PROCESSING && mOutput[i].mStatus != VPP_BUFFER_FREE) {
+            MediaBuffer *mediaBuffer = findMediaBuffer(mOutput[i]);
+            if (mediaBuffer != NULL && mediaBuffer->refcount() > 0)
+                mediaBuffer->release();
+            else {
+                mOutput[i].mTimeUs = 0;
+                mOutput[i].mStatus = VPP_BUFFER_FREE;
             }
         }
-        else
-            monitorNewLoadPoint = true;
     }
-    // flush all output buffers which are not in PROCESSING state
-    monitorNewLoadPoint = true;
+    mInputLoadPoint = 0;
+    mOutputLoadPoint = 0;
+    return hasProcBuffer;
+}
+
+void VPPProcessor::flush() {
+    LOGV("flush");
+    // flush all input buffers
+    for (uint32_t i = 0; i < mInputBufferNum; i++) {
+        CHECK(mInput[i].mStatus != VPP_BUFFER_PROCESSING);
+        if (mInput[i].mStatus != VPP_BUFFER_FREE) {
+            MediaBuffer *mediaBuffer = findMediaBuffer(mInput[i]);
+            if (mediaBuffer != NULL && mediaBuffer->refcount() > 0)
+                mediaBuffer->release();
+            mInput[i].mGraphicBuffer = NULL;
+            mInput[i].mTimeUs = 0;
+            mInput[i].mStatus = VPP_BUFFER_FREE;
+        }
+    }
+
+    // flush all output buffers
     for (uint32_t i = 0; i < mOutputBufferNum; i++) {
+        CHECK(mOutput[i].mStatus != VPP_BUFFER_PROCESSING);
         if (mOutput[i].mStatus != VPP_BUFFER_PROCESSING) {
-            if (mOutput[i].mStatus != VPP_BUFFER_FREE) {
-                MediaBuffer *mediaBuffer = findMediaBuffer(mOutput[i]);
-                if (mediaBuffer != NULL && mediaBuffer->refcount() > 0)
-                    mediaBuffer->release();
-            }
-            monitorNewLoadPoint = true;
-        } else {
-            if (monitorNewLoadPoint) {
-                // find the 1st frame in PROCESSING state
-                mOutputLoadPoint = i;
-                monitorNewLoadPoint = false;
+            MediaBuffer *mediaBuffer = findMediaBuffer(mOutput[i]);
+            if (mediaBuffer != NULL && mediaBuffer->refcount() > 0)
+                mediaBuffer->release();
+            else {
+                mOutput[i].mTimeUs = 0;
+                mOutput[i].mStatus = VPP_BUFFER_FREE;
             }
         }
     }
 
+    LOGV("flush render list");
     List<MediaBuffer*>::iterator it;
-    for (it = mRenderList.begin(); it != mRenderList.end(); it++) {
-        if (*it == NULL) break;
-        MediaBuffer* renderBuffer = *it;
-        if (renderBuffer->refcount() > 0)
-            renderBuffer->release();
+    if (!mRenderList.empty()) {
+        for (it = mRenderList.begin(); it != mRenderList.end(); it++) {
+            if (*it == NULL) break;
+            MediaBuffer* renderBuffer = *it;
+            if (renderBuffer->refcount() > 0)
+                renderBuffer->release();
+        }
+        mRenderList.clear();
     }
-    mRenderList.clear();
-    printBuffers();
-    printRenderList();
+    LOGV("flush end");
 }
 
 status_t VPPProcessor::clearInput() {
@@ -617,6 +646,7 @@ void VPPProcessor::setEOS()
 {
     LOGI("setEOS");
     mEOS = true;
+    mProcThread->mEOS = true;
 }
 
 MediaBuffer * VPPProcessor::findMediaBuffer(VPPBuffer &buff) {

@@ -34,8 +34,7 @@ class VPPProcThread : public Thread {
 
         VPPProcThread(bool canCallJava, VPPWorker* vppWorker,
                 VPPBuffer *inputBuffer, const uint32_t inputBufferNum,
-                VPPBuffer *outputBuffer, const uint32_t outputBufferNum,
-                const bool *eos);
+                VPPBuffer *outputBuffer, const uint32_t outputBufferNum);
         virtual ~VPPProcThread();
 
         virtual status_t readyToRun();
@@ -55,6 +54,8 @@ class VPPProcThread : public Thread {
         Condition mRunCond;
         bool mWait;
         bool mError;
+        bool mEOS;
+        bool mSeek;
 
     private:
         VPPProcThread(const VPPProcThread &);
@@ -67,7 +68,6 @@ class VPPProcThread : public Thread {
         VPPBuffer *mOutput;
         const uint32_t mInputBufferNum;
         const uint32_t mOutputBufferNum;
-        const bool *mEOS;
         uint32_t mInputProcIdx;
         uint32_t mOutputProcIdx;
         bool mFlagEnd;

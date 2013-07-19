@@ -135,6 +135,8 @@ private:
     status_t initBuffers();
     // completely release all buffers
     void releaseBuffers();
+    // before seek
+    bool hasProcessingBuffer();
     // flush buffers and renderlist for seek
     void flush();
     // stop thread if needed

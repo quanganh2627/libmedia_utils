@@ -172,10 +172,7 @@ uint32_t VPPWorker::getProcBufCount() {
 }
 
 uint32_t VPPWorker::getFillBufCount() {
-    if (mInputIndex >= mNumForwardReferences)
         return getOutputBufCount(mOutputIndex);
-    else
-        return 0;
 }
 
 status_t VPPWorker::setupVA() {
@@ -378,6 +375,7 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
 }
 
 status_t VPPWorker::setupFilters() {
+    LOGV("setupFilters");
     VAProcFilterParameterBuffer deblock, denoise, sharpen;
     VAProcFilterParameterBufferDeinterlacing deint;
     VAProcFilterParameterBufferColorBalance color[COLOR_NUM];
@@ -603,6 +601,7 @@ status_t VPPWorker::setupFilters() {
 }
 
 status_t VPPWorker::setupPipelineCaps() {
+    LOGV("setupPipelineCaps");
     //TODO color standards
     VAProcPipelineCaps pipelineCaps;
     VAStatus vaStatus;
@@ -834,6 +833,30 @@ status_t VPPWorker::dumpYUVFrameData(VASurfaceID surfaceID) {
     CHECK_VASTATUS("vaDestroyImage");
 
     return STATUS_OK;
+}
+
+status_t VPPWorker::reset() {
+    status_t ret;
+    LOGD("reset");
+    mInputIndex = 0;
+    mOutputIndex = 0;
+    mNumFilterBuffers = 0;
+    if (mForwardReferences != NULL) {
+        free(mForwardReferences);
+        mForwardReferences = NULL;
+    }
+    if (mVAContext != VA_INVALID_ID) {
+         vaDestroyContext(mVADisplay, mVAContext);
+         mVAContext = VA_INVALID_ID;
+    }
+    VAStatus vaStatus = vaCreateContext(mVADisplay, mVAConfig, mWidth, mHeight, 0, mSurfaces, mNumSurfaces, &mVAContext);
+    CHECK_VASTATUS("vaCreateContext");
+    if (mNumFilterBuffers == 0) {
+        ret = setupFilters();
+        if(ret != STATUS_OK)
+            return ret;
+    }
+    return setupPipelineCaps();
 }
 
 status_t VPPWorker::writeNV12(int width, int height, unsigned char *out_buf, int y_pitch, int uv_pitch) {
