@@ -58,8 +58,11 @@ VPPProcessor::~VPPProcessor() {
 }
 
 //static
+int32_t VPPProcessor::VppStrength = VPP_STRENGTH_MEDIUM;
+
+//static
 bool VPPProcessor::isVppOn() {
-    return VPPBuffer::isVppOn();
+    return VPPBuffer::isVppOn(VppStrength);
 }
 
 status_t VPPProcessor::init() {
@@ -580,7 +583,7 @@ status_t VPPProcessor::validateVideoInfo(VPPVideoInfo * videoInfo)
 {
     if (videoInfo == NULL || mWorker == NULL)
         return VPP_FAIL;
-    if (mWorker->configFilters(videoInfo->width, videoInfo->height, videoInfo->fps) != VPP_OK)
+    if (mWorker->configFilters(videoInfo->width, videoInfo->height, videoInfo->fps, VppStrength) != VPP_OK)
         return VPP_FAIL;
     mInputBufferNum = mWorker->mNumForwardReferences + 3;
     mOutputBufferNum = (mWorker->mNumForwardReferences + 2) * mWorker->mFrcRate;

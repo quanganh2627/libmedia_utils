@@ -46,6 +46,12 @@ enum VPPWorkerStatus {
     STATUS_ERROR
 };
 
+enum VPP_STRENGTH {
+    VPP_STRENGTH_LOW = 0,
+    VPP_STRENGTH_MEDIUM,
+    VPP_STRENGTH_HIGH
+};
+
 struct GraphicBufferConfig {
     uint32_t colorFormat;
     uint32_t stride;
@@ -60,7 +66,7 @@ class VPPWorker {
         VPPWorker(const sp<ANativeWindow> &nativeWindow);
 
         // config filters on or off based on video info
-        status_t configFilters(const uint32_t width, const uint32_t height, const uint32_t fps);
+        status_t configFilters(const uint32_t width, const uint32_t height, const uint32_t fps, const int32_t strength);
 
         // Initialize: setupVA()->setupFilters()->setupPipelineCaps()
         status_t init();
@@ -152,6 +158,7 @@ class VPPWorker {
         bool mColorOn;
         bool mFrcOn;
         VABufferID mFilterFrc;
+        int32_t mStrength;
 
         // status
         uint32_t mInputIndex;

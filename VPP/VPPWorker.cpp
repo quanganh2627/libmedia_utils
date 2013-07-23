@@ -28,14 +28,6 @@
                 return STATUS_ERROR;}   \
         }while(0);
 
-enum STRENGTH {
-    STRENGTH_LOW = 0,
-    STRENGTH_MEDIUM,
-    STRENGTH_HIGH
-};
-
-#define DENOISE_DEBLOCK_STRENGTH STRENGTH_MEDIUM
-#define COLOR_STRENGTH STRENGTH_MEDIUM
 #ifdef TARGET_VPP_USE_GEN
 #define COLOR_NUM 4
 #else
@@ -300,7 +292,7 @@ status_t VPPWorker::terminateVA() {
     return STATUS_OK;
 }
 
-status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, const uint32_t fps) {
+status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, const uint32_t fps, const int32_t strength) {
     mWidth = width;
     mHeight = height;
     mInputFps = fps;
@@ -350,6 +342,8 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
         mFrcRate = FRC_RATE_2X;
     }
 
+    mStrength = strength;
+
     LOGV("mDeblockOn=%d, mDenoiseOn=%d, mSharpenOn=%d, mColorOn=%d, mFrcOn=%d, mFrcRate=%d",
           mDeblockOn, mDenoiseOn, mSharpenOn, mColorOn, mFrcOn, mFrcRate);
     return STATUS_OK;
@@ -387,7 +381,7 @@ status_t VPPWorker::setupFilters() {
                     CHECK_VASTATUS("vaQueryVideoProcFilterCaps for deblocking");
                     // create parameter buffer
                     deblock.type = VAProcFilterDeblocking;
-                    deblock.value = deblockCaps.range.min_value + DENOISE_DEBLOCK_STRENGTH * deblockCaps.range.step;
+                    deblock.value = deblockCaps.range.min_value + mStrength * deblockCaps.range.step;
                     vaStatus = vaCreateBuffer(mVADisplay, mVAContext,
                         VAProcFilterParameterBufferType, sizeof(deblock), 1,
                         &deblock, &deblockId);
@@ -416,7 +410,7 @@ status_t VPPWorker::setupFilters() {
                     denoise.value = (denoise.value < 0.0f) ? 0.0f : denoise.value;
                     denoise.value = (denoise.value > 64.0f) ? 64.0f : denoise.value;
 #else
-                    denoise.value = denoiseCaps.range.min_value + DENOISE_DEBLOCK_STRENGTH * denoiseCaps.range.step;
+                    denoise.value = denoiseCaps.range.min_value + mStrength * denoiseCaps.range.step;
 #endif
                     vaStatus = vaCreateBuffer(mVADisplay, mVAContext,
                         VAProcFilterParameterBufferType, sizeof(denoise), 1,
@@ -489,13 +483,13 @@ status_t VPPWorker::setupFilters() {
                         if (colorCaps[i].type == VAProcColorBalanceAutoSaturation) {
                             color[i].type = VAProcFilterColorBalance;
                             color[i].attrib = VAProcColorBalanceAutoSaturation;
-                            color[i].value = colorCaps[i].range.min_value + COLOR_STRENGTH * colorCaps[i].range.step;
+                            color[i].value = colorCaps[i].range.min_value + VPP_STRENGTH_MEDIUM * colorCaps[i].range.step;
                             featureCount++;
                         }
                         else if (colorCaps[i].type == VAProcColorBalanceAutoBrightness) {
                             color[i].type = VAProcFilterColorBalance;
                             color[i].attrib = VAProcColorBalanceAutoBrightness;
-                            color[i].value = colorCaps[i].range.min_value + COLOR_STRENGTH * colorCaps[i].range.step;
+                            color[i].value = colorCaps[i].range.min_value + VPP_STRENGTH_MEDIUM * colorCaps[i].range.step;
                             featureCount++;
                         }
                     }

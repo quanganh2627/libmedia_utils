@@ -206,7 +206,7 @@ int64_t NuPlayerVPPProcessor::getBufferTimestamp(sp<ABuffer> buffer) {
 status_t NuPlayerVPPProcessor::validateVideoInfo(VPPVideoInfo *videoInfo){
     if (videoInfo == NULL || mWorker == NULL)
         return VPP_FAIL;
-    if (mWorker->configFilters(videoInfo->width, videoInfo->height, videoInfo->fps) != VPP_OK)
+    if (mWorker->configFilters(videoInfo->width, videoInfo->height, videoInfo->fps, VppStrength) != VPP_OK)
         return VPP_FAIL;
     mInputBufferNum = mWorker->mNumForwardReferences + 3;
     mOutputBufferNum = (mWorker->mNumForwardReferences + 2) * mWorker->mFrcRate;
@@ -218,9 +218,12 @@ status_t NuPlayerVPPProcessor::validateVideoInfo(VPPVideoInfo *videoInfo){
     return VPP_OK;
 }
 
+//static
+int32_t NuPlayerVPPProcessor::VppStrength = VPP_STRENGTH_MEDIUM;
+
 // static
 bool NuPlayerVPPProcessor::isVppOn() {
-    return VPPBuffer::isVppOn();
+    return VPPBuffer::isVppOn(VppStrength);
 }
 
 ACodec::BufferInfo * NuPlayerVPPProcessor::findBufferByID(IOMX::buffer_id bufferID) {
