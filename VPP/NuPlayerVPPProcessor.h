@@ -31,7 +31,7 @@ struct ACodec;
 
 struct NuPlayerVPPProcessor : public AHandler {
 public:
-    NuPlayerVPPProcessor(const sp<AMessage> &notify,
+    static NuPlayerVPPProcessor* getInstance(const sp<AMessage> &notify,
             const sp<NativeWindowWrapper> &nativeWindow = NULL);
 
     /*
@@ -133,6 +133,7 @@ private:
         VPP_OUTPUT = 2,
     };
 
+    static NuPlayerVPPProcessor* mNuPlayerVPPProcessor;
     // buffer info for VPP input
     VPPBuffer mInput[VPPBuffer::MAX_VPP_BUFFER_NUMBER];
     // buffer info for VPP output
@@ -160,6 +161,8 @@ private:
     sp<ACodec> mACodec;
 
 private:
+    NuPlayerVPPProcessor(const sp<AMessage> &notify,
+            const sp<NativeWindowWrapper> &nativeWindow = NULL);
     // init inputBuffer and outBuffer
     status_t initBuffers();
     // completely release all buffers

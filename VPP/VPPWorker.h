@@ -57,7 +57,7 @@ struct GraphicBufferConfig {
 class VPPWorker {
 
     public:
-        VPPWorker(const sp<ANativeWindow> &nativeWindow);
+        static VPPWorker* getInstance(const sp<ANativeWindow> &nativeWindow);
 
         // config filters on or off based on video info
         status_t configFilters(const uint32_t width, const uint32_t height, const uint32_t fps);
@@ -80,9 +80,13 @@ class VPPWorker {
         // Initialize graphic configuration buffer
         status_t setGraphicBufferConfig(sp<GraphicBuffer> graphicBuffer);
 
+        // Check if the input NativeWindow handle is the same as the one when construction
+        bool validateNativeWindow(const sp<ANativeWindow> &nativeWindow);
+
         ~VPPWorker();
 
     private:
+        VPPWorker(const sp<ANativeWindow> &nativeWindow);
         // Check if VPP is supported
         bool isSupport() const;
 
@@ -117,7 +121,8 @@ class VPPWorker {
         FRC_RATE mFrcRate;
     private:
         // Graphic buffer
-        sp<ANativeWindow> mNativeWindow;
+        static VPPWorker* mVPPWorker;
+        static sp<ANativeWindow> mNativeWindow;
         uint32_t mGraphicBufferNum;
         struct GraphicBufferConfig mGraphicBufferConfig;
 

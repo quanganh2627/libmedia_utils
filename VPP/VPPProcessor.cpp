@@ -41,7 +41,7 @@ VPPProcessor::VPPProcessor(const sp<ANativeWindow> &native, OMXCodec *codec)
     memset(mInput, 0, VPPBuffer::MAX_VPP_BUFFER_NUMBER * sizeof(VPPBuffer));
     memset(mOutput, 0, VPPBuffer::MAX_VPP_BUFFER_NUMBER * sizeof(VPPBuffer));
 
-    mWorker = new VPPWorker (mNativeWindow);
+    mWorker = VPPWorker::getInstance(mNativeWindow);
 }
 
 VPPProcessor::~VPPProcessor() {
@@ -54,7 +54,28 @@ VPPProcessor::~VPPProcessor() {
     }
 
     releaseBuffers();
+    mVPPProcessor = NULL;
     LOGI("VPPProcessor is deleted");
+}
+
+//static
+VPPProcessor* VPPProcessor::mVPPProcessor = NULL;
+
+//static
+VPPProcessor* VPPProcessor::getInstance(const sp<ANativeWindow> &native, OMXCodec* codec) {
+    if (mVPPProcessor == NULL) {
+        // If no instance is existing, create one
+        mVPPProcessor = new VPPProcessor(native, codec);
+        if (mVPPProcessor != NULL && mVPPProcessor->mWorker == NULL) {
+            // If VPPWorker instance is not got successfully, delete VPPProcessor
+            delete mVPPProcessor;
+            mVPPProcessor = NULL;
+        }
+    } else if (mVPPProcessor->mWorker != NULL && !mVPPProcessor->mWorker->validateNativeWindow(native))
+        // If one instance is existing, check if the caller share the same NativeWindow handle
+        return NULL;
+
+    return mVPPProcessor;
 }
 
 //static

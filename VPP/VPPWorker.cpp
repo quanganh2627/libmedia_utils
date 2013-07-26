@@ -51,8 +51,7 @@ enum STRENGTH {
 namespace android {
 
 VPPWorker::VPPWorker(const sp<ANativeWindow> &nativeWindow)
-    :mNativeWindow(nativeWindow),
-        mGraphicBufferNum(0),
+    :mGraphicBufferNum(0),
         mWidth(0), mHeight(0), mInputFps(0),
         mVAStarted(false), mVAContext(VA_INVALID_ID),
         mDisplay(NULL), mVADisplay(NULL), mVAConfig(VA_INVALID_ID),
@@ -65,6 +64,29 @@ VPPWorker::VPPWorker(const sp<ANativeWindow> &nativeWindow)
         mInputIndex(0), mOutputIndex(0) {
     memset(&mFilterBuffers, 0, VAProcFilterCount * sizeof(VABufferID));
     memset(&mGraphicBufferConfig, 0, sizeof(GraphicBufferConfig));
+}
+
+//static
+VPPWorker* VPPWorker::mVPPWorker = NULL;
+//static
+sp<ANativeWindow> VPPWorker::mNativeWindow = NULL;
+
+//static
+VPPWorker* VPPWorker::getInstance(const sp<ANativeWindow> &nativeWindow) {
+    if (mVPPWorker == NULL) {
+        mVPPWorker = new VPPWorker(nativeWindow);
+        mNativeWindow = nativeWindow;
+    } else if (mNativeWindow != nativeWindow)
+        return NULL;
+    return mVPPWorker;
+}
+
+//static
+bool VPPWorker::validateNativeWindow(const sp<ANativeWindow> &nativeWindow) {
+    if (mNativeWindow == nativeWindow)
+        return true;
+    else
+        return false;
 }
 
 status_t VPPWorker::init() {
@@ -776,6 +798,8 @@ VPPWorker::~VPPWorker() {
     if (mVAStarted) {
         terminateVA();
     }
+    mVPPWorker = NULL;
+    mNativeWindow.clear();
 }
 
 // Debug only

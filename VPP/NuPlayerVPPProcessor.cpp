@@ -43,7 +43,7 @@ NuPlayerVPPProcessor::NuPlayerVPPProcessor(
       mEOS(false),
       mLastInputTimeUs(-1) {
 
-    mWorker = new VPPWorker(mNativeWindow->getNativeWindow());
+    mWorker = VPPWorker::getInstance(mNativeWindow->getNativeWindow());
 }
 
 
@@ -58,7 +58,31 @@ NuPlayerVPPProcessor::~NuPlayerVPPProcessor() {
     if (mThreadRunning == false) {
         releaseBuffers();
     }
+    mNuPlayerVPPProcessor = NULL;
     LOGI("===== VPPInputCount = %d  =====", mInputCount);
+}
+
+//static
+NuPlayerVPPProcessor* NuPlayerVPPProcessor::mNuPlayerVPPProcessor = NULL;
+
+//static
+NuPlayerVPPProcessor* NuPlayerVPPProcessor::getInstance(
+        const sp<AMessage> &notify,
+        const sp<NativeWindowWrapper> &nativeWindow) {
+    if (mNuPlayerVPPProcessor == NULL) {
+        // If no instance is existing, create one
+        mNuPlayerVPPProcessor = new NuPlayerVPPProcessor(notify, nativeWindow);
+        if (mNuPlayerVPPProcessor != NULL && mNuPlayerVPPProcessor->mWorker == NULL) {
+            // If VPPWorker instance is not got successfully, delete VPPProcessor
+            delete mNuPlayerVPPProcessor;
+            mNuPlayerVPPProcessor = NULL;
+        }
+    } else if (mNuPlayerVPPProcessor->mWorker != NULL &&
+            !mNuPlayerVPPProcessor->mWorker->validateNativeWindow(nativeWindow->getNativeWindow()))
+        // If one instance is existing, check if the caller share the same NativeWindow handle
+        return NULL;
+
+    return mNuPlayerVPPProcessor;
 }
 
 void NuPlayerVPPProcessor::invokeThreads() {
