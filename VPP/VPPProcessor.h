@@ -156,8 +156,6 @@ private:
     VPPProcessor &operator=(const VPPProcessor &);
 
 private:
-    // vpp strength
-    static int32_t VppStrength;
     // buffer info for VPP input
     VPPBuffer mInput[VPPBuffer::MAX_VPP_BUFFER_NUMBER];
     // buffer info for VPP output

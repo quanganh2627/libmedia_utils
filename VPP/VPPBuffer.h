@@ -21,7 +21,6 @@
 #include <ui/GraphicBuffer.h>
 #include <stdint.h>
 #include <media/stagefright/foundation/AMessage.h>
-#include "VPPWorker.h"
 
 namespace android {
 
@@ -63,7 +62,7 @@ public:
     VPPBuffer(){}
     ~VPPBuffer(){}
 
-    static bool isVppOn(int32_t &strength)
+    static bool isVppOn()
     {
         FILE *handle = fopen(VPP_STATUS_STORAGE, "r");
         if(handle == NULL)
@@ -81,17 +80,6 @@ public:
         if(strstr(buf, "true") == NULL) {
             fclose(handle);
             return false;
-        }
-
-        if (strstr(buf, "low")) {
-            strength = VPP_STRENGTH_LOW;
-        } else if (strstr(buf, "high")) {
-            strength = VPP_STRENGTH_HIGH;
-        } else if (strstr(buf, "medium")) {
-            strength = VPP_STRENGTH_MEDIUM;
-        } else {
-            // should not be here, but if it comes, set medium as default
-            strength = VPP_STRENGTH_MEDIUM;
         }
 
         fclose(handle);
