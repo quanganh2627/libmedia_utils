@@ -86,6 +86,14 @@ public:
         fclose(handle);
         return true;
     }
+    // reset one input or output buffer
+    void resetBuffer(sp<GraphicBuffer> buffer)
+    {
+        mGraphicBuffer = buffer;
+        mTimeUs = 0;
+        mCodecMsg = NULL;
+        mStatus = VPP_BUFFER_FREE;
+    }
 
 public:
     sp<GraphicBuffer> mGraphicBuffer;

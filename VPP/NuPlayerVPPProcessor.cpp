@@ -211,15 +211,15 @@ void NuPlayerVPPProcessor::onFreeBuffer(const sp<AMessage> &msg) {
         if (info != NULL) {
             LOGV("cancel buffer after thread quit ; graphicBuffer = %p", mOutput[index].mGraphicBuffer.get());
             cancelBufferToNativeWindow(info);
-            resetBuffer(index, VPP_OUTPUT, NULL);
+            mOutput[index].resetBuffer(NULL);
         }
     } else {
         if (reuse == 1) {
-            resetBuffer(index, VPP_OUTPUT, mOutput[index].mGraphicBuffer);
+            mOutput[index].resetBuffer(mOutput[index].mGraphicBuffer);
         } else if (reuse == 0) {
             ACodec::BufferInfo *info = dequeueBufferFromNativeWindow();
             CHECK(info != NULL);
-            resetBuffer(index, VPP_OUTPUT, info->mGraphicBuffer);
+            mOutput[index].resetBuffer(info->mGraphicBuffer);
         }
     }
 
@@ -342,7 +342,7 @@ status_t NuPlayerVPPProcessor::initBuffers() {
     ACodec::BufferInfo *buf = NULL;
     uint32_t i;
     for (i = 0; i < mInputBufferNum; i++) {
-        resetBuffer(i, VPP_INPUT, NULL);
+        mInput[i].resetBuffer(NULL);
     }
 
     for (i = 0; i < mOutputBufferNum; i++) {
@@ -350,7 +350,7 @@ status_t NuPlayerVPPProcessor::initBuffers() {
         if (buf == NULL)
             return VPP_FAIL;
 
-        resetBuffer(i, VPP_OUTPUT, buf->mGraphicBuffer);
+        mOutput[i].resetBuffer(buf->mGraphicBuffer);
     }
     return VPP_OK;
 }
@@ -379,32 +379,17 @@ ACodec::BufferInfo * NuPlayerVPPProcessor::dequeueBufferFromNativeWindow() {
     return NULL;
 }
 
-void NuPlayerVPPProcessor::resetBuffer(int32_t index, int32_t type, sp<GraphicBuffer> buffer) {
-    VPPBuffer* vppBuffer;
-
-    if (type == VPP_INPUT) {
-        vppBuffer = &mInput[index];
-    } else {
-        vppBuffer = &mOutput[index];
-    }
-
-    vppBuffer->mGraphicBuffer = buffer;
-    vppBuffer->mTimeUs = 0;
-    vppBuffer->mCodecMsg = NULL;
-    vppBuffer->mStatus = VPP_BUFFER_FREE;
-}
-
 void NuPlayerVPPProcessor::releaseBuffers() {
     LOGI("releaseBuffers");
     for (uint32_t i = 0; i < mInputBufferNum; i++) {
-        resetBuffer(i, VPP_INPUT, NULL);
+        mInput[i].resetBuffer(NULL);
     }
 
     for (uint32_t i = 0; i < mOutputBufferNum; i++) {
         ACodec::BufferInfo * info = findBufferByGraphicBuffer(mOutput[i].mGraphicBuffer);
         if (info != NULL) {
             cancelBufferToNativeWindow(info);
-            resetBuffer(i, VPP_OUTPUT, NULL);
+            mOutput[i].resetBuffer(NULL);
         }
     }
 
@@ -450,7 +435,7 @@ void NuPlayerVPPProcessor::postAndResetInput(uint32_t index) {
         vppNotify->post();
     }
 
-    resetBuffer(index, VPP_INPUT, NULL);
+    mInput[index].resetBuffer(NULL);
 }
 
 void NuPlayerVPPProcessor::quitThread() {
@@ -515,7 +500,7 @@ bool NuPlayerVPPProcessor::hasProcessingBuffer() {
     }
     for (uint32_t i = 0; i < mOutputBufferNum; i++) {
         if (mOutput[i].mStatus != VPP_BUFFER_PROCESSING && mOutput[i].mStatus != VPP_BUFFER_FREE) {
-            resetBuffer(i, VPP_OUTPUT, mOutput[i].mGraphicBuffer);
+            mOutput[i].resetBuffer(mOutput[i].mGraphicBuffer);
         }
     }
     mInputLoadPoint = 0;
@@ -539,7 +524,7 @@ void NuPlayerVPPProcessor::flushNoShutdown() {
         CHECK(mOutput[i].mStatus != VPP_BUFFER_PROCESSING);
         if (mOutput[i].mStatus != VPP_BUFFER_FREE
                     /*&& mOutput[i].mStatus != VPP_BUFFER_RENDERING*/) {
-            resetBuffer(i, VPP_OUTPUT, mOutput[i].mGraphicBuffer);
+            mOutput[i].resetBuffer(mOutput[i].mGraphicBuffer);
         }
     }
     LOGV("after flushNoShutdown");
@@ -581,7 +566,7 @@ void NuPlayerVPPProcessor::flushShutdown() {
                 ACodec::BufferInfo * info = findBufferByGraphicBuffer(mOutput[i].mGraphicBuffer);
                 if (info != NULL) {
                     cancelBufferToNativeWindow(info);
-                    resetBuffer(i, VPP_OUTPUT, NULL);
+                    mOutput[i].resetBuffer(NULL);
                 }
             }
         }

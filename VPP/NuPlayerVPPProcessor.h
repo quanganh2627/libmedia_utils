@@ -128,11 +128,6 @@ private:
         kWhatFreeBuffer     = 'freB',
     };
 
-    enum {
-        VPP_INPUT = 1,
-        VPP_OUTPUT = 2,
-    };
-
     static NuPlayerVPPProcessor* mNuPlayerVPPProcessor;
     // buffer info for VPP input
     VPPBuffer mInput[VPPBuffer::MAX_VPP_BUFFER_NUMBER];
@@ -169,8 +164,6 @@ private:
     void releaseBuffers();
     // clear input buffer array
     void postAndResetInput(uint32_t index);
-    // reset one input or output buffer
-    void resetBuffer(int32_t index, int32_t type, sp<GraphicBuffer> buffer);
     // find buffer info by buffer id
     ACodec::BufferInfo * findBufferByID(IOMX::buffer_id bufferID);
     // find buffer info by graphic buffer handle

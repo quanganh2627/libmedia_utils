@@ -137,8 +137,12 @@ private:
     void releaseBuffers();
     // before seek
     bool hasProcessingBuffer();
+    // reset
+    status_t reset();
     // flush buffers and renderlist for seek
     void flush();
+    // create threads and run
+    status_t createThread();
     // stop thread if needed
     void quitThread();
     // return the BufferInfo accordingly to MediaBuffer
