@@ -123,6 +123,16 @@ public:
       * indicate video stream has reached to end
       */
      void setEOS();
+
+     /* return VPP output video frame rate.
+      * 1. If Vpp FRC is on, Output FPS is after converted, which is different from input.
+      *    If VPP FRC is off, output fps is the same as input fps.
+      *
+      * 2. If VPP is off, input is the same as output.
+      * 3. unsupported video size, neithere VPP nor the method are not available for APP.
+      */
+     uint32_t getVppOutputFps();
+
 public:
     // number of extra input buffer needed by VPP
     uint32_t mInputBufferNum;
@@ -196,6 +206,7 @@ private:
     bool mThreadRunning;
     bool mEOS;
     uint32_t mTotalDecodedCount, mInputCount, mVPPProcCount, mVPPRenderCount;
+    uint32_t mVppOutputFps;
 };
 
 } /* namespace android */
