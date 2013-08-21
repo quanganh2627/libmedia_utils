@@ -55,7 +55,7 @@ VPPWorker::VPPWorker(const sp<ANativeWindow> &nativeWindow)
         mWidth(0), mHeight(0), mInputFps(0),
         mVAStarted(false), mVAContext(VA_INVALID_ID),
         mDisplay(NULL), mVADisplay(NULL), mVAConfig(VA_INVALID_ID),
-        mNumSurfaces(0), mSurfaces(NULL), mVASurfaceAttrib(NULL),
+        mNumSurfaces(0), mSurfaces(NULL), mVAExtBuf(NULL),
         mNumForwardReferences(3), mForwardReferences(NULL), mPrevInput(0),
         mNumFilterBuffers(0),
         mDeblockOn(false), mDenoiseOn(false), mDeinterlacingOn(false),
@@ -150,11 +150,11 @@ status_t VPPWorker::setGraphicBufferConfig(sp<GraphicBuffer> graphicBuffer) {
 }
 
 VASurfaceID VPPWorker::mapBuffer(sp<GraphicBuffer> graphicBuffer) {
-    if (graphicBuffer == NULL || mSurfaces == NULL || mVASurfaceAttrib == NULL)
+    if (graphicBuffer == NULL || mSurfaces == NULL || mVAExtBuf == NULL)
         return VA_INVALID_SURFACE;
     ANativeWindowBuffer * nativeBuffer = graphicBuffer->getNativeBuffer();
     for (uint32_t i = 0; i < mNumSurfaces; i++) {
-        if (mVASurfaceAttrib->buffers[i] == (uint32_t)nativeBuffer->handle)
+        if (mVAExtBuf->buffers[i] == (uint32_t)nativeBuffer->handle)
             return mSurfaces[i];
     }
     return VA_INVALID_SURFACE;
@@ -226,48 +226,92 @@ status_t VPPWorker::setupVA() {
         return STATUS_ALLOCATION_ERROR;
     }
 
-    mVASurfaceAttrib = new VASurfaceAttributeTPI;
-    if (mVASurfaceAttrib == NULL) {
+    mVAExtBuf = new VASurfaceAttribExternalBuffers;
+    if(mVAExtBuf == NULL) {
         return STATUS_ALLOCATION_ERROR;
     }
+    VASurfaceAttrib attribs[2];
+    int supportedMemType = 0;
 
-    mVASurfaceAttrib->buffers= (unsigned int *)malloc(sizeof(unsigned int)*mNumSurfaces);
-    if (mVASurfaceAttrib->buffers == NULL) {
+    //check whether it support create surface from external buffer
+    unsigned int num = 0;
+    VASurfaceAttrib* outAttribs = NULL;
+    //get attribs number
+    vaStatus = vaQuerySurfaceAttributes(mVADisplay, mVAConfig, NULL, &num);
+    CHECK_VASTATUS("vaQuerySurfaceAttributes");
+    if (num == 0)
+        return STATUS_NOT_SUPPORT;
+
+    //get attributes
+    outAttribs = new VASurfaceAttrib[num];
+    if (outAttribs == NULL) {
         return STATUS_ALLOCATION_ERROR;
     }
-    mVASurfaceAttrib->count = mNumSurfaces;
-    mVASurfaceAttrib->luma_stride = mGraphicBufferConfig.stride;
-    mVASurfaceAttrib->pixel_format = mGraphicBufferConfig.colorFormat;
-    mVASurfaceAttrib->width = mGraphicBufferConfig.width;
-    mVASurfaceAttrib->height = mGraphicBufferConfig.height;
-    mVASurfaceAttrib->type = VAExternalMemoryAndroidGrallocBuffer;
-    mVASurfaceAttrib->reserved[0] = (uint32_t)(mNativeWindow.get());
-    LOGV("mVASurfaceAttrib->count = %d", mVASurfaceAttrib->count);
-    LOGV("mVASurfaceAttrib->luma_stride=%d",mVASurfaceAttrib->luma_stride);
-    LOGV("mVASurfaceAttrib->width=%d", mVASurfaceAttrib->width);
-    LOGV("mVASurfaceAttrib->height=%d", mVASurfaceAttrib->height);
+    vaStatus = vaQuerySurfaceAttributes(mVADisplay, mVAConfig, outAttribs, &num);
+    if (vaStatus != VA_STATUS_SUCCESS) {
+        LOGE("vaQuerySurfaceAttributs fail!");
+        delete []outAttribs;
+        return STATUS_ERROR;
+    }
 
+    for(int i = 0; i < num; i ++) {
+        if (outAttribs[i].type == VASurfaceAttribMemoryType) {
+            supportedMemType = outAttribs[i].value.value.i;
+            break;
+        }
+    }
+    delete []outAttribs;
+
+    if (supportedMemType & VA_SURFACE_ATTRIB_MEM_TYPE_ANDROID_GRALLOC == 0)
+        return VA_INVALID_SURFACE;
+
+    mVAExtBuf->pixel_format = mGraphicBufferConfig.colorFormat;
+    mVAExtBuf->width = mGraphicBufferConfig.width;
+    mVAExtBuf->height = mGraphicBufferConfig.height;
+    mVAExtBuf->data_size = mGraphicBufferConfig.stride * mGraphicBufferConfig.height * 1.5;
+    mVAExtBuf->num_buffers = mNumSurfaces;
+    mVAExtBuf->num_planes = 3;
+    mVAExtBuf->pitches[0] = mGraphicBufferConfig.stride;
+    mVAExtBuf->pitches[1] = mGraphicBufferConfig.stride;
+    mVAExtBuf->pitches[2] = mGraphicBufferConfig.stride;
+    mVAExtBuf->pitches[3] = 0;
+    mVAExtBuf->offsets[0] = 0;
+    mVAExtBuf->offsets[1] = mGraphicBufferConfig.stride * mGraphicBufferConfig.height;
+    mVAExtBuf->offsets[2] = mVAExtBuf->offsets[1];
+    mVAExtBuf->offsets[3] = 0;
+    mVAExtBuf->flags = 0;
+    mVAExtBuf->private_data = mNativeWindow.get(); //pass nativeWindow through private_data
+
+    mVAExtBuf->buffers= (long unsigned int *)malloc(sizeof(long unsigned int)*mNumSurfaces);
+    if (mVAExtBuf->buffers == NULL) {
+        return STATUS_ALLOCATION_ERROR;
+    }
     for (uint32_t i = 0; i < mNumSurfaces; i++) {
-        mVASurfaceAttrib->buffers[i] = (uint32_t)mGraphicBufferConfig.buffer[i];
+        mVAExtBuf->buffers[i] = (uint32_t)mGraphicBufferConfig.buffer[i];
     }
+
+    attribs[0].type = (VASurfaceAttribType)VASurfaceAttribMemoryType;
+    attribs[0].flags = VA_SURFACE_ATTRIB_SETTABLE;
+    attribs[0].value.type = VAGenericValueTypeInteger;
+    attribs[0].value.value.i = VA_SURFACE_ATTRIB_MEM_TYPE_ANDROID_GRALLOC;
+
+    attribs[1].type = (VASurfaceAttribType)VASurfaceAttribExternalBufferDescriptor;
+    attribs[1].flags = VA_SURFACE_ATTRIB_SETTABLE;
+    attribs[1].value.type = VAGenericValueTypePointer;
+    attribs[1].value.value.p = (void *)mVAExtBuf;
 
     int width, height;
 #ifdef TARGET_VPP_USE_GEN
     width = mWidth;
     height = mHeight;
 #else
-    width = mVASurfaceAttrib->width;
-    height = mVASurfaceAttrib->height;
+    width = mVAExtBuf->width;
+    height = mVAExtBuf->height;
 #endif
-    vaStatus = vaCreateSurfacesWithAttribute(
-        mVADisplay,
-        width,
-        height,
-        VA_RT_FORMAT_YUV420,
-        mNumSurfaces,
-        mSurfaces,
-        mVASurfaceAttrib);
-    CHECK_VASTATUS("vaCreateSurfacesWithAttribute");
+
+    vaStatus = vaCreateSurfaces(mVADisplay, VA_RT_FORMAT_YUV420, width,
+                                 height, mSurfaces, mNumSurfaces, attribs, 2);
+    CHECK_VASTATUS("vaCreateSurfaces");
 
     // Create Context
     LOGV("ready to create context");
@@ -280,13 +324,13 @@ status_t VPPWorker::setupVA() {
 }
 
 status_t VPPWorker::terminateVA() {
-    if (mVASurfaceAttrib) {
-        if (mVASurfaceAttrib->buffers) {
-            free(mVASurfaceAttrib->buffers);
-            mVASurfaceAttrib->buffers = NULL;
+    if (mVAExtBuf) {
+        if (mVAExtBuf->buffers) {
+            free(mVAExtBuf->buffers);
+            mVAExtBuf->buffers = NULL;
         }
-        delete mVASurfaceAttrib;
-        mVASurfaceAttrib = NULL;
+        delete mVAExtBuf;
+        mVAExtBuf = NULL;
     }
 
     if (mSurfaces) {

@@ -141,7 +141,7 @@ class VPPWorker {
         VAConfigID mVAConfig;
         uint32_t mNumSurfaces;
         VASurfaceID *mSurfaces;
-        VASurfaceAttributeTPI *mVASurfaceAttrib;
+        VASurfaceAttribExternalBuffers *mVAExtBuf;
 
         // Forward References Surfaces
         VASurfaceID *mForwardReferences;
