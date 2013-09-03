@@ -38,7 +38,10 @@ class VPPFillThread;
 
 class VPPProcessor : public MediaBufferObserver {
 public:
-    VPPProcessor(const sp<ANativeWindow> &native, OMXCodec* codec);
+    /* Single instance
+     * Only create VPPProcessor once and return handle to client that construct it
+     */
+    static VPPProcessor* getInstance(const sp<ANativeWindow> &native, OMXCodec* codec);
     virtual ~VPPProcessor();
 
     /* Set video clip info and calculate buffer number needed
@@ -126,12 +129,20 @@ public:
     uint32_t mOutputBufferNum;
 
 private:
+    // construction
+    VPPProcessor(const sp<ANativeWindow> &native, OMXCodec* codec);
     // init inputBuffer and outBuffer
     status_t initBuffers();
     // completely release all buffers
     void releaseBuffers();
+    // before seek
+    bool hasProcessingBuffer();
+    // reset
+    status_t reset();
     // flush buffers and renderlist for seek
     void flush();
+    // create threads and run
+    status_t createThread();
     // stop thread if needed
     void quitThread();
     // return the BufferInfo accordingly to MediaBuffer
@@ -156,6 +167,8 @@ private:
     VPPProcessor &operator=(const VPPProcessor &);
 
 private:
+    // VPPProcessor instance
+    static VPPProcessor* mVPPProcessor;
     // buffer info for VPP input
     VPPBuffer mInput[VPPBuffer::MAX_VPP_BUFFER_NUMBER];
     // buffer info for VPP output

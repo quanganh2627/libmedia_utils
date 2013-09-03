@@ -34,8 +34,7 @@ class VPPFillThread : public Thread {
 
         VPPFillThread(bool canCallJava, VPPWorker* vppWorker,
                     VPPBuffer *inputBuffer, const uint32_t inputBufferNum,
-                    VPPBuffer *outputBuffer, const uint32_t outputBufferNum,
-                    const bool *eos);
+                    VPPBuffer *outputBuffer, const uint32_t outputBufferNum);
         virtual ~VPPFillThread();
 
         virtual status_t readyToRun();
@@ -49,12 +48,13 @@ class VPPFillThread : public Thread {
         bool isCurrentThread() const;
 
     public:
-        Mutex mLock;
+        Mutex mLock, mEndLock;
         // main thread send this condition to VPPFillThread,
         // VPPFillThread wait this condition to run
-        Condition mRunCond;
+        Condition mRunCond, mEndCond;
         bool mWait;
         bool mError;
+        bool mSeek;
 
     private:
         VPPFillThread(const VPPFillThread &);
@@ -67,7 +67,6 @@ class VPPFillThread : public Thread {
         VPPBuffer *mOutput;
         const uint32_t mInputBufferNum;
         const uint32_t mOutputBufferNum;
-        const bool *mEOS;
         bool mFirstInputFrame;
         uint32_t mInputFillIdx;
         uint32_t mOutputFillIdx;

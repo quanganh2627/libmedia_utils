@@ -24,17 +24,15 @@ namespace android {
 
 VPPFillThread::VPPFillThread(bool canCallJava, VPPWorker* vppWorker,
                 VPPBuffer *inputBuffer, const uint32_t inputBufferNum,
-                VPPBuffer *outputBuffer, const uint32_t outputBufferNum,
-                const bool *eos):
+                VPPBuffer *outputBuffer, const uint32_t outputBufferNum):
     Thread(canCallJava),
-    mWait(false), mError(false),
+    mWait(false), mError(false), mSeek(false),
     mThreadId(NULL),
     mVPPWorker(vppWorker),
     mInput(inputBuffer),
     mOutput(outputBuffer),
     mInputBufferNum(inputBufferNum),
     mOutputBufferNum(outputBufferNum),
-    mEOS(eos),
     mFirstInputFrame(true),
     mInputFillIdx(0),
     mOutputFillIdx(0) {
@@ -55,12 +53,13 @@ bool VPPFillThread::threadLoop() {
     int64_t timeUs;
     // output buffer number for filling
     uint32_t fillBufNum;
+    bool isEndFlag = false;
     // output vectors for output
     Vector< sp<GraphicBuffer> > fillBufList;
 
+    Mutex::Autolock autoLock(mLock);
     // if input buffer or output buffer is not ready, wait!
-    if (mWait) {
-        Mutex::Autolock autoLock(mLock);
+    if (mWait && !mSeek) {
         LOGV("waiting for output buffer ready...");
         mRunCond.wait(mLock);
     }
@@ -68,15 +67,15 @@ bool VPPFillThread::threadLoop() {
     // fill output buffer available
     fillBufNum = mVPPWorker->getFillBufCount();
     if (fillBufNum > 0) {
-    Mutex::Autolock autoLock(mLock);
         // prepare output vectors for filling
         for (i= 0; i < fillBufNum; i++) {
             uint32_t fillPos = (mOutputFillIdx + i) % mOutputBufferNum;
             if (mOutput[fillPos].mStatus != VPP_BUFFER_PROCESSING) {
-                if (mOutput[mOutputFillIdx].mStatus == VPP_BUFFER_PROCESSING && (*mEOS)) {
+                if (mOutput[mOutputFillIdx].mStatus == VPP_BUFFER_END_FLAG) {
                     // END FLAG
                     LOGV("last frame");
                     fillBufNum = 1;
+                    isEndFlag = true;
                 } else {
                     mWait = true;
                     return true;
@@ -87,25 +86,38 @@ bool VPPFillThread::threadLoop() {
         }
         status_t ret = mVPPWorker->fill(fillBufList, fillBufNum);
         if (ret == STATUS_OK) {
-            if(mFirstInputFrame) {
+            if (mFirstInputFrame) {
                 mFirstInputFrame = false;
             } else {
                 mInput[mInputFillIdx].mStatus = VPP_BUFFER_READY;
                 mInputFillIdx = (mInputFillIdx + 1) % mInputBufferNum;
             }
-            for(i = 0; i < fillBufNum; i++) {
-                uint32_t outputVppPos = (mOutputFillIdx + i) % mOutputBufferNum;
-                mOutput[outputVppPos].mStatus = VPP_BUFFER_READY;
-                if (fillBufNum > 1) {
-                    // frc is enabled, output fps is 60, change timeStamp
-                    timeUs = mOutput[outputVppPos].mTimeUs;
-                    timeUs -= 1000000ll * (fillBufNum - i - 1) / 60;
-                    mOutput[outputVppPos].mTimeUs = timeUs;
+            if (isEndFlag) {
+                mOutput[mOutputFillIdx].mStatus = VPP_BUFFER_FREE;
+                mInputFillIdx = 0;
+                mOutputFillIdx = 0;
+                mFirstInputFrame = true;
+                mWait = true;
+                if (mSeek) {
+                    mSeek = false;
+                    Mutex::Autolock endLock(mEndLock);
+                    LOGI("send out end signal, mInputFillIdx = %d",mInputFillIdx);
+                    mEndCond.signal();
                 }
+            } else {
+                for(i = 0; i < fillBufNum; i++) {
+                    uint32_t outputVppPos = (mOutputFillIdx + i) % mOutputBufferNum;
+                    mOutput[outputVppPos].mStatus = VPP_BUFFER_READY;
+                    if (fillBufNum > 1) {
+                        // frc is enabled, output fps is 60, change timeStamp
+                        timeUs = mOutput[outputVppPos].mTimeUs;
+                        timeUs -= 1000000ll * (fillBufNum - i - 1) / 60;
+                        mOutput[outputVppPos].mTimeUs = timeUs;
+                    }
+                }
+                mOutputFillIdx = (mOutputFillIdx + fillBufNum) % mOutputBufferNum;
             }
-            mOutputFillIdx = (mOutputFillIdx + fillBufNum) % mOutputBufferNum;
-        }
-        else {
+        } else {
             ALOGE("FillError! Thread EXIT...");
             mError = true;
             return false;

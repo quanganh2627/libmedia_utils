@@ -42,7 +42,8 @@ enum VPPBufferStatus {
     VPP_BUFFER_PROCESSING,      //sent to VSP driver for process
     VPP_BUFFER_READY,           //VSP process done, ready to use
     VPP_BUFFER_LOADED,          //input only, decoded buffer loaded
-    VPP_BUFFER_RENDERING        //output only, vpp buffer in RenderList
+    VPP_BUFFER_RENDERING,       //output only, vpp buffer in RenderList
+    VPP_BUFFER_END_FLAG
 };
 
 struct VPPVideoInfo {
@@ -84,6 +85,14 @@ public:
 
         fclose(handle);
         return true;
+    }
+    // reset one input or output buffer
+    void resetBuffer(sp<GraphicBuffer> buffer)
+    {
+        mGraphicBuffer = buffer;
+        mTimeUs = 0;
+        mCodecMsg = NULL;
+        mStatus = VPP_BUFFER_FREE;
     }
 
 public:

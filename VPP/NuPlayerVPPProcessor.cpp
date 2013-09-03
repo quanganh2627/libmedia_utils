@@ -43,7 +43,7 @@ NuPlayerVPPProcessor::NuPlayerVPPProcessor(
       mEOS(false),
       mLastInputTimeUs(-1) {
 
-    mWorker = new VPPWorker(mNativeWindow->getNativeWindow());
+    mWorker = VPPWorker::getInstance(mNativeWindow->getNativeWindow());
 }
 
 
@@ -58,7 +58,31 @@ NuPlayerVPPProcessor::~NuPlayerVPPProcessor() {
     if (mThreadRunning == false) {
         releaseBuffers();
     }
+    mNuPlayerVPPProcessor = NULL;
     LOGI("===== VPPInputCount = %d  =====", mInputCount);
+}
+
+//static
+NuPlayerVPPProcessor* NuPlayerVPPProcessor::mNuPlayerVPPProcessor = NULL;
+
+//static
+NuPlayerVPPProcessor* NuPlayerVPPProcessor::getInstance(
+        const sp<AMessage> &notify,
+        const sp<NativeWindowWrapper> &nativeWindow) {
+    if (mNuPlayerVPPProcessor == NULL) {
+        // If no instance is existing, create one
+        mNuPlayerVPPProcessor = new NuPlayerVPPProcessor(notify, nativeWindow);
+        if (mNuPlayerVPPProcessor != NULL && mNuPlayerVPPProcessor->mWorker == NULL) {
+            // If VPPWorker instance is not got successfully, delete VPPProcessor
+            delete mNuPlayerVPPProcessor;
+            mNuPlayerVPPProcessor = NULL;
+        }
+    } else if (mNuPlayerVPPProcessor->mWorker != NULL &&
+            !mNuPlayerVPPProcessor->mWorker->validateNativeWindow(nativeWindow->getNativeWindow()))
+        // If one instance is existing, check if the caller share the same NativeWindow handle
+        return NULL;
+
+    return mNuPlayerVPPProcessor;
 }
 
 void NuPlayerVPPProcessor::invokeThreads() {
@@ -150,7 +174,11 @@ void NuPlayerVPPProcessor::getBufferFromVPP() {
         mOutput[mOutputLoadPoint].mStatus = VPP_BUFFER_RENDERING;
         mOutputLoadPoint = (mOutputLoadPoint + 1) % mOutputBufferNum;
     }
-    clearInput();
+
+    for (uint32_t i = 0; i < mInputBufferNum; i++) {
+        if (mInput[i].mStatus == VPP_BUFFER_READY)
+            postAndResetInput(i);
+    }
 }
 
 void NuPlayerVPPProcessor::onMessageReceived(const sp<AMessage> &msg) {
@@ -183,15 +211,15 @@ void NuPlayerVPPProcessor::onFreeBuffer(const sp<AMessage> &msg) {
         if (info != NULL) {
             LOGV("cancel buffer after thread quit ; graphicBuffer = %p", mOutput[index].mGraphicBuffer.get());
             cancelBufferToNativeWindow(info);
-            resetBuffer(index, VPP_OUTPUT, NULL);
+            mOutput[index].resetBuffer(NULL);
         }
     } else {
         if (reuse == 1) {
-            resetBuffer(index, VPP_OUTPUT, mOutput[index].mGraphicBuffer);
+            mOutput[index].resetBuffer(mOutput[index].mGraphicBuffer);
         } else if (reuse == 0) {
             ACodec::BufferInfo *info = dequeueBufferFromNativeWindow();
             CHECK(info != NULL);
-            resetBuffer(index, VPP_OUTPUT, info->mGraphicBuffer);
+            mOutput[index].resetBuffer(info->mGraphicBuffer);
         }
     }
 
@@ -296,12 +324,10 @@ status_t NuPlayerVPPProcessor::init(sp<ACodec> &codec) {
     // VPPThread starts to run
     mProcThread = new VPPProcThread(false, mWorker,
             mInput, mInputBufferNum,
-            mOutput, mOutputBufferNum,
-            &mEOS);
+            mOutput, mOutputBufferNum);
     mFillThread = new VPPFillThread(false, mWorker,
             mInput, mInputBufferNum,
-            mOutput, mOutputBufferNum,
-            &mEOS);
+            mOutput, mOutputBufferNum);
     if (mProcThread == NULL || mFillThread == NULL)
         return VPP_FAIL;
     mProcThread->run("VPPProcThread", ANDROID_PRIORITY_NORMAL);
@@ -316,7 +342,7 @@ status_t NuPlayerVPPProcessor::initBuffers() {
     ACodec::BufferInfo *buf = NULL;
     uint32_t i;
     for (i = 0; i < mInputBufferNum; i++) {
-        resetBuffer(i, VPP_INPUT, NULL);
+        mInput[i].resetBuffer(NULL);
     }
 
     for (i = 0; i < mOutputBufferNum; i++) {
@@ -324,7 +350,7 @@ status_t NuPlayerVPPProcessor::initBuffers() {
         if (buf == NULL)
             return VPP_FAIL;
 
-        resetBuffer(i, VPP_OUTPUT, buf->mGraphicBuffer);
+        mOutput[i].resetBuffer(buf->mGraphicBuffer);
     }
     return VPP_OK;
 }
@@ -353,32 +379,17 @@ ACodec::BufferInfo * NuPlayerVPPProcessor::dequeueBufferFromNativeWindow() {
     return NULL;
 }
 
-void NuPlayerVPPProcessor::resetBuffer(int32_t index, int32_t type, sp<GraphicBuffer> buffer) {
-    VPPBuffer* vppBuffer;
-
-    if (type == VPP_INPUT) {
-        vppBuffer = &mInput[index];
-    } else {
-        vppBuffer = &mOutput[index];
-    }
-
-    vppBuffer->mGraphicBuffer = buffer;
-    vppBuffer->mTimeUs = 0;
-    vppBuffer->mCodecMsg = NULL;
-    vppBuffer->mStatus = VPP_BUFFER_FREE;
-}
-
 void NuPlayerVPPProcessor::releaseBuffers() {
     LOGI("releaseBuffers");
     for (uint32_t i = 0; i < mInputBufferNum; i++) {
-        resetBuffer(i, VPP_INPUT, NULL);
+        mInput[i].resetBuffer(NULL);
     }
 
     for (uint32_t i = 0; i < mOutputBufferNum; i++) {
         ACodec::BufferInfo * info = findBufferByGraphicBuffer(mOutput[i].mGraphicBuffer);
         if (info != NULL) {
             cancelBufferToNativeWindow(info);
-            resetBuffer(i, VPP_OUTPUT, NULL);
+            mOutput[i].resetBuffer(NULL);
         }
     }
 
@@ -414,30 +425,17 @@ void NuPlayerVPPProcessor::printBuffers() {
 
 }
 
-void NuPlayerVPPProcessor::clearInput() {
-    // release useless input buffer
-    for (uint32_t i = 0; i < mInputBufferNum; i++) {
-        if (mInput[i].mStatus == VPP_BUFFER_READY) {
-
-            ACodec::BufferInfo *info = findBufferByGraphicBuffer(mInput[i].mGraphicBuffer);
-            if (info != NULL) {
-                int32_t processing;
-                if (info->mData->meta()->findInt32("processing", &processing) && (processing == 1)) {
-                    LOGV("CLEARING processing flag, graphicBuffer = %p", mInput[i].mGraphicBuffer.get());
-                    processing = 0;
-                    info->mData->meta()->setInt32("processing", processing);
-                }
-            }
-
-            sp<AMessage> vppNotify = mNotify->dup();
-            vppNotify->setInt32("what", kWhatUpdateVppInput);
-            vppNotify->setMessage("notifyConsumed", mInput[i].mCodecMsg);
-            //vppNotify->setBuffer("buffer", buffer);
-            vppNotify->post();
-
-            resetBuffer(i, VPP_INPUT, NULL);
-        }
+void NuPlayerVPPProcessor::postAndResetInput(uint32_t index) {
+    if (mInput[index].mGraphicBuffer != NULL) {
+        // release useless input buffer
+        sp<AMessage> vppNotify = mNotify->dup();
+        vppNotify->setInt32("what", kWhatUpdateVppInput);
+        vppNotify->setMessage("notifyConsumed", mInput[index].mCodecMsg);
+        //vppNotify->setBuffer("buffer", buffer);
+        vppNotify->post();
     }
+
+    mInput[index].resetBuffer(NULL);
 }
 
 void NuPlayerVPPProcessor::quitThread() {
@@ -464,76 +462,73 @@ void NuPlayerVPPProcessor::quitThread() {
 }
 
 void NuPlayerVPPProcessor::seek() {
+
     LOGI("seek");
-    if(mThreadRunning) {
-        Mutex::Autolock procLock(mProcThread->mLock);
-        Mutex::Autolock fillLock(mFillThread->mLock);
+    /* invoke thread if it is waiting */
+    if (mThreadRunning) {
+        Mutex::Autolock endLock(mFillThread->mEndLock);
+        {
+            Mutex::Autolock fillLock(mFillThread->mLock);
+            {
+                Mutex::Autolock procLock(mProcThread->mLock);
+                if (!hasProcessingBuffer()) return;
+                mProcThread->mSeek = true;
+                mProcThread->mRunCond.signal();
+            }
+            mFillThread->mSeek = true;
+            mFillThread->mRunCond.signal();
+        }
+        LOGV("wait signal");
+        mFillThread->mEndCond.wait(mFillThread->mEndLock);
         flushNoShutdown();
+        mWorker->reset();
         mLastInputTimeUs = -1;
+        LOGI("seek done");
     }
 }
 
-void NuPlayerVPPProcessor::flushNoShutdown() {
-    // flush all input buffers which are not in PROCESSING state
-    bool monitorNewLoadPoint = false;
-    mInputLoadPoint = 0;
+bool NuPlayerVPPProcessor::hasProcessingBuffer() {
+    LOGV("before hasProcessingBuffer");
+    //printBuffers();
+    bool hasProcBuffer = false;
     for (uint32_t i = 0; i < mInputBufferNum; i++) {
-        LOGI("INPUT %d, status = %d, graphicBuffer = %p, time = %lld", i, mInput[i].mStatus, mInput[i].mGraphicBuffer.get(), mInput[i].mTimeUs);
-        if (mInput[i].mStatus != VPP_BUFFER_PROCESSING) {
-            if (mInput[i].mStatus != VPP_BUFFER_FREE) {
-                // clear "processing" flag
-                ACodec::BufferInfo *info = findBufferByGraphicBuffer(mInput[i].mGraphicBuffer);
-                if (info != NULL) {
-                    info->mData->meta()->setInt32("processing", 0);
-                }
-
-                sp<AMessage> vppNotify = mNotify->dup();
-                vppNotify->setInt32("what", kWhatUpdateVppInput);
-                vppNotify->setMessage("notifyConsumed", mInput[i].mCodecMsg);
-                vppNotify->post();
-
-                resetBuffer(i, VPP_INPUT, NULL);
-            }
-            if (monitorNewLoadPoint) {
-                // find the 1st frame after PROCESSING block
-                mInputLoadPoint = i;
-                monitorNewLoadPoint = false;
-            }
-        } else {
-            monitorNewLoadPoint = true;
-            ACodec::BufferInfo *info = findBufferByGraphicBuffer(mInput[i].mGraphicBuffer);
-            if (info != NULL) {
-                info->mData->meta()->setInt32("processing", 1);
-                LOGE("set processing flag for graphicBuffer %p", mInput[i].mGraphicBuffer.get());
-            }
+        if (mInput[i].mStatus == VPP_BUFFER_PROCESSING)
+            hasProcBuffer = true;
+        if (mInput[i].mStatus != VPP_BUFFER_PROCESSING && mInput[i].mStatus != VPP_BUFFER_FREE) {
+            postAndResetInput(i);
         }
     }
-
-    // process all VPP_BUFFER_READY status buffer first to avoid mOutputLoadPoint conflict that in Threads
-    while (mOutput[mOutputLoadPoint].mStatus == VPP_BUFFER_READY) {
-        resetBuffer(mOutputLoadPoint, VPP_OUTPUT, mOutput[mOutputLoadPoint].mGraphicBuffer);
-        mOutputLoadPoint = (mOutputLoadPoint + 1) % mOutputBufferNum;
-    }
-
-    // flush all output buffers which are not in PROCESSING state
-    monitorNewLoadPoint = true;
     for (uint32_t i = 0; i < mOutputBufferNum; i++) {
-        LOGI("OUTPUT %d, status = %d, graphicBuffer = %p, time = %lld", i, mOutput[i].mStatus, mOutput[i].mGraphicBuffer.get(), mOutput[i].mTimeUs);
-        if (mOutput[i].mStatus != VPP_BUFFER_PROCESSING) {
-            if (mOutput[i].mStatus != VPP_BUFFER_FREE
-                    && mOutput[i].mStatus != VPP_BUFFER_RENDERING) {
-                resetBuffer(i, VPP_OUTPUT, mOutput[i].mGraphicBuffer);
-            }
-            monitorNewLoadPoint = true;
-        } else {
-            if (monitorNewLoadPoint) {
-                // find the 1st frame in PROCESSING state
-                mOutputLoadPoint = i;
-                monitorNewLoadPoint = false;
-            }
+        if (mOutput[i].mStatus != VPP_BUFFER_PROCESSING && mOutput[i].mStatus != VPP_BUFFER_FREE) {
+            mOutput[i].resetBuffer(mOutput[i].mGraphicBuffer);
+        }
+    }
+    mInputLoadPoint = 0;
+    mOutputLoadPoint = 0;
+    LOGV("after hasProcessingBuffer");
+    //printBuffers();
+    return hasProcBuffer;
+}
+
+void NuPlayerVPPProcessor::flushNoShutdown() {
+    LOGV("before flushNoShutdown");
+    //printBuffers();
+    for (uint32_t i = 0; i < mInputBufferNum; i++) {
+        CHECK(mInput[i].mStatus != VPP_BUFFER_PROCESSING);
+        if (mInput[i].mStatus != VPP_BUFFER_FREE) {
+            postAndResetInput(i);
         }
     }
 
+    for (uint32_t i = 0; i < mOutputBufferNum; i++) {
+        CHECK(mOutput[i].mStatus != VPP_BUFFER_PROCESSING);
+        if (mOutput[i].mStatus != VPP_BUFFER_FREE
+                    /*&& mOutput[i].mStatus != VPP_BUFFER_RENDERING*/) {
+            mOutput[i].resetBuffer(mOutput[i].mGraphicBuffer);
+        }
+    }
+    LOGV("after flushNoShutdown");
+    printBuffers();
 }
 
 void NuPlayerVPPProcessor::setEOS() {
@@ -541,6 +536,7 @@ void NuPlayerVPPProcessor::setEOS() {
         return;
     LOGI("set eos");
     mEOS = true;
+    mProcThread->mEOS = true;
 }
 
 void NuPlayerVPPProcessor::flushShutdown() {
@@ -561,15 +557,8 @@ void NuPlayerVPPProcessor::flushShutdown() {
     if (!mThreadRunning) {
         for (uint32_t i = 0; i < mInputBufferNum; i++) {
             if(mInput[i].mStatus != VPP_BUFFER_FREE) {
-                // last frame is NULL, do not need to release
-                if (mInput[i].mGraphicBuffer != NULL) {
-                    sp<AMessage> vppNotify = mNotify->dup();
-                    vppNotify->setInt32("what", kWhatUpdateVppInput);
-                    vppNotify->setMessage("notifyConsumed", mInput[i].mCodecMsg);
-                    vppNotify->post();
-                }
+                postAndResetInput(i);
             }
-            resetBuffer(i, VPP_INPUT, NULL);
         }
 
         for (uint32_t i = 0; i < mOutputBufferNum; i++) {
@@ -577,7 +566,7 @@ void NuPlayerVPPProcessor::flushShutdown() {
                 ACodec::BufferInfo * info = findBufferByGraphicBuffer(mOutput[i].mGraphicBuffer);
                 if (info != NULL) {
                     cancelBufferToNativeWindow(info);
-                    resetBuffer(i, VPP_OUTPUT, NULL);
+                    mOutput[i].resetBuffer(NULL);
                 }
             }
         }

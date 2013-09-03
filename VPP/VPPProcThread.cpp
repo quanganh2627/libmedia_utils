@@ -24,20 +24,17 @@ namespace android {
 
 VPPProcThread::VPPProcThread(bool canCallJava, VPPWorker* vppWorker,
                 VPPBuffer *inputBuffer, const uint32_t inputBufferNum,
-                VPPBuffer *outputBuffer, const uint32_t outputBufferNum,
-                const bool *eos):
+                VPPBuffer *outputBuffer, const uint32_t outputBufferNum):
     Thread(canCallJava),
-    mWait(false), mError(false),
+    mWait(false), mError(false), mEOS(false), mSeek(false),
     mThreadId(NULL),
     mVPPWorker(vppWorker),
     mInput(inputBuffer),
     mOutput(outputBuffer),
     mInputBufferNum(inputBufferNum),
     mOutputBufferNum(outputBufferNum),
-    mEOS(eos),
     mInputProcIdx(0),
-    mOutputProcIdx(0),
-    mFlagEnd(false) {
+    mOutputProcIdx(0) {
 }
 
 VPPProcThread::~VPPProcThread() {
@@ -58,30 +55,27 @@ bool VPPProcThread::threadLoop() {
     // output vectors for processing
     Vector< sp<GraphicBuffer> > procBufList;
     sp<GraphicBuffer> inputBuf;
-    bool isLastFrame = false;
+    bool isEndFlag = false;
 
+    Mutex::Autolock autoLock(mLock);
     // if input buffer or output buffer is not ready, wait!
-    if (mWait) {
-        Mutex::Autolock autoLock(mLock);
+    if (mWait && !mSeek) {
         LOGV("waiting for input and output buffer ready...");
         mRunCond.wait(mLock);
     }
 
-    Mutex::Autolock autoLock(mLock);
-    if (mFlagEnd) {
-        // FlagEnd has been submitted, no need to continue processing
-    } else if (mInput[mInputProcIdx].mStatus != VPP_BUFFER_LOADED && !(*mEOS)) {
+    if (mInput[mInputProcIdx].mStatus != VPP_BUFFER_LOADED && !mEOS && !mSeek) {
         // if not in EOS and no valid input, wait!
         mWait = true;
         return true;
     } else {
         mWait = false;
-        if (mInput[mInputProcIdx].mStatus != VPP_BUFFER_LOADED && (*mEOS)) {
+        if (mInput[mInputProcIdx].mStatus != VPP_BUFFER_LOADED && (mEOS || mSeek)) {
             // It's the time to send END FLAG
-            LOGV("set isLastFrame flag");
-            isLastFrame = true;
+            LOGV("set end flag");
+            isEndFlag = true;
         }
-        if (!isLastFrame) {
+        if (!isEndFlag) {
             flags = mInput[mInputProcIdx].mFlags;
             procBufNum = mVPPWorker->getProcBufCount();
             inputBuf = mInput[mInputProcIdx].mGraphicBuffer.get();
@@ -103,19 +97,25 @@ bool VPPProcThread::threadLoop() {
         }
 
         // submit input and output pairs into VSP for process
-        status_t ret = mVPPWorker->process(inputBuf, procBufList, procBufNum, isLastFrame, flags);
+        status_t ret = mVPPWorker->process(inputBuf, procBufList, procBufNum, isEndFlag, flags);
         if (ret == STATUS_OK) {
-            mInput[mInputProcIdx].mStatus = VPP_BUFFER_PROCESSING;
-            mInputProcIdx = (mInputProcIdx + 1) % mInputBufferNum;
-            for(i = 0; i < procBufNum; i++) {
-                uint32_t procPos = (mOutputProcIdx + i) % mOutputBufferNum;
-                mOutput[procPos].mStatus = VPP_BUFFER_PROCESSING;
-                // set output buffer timestamp as the same as input
-                mOutput[procPos].mTimeUs = timeUs;
+            if (!isEndFlag) {
+                mInput[mInputProcIdx].mStatus = VPP_BUFFER_PROCESSING;
+                mInputProcIdx = (mInputProcIdx + 1) % mInputBufferNum;
+                for(i = 0; i < procBufNum; i++) {
+                    uint32_t procPos = (mOutputProcIdx + i) % mOutputBufferNum;
+                    mOutput[procPos].mStatus = VPP_BUFFER_PROCESSING;
+                    // set output buffer timestamp as the same as input
+                    mOutput[procPos].mTimeUs = timeUs;
+                }
+                mOutputProcIdx = (mOutputProcIdx + procBufNum) % mOutputBufferNum;
+            } else {
+                mOutput[mOutputProcIdx].mStatus = VPP_BUFFER_END_FLAG;
+                mSeek = false;
+                mEOS = false;
+                mInputProcIdx = 0;
+                mOutputProcIdx = 0;
             }
-            mOutputProcIdx = (mOutputProcIdx + procBufNum) % mOutputBufferNum;
-            if (isLastFrame)
-                mFlagEnd = true;
         }
         else {
             LOGE("process failed");

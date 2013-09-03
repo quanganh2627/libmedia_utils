@@ -41,7 +41,7 @@ VPPProcessor::VPPProcessor(const sp<ANativeWindow> &native, OMXCodec *codec)
     memset(mInput, 0, VPPBuffer::MAX_VPP_BUFFER_NUMBER * sizeof(VPPBuffer));
     memset(mOutput, 0, VPPBuffer::MAX_VPP_BUFFER_NUMBER * sizeof(VPPBuffer));
 
-    mWorker = new VPPWorker (mNativeWindow);
+    mWorker = VPPWorker::getInstance(mNativeWindow);
 }
 
 VPPProcessor::~VPPProcessor() {
@@ -54,7 +54,28 @@ VPPProcessor::~VPPProcessor() {
     }
 
     releaseBuffers();
+    mVPPProcessor = NULL;
     LOGI("VPPProcessor is deleted");
+}
+
+//static
+VPPProcessor* VPPProcessor::mVPPProcessor = NULL;
+
+//static
+VPPProcessor* VPPProcessor::getInstance(const sp<ANativeWindow> &native, OMXCodec* codec) {
+    if (mVPPProcessor == NULL) {
+        // If no instance is existing, create one
+        mVPPProcessor = new VPPProcessor(native, codec);
+        if (mVPPProcessor != NULL && mVPPProcessor->mWorker == NULL) {
+            // If VPPWorker instance is not got successfully, delete VPPProcessor
+            delete mVPPProcessor;
+            mVPPProcessor = NULL;
+        }
+    } else if (mVPPProcessor->mWorker != NULL && !mVPPProcessor->mWorker->validateNativeWindow(native))
+        // If one instance is existing, check if the caller share the same NativeWindow handle
+        return NULL;
+
+    return mVPPProcessor;
 }
 
 //static
@@ -103,22 +124,7 @@ status_t VPPProcessor::init() {
     if(mWorker->init() != STATUS_OK)
         return VPP_FAIL;
 
-    // VPPThread starts to run
-    mProcThread = new VPPProcThread(false, mWorker,
-            mInput, mInputBufferNum,
-            mOutput, mOutputBufferNum,
-            &mEOS);
-    mFillThread = new VPPFillThread(false, mWorker,
-            mInput, mInputBufferNum,
-            mOutput, mOutputBufferNum,
-            &mEOS);
-    if (mProcThread == NULL || mFillThread == NULL)
-        return VPP_FAIL;
-    mProcThread->run("VPPProcThread", ANDROID_PRIORITY_NORMAL);
-    mFillThread->run("VPPFillThread", ANDROID_PRIORITY_NORMAL);
-    mThreadRunning = true;
-
-    return VPP_OK;
+    return createThread();
 }
 
 bool VPPProcessor::canSetDecoderBufferToVPP() {
@@ -164,11 +170,11 @@ void VPPProcessor::printBuffers() {
     MediaBuffer *mediaBuffer = NULL;
     for (uint32_t i = 0; i < mInputBufferNum; i++) {
         mediaBuffer = findMediaBuffer(mInput[i]);
-        LOGI("input %d.   %p,  status = %d, time = %lld", i, mediaBuffer, mInput[i].mStatus, mInput[i].mTimeUs);
+        LOGV("input %d.   %p,  status = %d, time = %lld", i, mediaBuffer, mInput[i].mStatus, mInput[i].mTimeUs);
     }
     for (uint32_t i = 0; i < mOutputBufferNum; i++) {
         mediaBuffer = findMediaBuffer(mOutput[i]);
-        LOGI("output %d.   %p,  status = %d, time = %lld", i, mediaBuffer, mOutput[i].mStatus, mOutput[i].mTimeUs);
+        LOGV("output %d.   %p,  status = %d, time = %lld", i, mediaBuffer, mOutput[i].mStatus, mOutput[i].mTimeUs);
     }
 
 }
@@ -181,10 +187,12 @@ void VPPProcessor::printRenderList() {
 }
 
 status_t VPPProcessor::read(MediaBuffer **buffer) {
-//    printBuffers();
-//    printRenderList();
-    if (mProcThread->mError || mFillThread->mError)
-        return VPP_FAIL;
+    printBuffers();
+    printRenderList();
+    if (mProcThread->mError || mFillThread->mError) {
+        if (reset() != VPP_OK)
+            return VPP_FAIL;
+    }
     if (mRenderList.empty()) {
         if (!mEOS) {
             // no buffer ready to render
@@ -219,15 +227,53 @@ int64_t VPPProcessor::getBufferTimestamp(MediaBuffer * buff) {
 }
 
 void VPPProcessor::seek() {
-    LOGV("seek");
+    LOGI("seek");
     /* invoke thread if it is waiting */
     if (mThreadRunning) {
-        Mutex::Autolock procLock(mProcThread->mLock);
-        Mutex::Autolock fillLock(mFillThread->mLock);
+        Mutex::Autolock endLock(mFillThread->mEndLock);
+        {
+            Mutex::Autolock fillLock(mFillThread->mLock);
+            {
+                Mutex::Autolock procLock(mProcThread->mLock);
+                if (!hasProcessingBuffer()) return;
+                mProcThread->mSeek = true;
+                mProcThread->mRunCond.signal();
+            }
+            mFillThread->mSeek = true;
+            mFillThread->mRunCond.signal();
+        }
+        LOGV("wait signal");
+        mFillThread->mEndCond.wait(mFillThread->mEndLock);
         flush();
+        mWorker->reset();
+        LOGI("seek done");
     }
 }
 
+status_t VPPProcessor::reset() {
+    LOGW("Error happens in VSP and VPPProcessor need to reset");
+    quitThread();
+    flush();
+    if (mWorker->reset() != STATUS_OK)
+        return VPP_FAIL;
+    return createThread();
+}
+
+status_t VPPProcessor::createThread() {
+    // VPPThread starts to run
+    mProcThread = new VPPProcThread(false, mWorker,
+            mInput, mInputBufferNum,
+            mOutput, mOutputBufferNum);
+    mFillThread = new VPPFillThread(false, mWorker,
+            mInput, mInputBufferNum,
+            mOutput, mOutputBufferNum);
+    if (mProcThread == NULL || mFillThread == NULL)
+        return VPP_FAIL;
+    mProcThread->run("VPPProcThread", ANDROID_PRIORITY_NORMAL);
+    mFillThread->run("VPPFillThread", ANDROID_PRIORITY_NORMAL);
+    mThreadRunning = true;
+    return VPP_OK;
+}
 
 void VPPProcessor::quitThread() {
     LOGI("quitThread");
@@ -255,95 +301,102 @@ void VPPProcessor::releaseBuffers() {
     LOGI("releaseBuffers");
     for (uint32_t i = 0; i < mInputBufferNum; i++) {
         MediaBuffer *mediaBuffer = findMediaBuffer(mInput[i]);
-        if (mediaBuffer != NULL) {
-            if (mediaBuffer->refcount() > 0)
-                mediaBuffer->release();
-            mInput[i].mGraphicBuffer = NULL;
-            mInput[i].mTimeUs = 0;
-            mInput[i].mStatus = VPP_BUFFER_FREE;
-        }
+        if (mediaBuffer != NULL && mediaBuffer->refcount() > 0)
+            mediaBuffer->release();
+        mInput[i].resetBuffer(NULL);
     }
 
     for (uint32_t i = 0; i < mOutputBufferNum; i++) {
         MediaBuffer *mediaBuffer = findMediaBuffer(mOutput[i]);
-        if (mediaBuffer != NULL) {
-            if (mediaBuffer->refcount() > 0)
-                mediaBuffer->release();
-            else {
-                cancelBufferToNativeWindow(mediaBuffer);
-                mOutput[i].mGraphicBuffer = NULL;
-                mOutput[i].mTimeUs = 0;
-                mOutput[i].mStatus = VPP_BUFFER_FREE;
-            }
+        if (mediaBuffer != NULL && mediaBuffer->refcount() > 0) {
+        OMXCodec::BufferInfo *info = findBufferInfo(mediaBuffer);
+        if (info != NULL && info->mStatus != OMXCodec::OWNED_BY_CLIENT)
+            mediaBuffer->release();
         }
     }
 
     mInputLoadPoint = 0;
     mOutputLoadPoint = 0;
 
-    List<MediaBuffer*>::iterator it;
-    for (it = mRenderList.begin(); it != mRenderList.end(); it++) {
-        if (*it == NULL) break;
-        MediaBuffer* renderBuffer = *it;
-        if (renderBuffer->refcount() > 0)
-            renderBuffer->release();
+    if (!mRenderList.empty()) {
+        List<MediaBuffer*>::iterator it;
+        for (it = mRenderList.begin(); it != mRenderList.end(); it++) {
+            if (*it == NULL) break;
+            MediaBuffer* renderBuffer = *it;
+            if (renderBuffer->refcount() > 0)
+                renderBuffer->release();
+        }
+        mRenderList.clear();
     }
-    mRenderList.clear();
+}
+
+bool VPPProcessor::hasProcessingBuffer() {
+    bool hasProcBuffer = false;
+    for (uint32_t i = 0; i < mInputBufferNum; i++) {
+        if (mInput[i].mStatus == VPP_BUFFER_PROCESSING)
+            hasProcBuffer = true;
+        if (mInput[i].mStatus != VPP_BUFFER_PROCESSING &&
+            mInput[i].mStatus != VPP_BUFFER_FREE) {
+            MediaBuffer *mediaBuffer = findMediaBuffer(mInput[i]);
+            if (mediaBuffer != NULL && mediaBuffer->refcount() > 0)
+                mediaBuffer->release();
+            mInput[i].resetBuffer(NULL);
+        }
+    }
+    for (uint32_t i = 0; i < mOutputBufferNum; i++) {
+        if (mOutput[i].mStatus != VPP_BUFFER_PROCESSING &&
+            mOutput[i].mStatus != VPP_BUFFER_FREE) {
+            MediaBuffer *mediaBuffer = findMediaBuffer(mOutput[i]);
+            if (mediaBuffer != NULL && mediaBuffer->refcount() > 0) {
+                OMXCodec::BufferInfo *info = findBufferInfo(mediaBuffer);
+                if (info != NULL && info->mStatus != OMXCodec::OWNED_BY_CLIENT)
+                    mediaBuffer->release();
+            }
+        }
+    }
+    mInputLoadPoint = 0;
+    mOutputLoadPoint = 0;
+    return hasProcBuffer;
 }
 
 void VPPProcessor::flush() {
-    // flush all input buffers which are not in PROCESSING state
-    LOGI("flush");
-    bool monitorNewLoadPoint = false;
-    mInputLoadPoint = 0;
+    LOGV("flush");
+    // flush all input buffers
     for (uint32_t i = 0; i < mInputBufferNum; i++) {
-        if (mInput[i].mStatus != VPP_BUFFER_PROCESSING) {
-            if (mInput[i].mStatus != VPP_BUFFER_FREE) {
-                MediaBuffer *mediaBuffer = findMediaBuffer(mInput[i]);
-                if (mediaBuffer != NULL && mediaBuffer->refcount() > 0)
-                        mediaBuffer->release();
-                mInput[i].mGraphicBuffer = NULL;
-                mInput[i].mTimeUs = 0;
-                mInput[i].mStatus = VPP_BUFFER_FREE;
-            }
-            if (monitorNewLoadPoint) {
-                // find the 1st frame after PROCESSING block
-                mInputLoadPoint = i;
-                monitorNewLoadPoint = false;
-            }
+        if (mInput[i].mStatus != VPP_BUFFER_FREE) {
+            MediaBuffer *mediaBuffer = findMediaBuffer(mInput[i]);
+            if (mediaBuffer != NULL && mediaBuffer->refcount() > 0)
+                mediaBuffer->release();
+            mInput[i].resetBuffer(NULL);
         }
-        else
-            monitorNewLoadPoint = true;
     }
-    // flush all output buffers which are not in PROCESSING state
-    monitorNewLoadPoint = true;
+
+    // flush all output buffers
     for (uint32_t i = 0; i < mOutputBufferNum; i++) {
-        if (mOutput[i].mStatus != VPP_BUFFER_PROCESSING) {
-            if (mOutput[i].mStatus != VPP_BUFFER_FREE) {
-                MediaBuffer *mediaBuffer = findMediaBuffer(mOutput[i]);
-                if (mediaBuffer != NULL && mediaBuffer->refcount() > 0)
+        if (mOutput[i].mStatus != VPP_BUFFER_FREE) {
+            MediaBuffer *mediaBuffer = findMediaBuffer(mOutput[i]);
+            if (mediaBuffer != NULL && mediaBuffer->refcount() > 0) {
+                OMXCodec::BufferInfo *info = findBufferInfo(mediaBuffer);
+                if (info != NULL && info->mStatus != OMXCodec::OWNED_BY_CLIENT)
                     mediaBuffer->release();
-            }
-            monitorNewLoadPoint = true;
-        } else {
-            if (monitorNewLoadPoint) {
-                // find the 1st frame in PROCESSING state
-                mOutputLoadPoint = i;
-                monitorNewLoadPoint = false;
             }
         }
     }
 
-    List<MediaBuffer*>::iterator it;
-    for (it = mRenderList.begin(); it != mRenderList.end(); it++) {
-        if (*it == NULL) break;
-        MediaBuffer* renderBuffer = *it;
-        if (renderBuffer->refcount() > 0)
-            renderBuffer->release();
+    // flush render list
+    if (!mRenderList.empty()) {
+        List<MediaBuffer*>::iterator it;
+        for (it = mRenderList.begin(); it != mRenderList.end(); it++) {
+            if (*it == NULL) break;
+            MediaBuffer* renderBuffer = *it;
+            if (renderBuffer->refcount() > 0)
+                renderBuffer->release();
+        }
+        mRenderList.clear();
     }
-    mRenderList.clear();
-    printBuffers();
-    printRenderList();
+    mInputLoadPoint = 0;
+    mOutputLoadPoint = 0;
+    LOGV("flush end");
 }
 
 status_t VPPProcessor::clearInput() {
@@ -352,11 +405,10 @@ status_t VPPProcessor::clearInput() {
         if (mInput[i].mStatus == VPP_BUFFER_READY) {
             MediaBuffer *mediaBuffer = findMediaBuffer(mInput[i]);
             if (mediaBuffer != NULL && mediaBuffer->refcount() > 0) {
+                LOGV("clearInput: mediaBuffer = %p, refcount = %d",mediaBuffer, mediaBuffer->refcount());
                 mediaBuffer->release();
             }
-            mInput[i].mGraphicBuffer = NULL;
-            mInput[i].mTimeUs = 0;
-            mInput[i].mStatus = VPP_BUFFER_FREE;
+            mInput[i].resetBuffer(NULL);
         }
     }
     return VPP_OK;
@@ -373,7 +425,6 @@ status_t VPPProcessor::updateRenderList() {
             return VPP_FAIL;
         //set timestamp from VPPBuffer to MediaBuffer
         buff->meta_data()->setInt64(kKeyTime, timeBuffer);
-        buff->add_ref();
 
         List<MediaBuffer*>::iterator it;
         int64_t timeRenderList = 0;
@@ -397,13 +448,14 @@ status_t VPPProcessor::updateRenderList() {
         } else if (timeBuffer == timeRenderList) {
             LOGV("2. timeBuffer = %lld, timeRenderList = %lld, going to erase %p, insert %p", timeBuffer, timeRenderList, *it, buff);
             //same timestamp, use vpp output to replace the input
-            MediaBuffer* input = *it;
-            input->release();
+            MediaBuffer* renderBuff = *it;
+            if (renderBuff->refcount() > 0)
+                renderBuff->release();
             List<MediaBuffer*>::iterator erase = mRenderList.erase(it);
             mRenderList.insert(erase, buff);
+            mOutput[mOutputLoadPoint].mStatus = VPP_BUFFER_RENDERING;
             mVPPProcCount ++;
             mVPPRenderCount ++;
-            mOutput[mOutputLoadPoint].mStatus = VPP_BUFFER_RENDERING;
         } else if (timeBuffer < timeRenderList) {
             LOGV("3. timeBuffer = %lld, timeRenderList = %lld", timeBuffer, timeRenderList);
             //x.5 frame, just insert it
@@ -474,6 +526,7 @@ MediaBuffer * VPPProcessor::dequeueBufferFromNativeWindow() {
 
     LOGV("VPPProcessor::dequeueBuffer = %p, status = %d", info->mMediaBuffer, info->mStatus);
     CHECK_EQ((int)info->mStatus, (int)OMXCodec::OWNED_BY_NATIVE_WINDOW);
+    info->mMediaBuffer->add_ref();
     info->mStatus = OMXCodec::OWNED_BY_VPP;
     info->mMediaBuffer->setObserver(this);
     sp<MetaData> metaData = info->mMediaBuffer->meta_data();
@@ -485,9 +538,7 @@ status_t VPPProcessor::initBuffers() {
     MediaBuffer *buf = NULL;
     uint32_t i;
     for (i = 0; i < mInputBufferNum; i++) {
-        mInput[i].mGraphicBuffer = NULL;
-        mInput[i].mTimeUs = 0;
-        mInput[i].mStatus = VPP_BUFFER_FREE;
+        mInput[i].resetBuffer(NULL);
     }
 
     for (i = 0; i < mOutputBufferNum; i++) {
@@ -495,14 +546,13 @@ status_t VPPProcessor::initBuffers() {
         if (buf == NULL)
             return VPP_FAIL;
 
-        mOutput[i].mGraphicBuffer = buf->graphicBuffer();
-        mOutput[i].mTimeUs = 0;
-        mOutput[i].mStatus = VPP_BUFFER_FREE;
+        mOutput[i].resetBuffer(buf->graphicBuffer());
     }
     return VPP_OK;
 }
 
 void VPPProcessor::signalBufferReturned(MediaBuffer *buff) {
+    // Only called by client
     LOGV("VPPProcessor::signalBufferReturned, buff = %p", buff);
     if (buff == NULL) return;
 
@@ -515,47 +565,10 @@ void VPPProcessor::signalBufferReturned(MediaBuffer *buff) {
     OMXCodec::BufferInfo *info = findBufferInfo(buff);
     if (info == NULL) return;
 
-    if (info->mStatus == OMXCodec::OWNED_BY_CLIENT) {
-        if (!rendered) {
-            status_t err = cancelBufferToNativeWindow(buff);
-            if (err != VPP_OK) return;
-        }
-
-        metaData->setInt32(kKeyRendered, 0);
-        buff->setObserver(NULL);
-        info->mStatus = OMXCodec::OWNED_BY_NATIVE_WINDOW;
-
-        MediaBuffer * mediaBuffer = dequeueBufferFromNativeWindow();
-        if (mediaBuffer == NULL) return;
-
-        for (uint32_t i = 0; i < mOutputBufferNum; i++) {
-            if (buff->graphicBuffer() == mOutput[i].mGraphicBuffer) {
-                mOutput[i].mGraphicBuffer = mediaBuffer->graphicBuffer();
-                mOutput[i].mTimeUs = 0;
-                mOutput[i].mStatus = VPP_BUFFER_FREE;
-                break;
-            }
-        }
-    } else if (info->mStatus == OMXCodec::OWNED_BY_VPP) {
-        if (!mThreadRunning) {
-            status_t err = cancelBufferToNativeWindow(buff);
-            if (err != VPP_OK) return;
-
-            buff->setObserver(NULL);
-            info->mStatus = OMXCodec::OWNED_BY_NATIVE_WINDOW;
-
-            for (uint32_t i = 0; i < mOutputBufferNum; i++) {
-                if (buff->graphicBuffer() == mOutput[i].mGraphicBuffer) {
-                    mOutput[i].mGraphicBuffer = NULL;
-                    mOutput[i].mTimeUs = 0;
-                    mOutput[i].mStatus = VPP_BUFFER_FREE;
-                    break;
-                }
-            }
-        } else {
-            status_t err = cancelBufferToNativeWindow(buff);
-            if (err != VPP_OK) return;
-
+    if (mThreadRunning) {
+        if (info->mStatus == OMXCodec::OWNED_BY_CLIENT && rendered) {
+            // Buffer has been rendered and returned to NativeWindow
+            metaData->setInt32(kKeyRendered, 0);
             buff->setObserver(NULL);
             info->mStatus = OMXCodec::OWNED_BY_NATIVE_WINDOW;
 
@@ -564,11 +577,35 @@ void VPPProcessor::signalBufferReturned(MediaBuffer *buff) {
 
             for (uint32_t i = 0; i < mOutputBufferNum; i++) {
                 if (buff->graphicBuffer() == mOutput[i].mGraphicBuffer) {
-                    mOutput[i].mGraphicBuffer = mediaBuffer->graphicBuffer();
-                    mOutput[i].mTimeUs = 0;
-                    mOutput[i].mStatus = VPP_BUFFER_FREE;
+                    mOutput[i].resetBuffer(mediaBuffer->graphicBuffer());
                     break;
                 }
+            }
+        } else {
+            // Reuse buffer
+            buff->add_ref();
+            info->mStatus = OMXCodec::OWNED_BY_VPP;
+            for (uint32_t i = 0; i < mOutputBufferNum; i++) {
+                if (buff->graphicBuffer() == mOutput[i].mGraphicBuffer) {
+                    mOutput[i].resetBuffer(mOutput[i].mGraphicBuffer);
+                    break;
+                }
+            }
+        }
+    } else { //!mThreadRunning
+        if (!(info->mStatus == OMXCodec::OWNED_BY_CLIENT && rendered)) {
+            // Cancel buffer back to NativeWindow as long as it's not rendered
+            status_t err = cancelBufferToNativeWindow(buff);
+            if (err != VPP_OK) return;
+        }
+
+        buff->setObserver(NULL);
+        info->mStatus = OMXCodec::OWNED_BY_NATIVE_WINDOW;
+
+        for (uint32_t i = 0; i < mOutputBufferNum; i++) {
+            if (buff->graphicBuffer() == mOutput[i].mGraphicBuffer) {
+                mOutput[i].resetBuffer(NULL);
+                break;
             }
         }
     }
@@ -596,6 +633,7 @@ void VPPProcessor::setEOS()
 {
     LOGI("setEOS");
     mEOS = true;
+    mProcThread->mEOS = true;
 }
 
 MediaBuffer * VPPProcessor::findMediaBuffer(VPPBuffer &buff) {
