@@ -371,11 +371,13 @@ M4OSA_ERR VideoEditorAudioDecoder_parse_AAC_DSI(M4OSA_Int8* pDSI,
         // Get the frequency index again
         err = VideoEditorAudioDecoder_getBits(pDSI, dsiSize, 24, &result, &offset);
         VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
+        pProperties->aSampFreq = result;
+    } else {
+        VIDEOEDITOR_CHECK((0 <= result) && (FREQ_TABLE_SIZE > result),
+            M4ERR_PARAMETER);
+        pProperties->aSampFreq = AD_AAC_FREQ_TABLE[result];
     }
-    VIDEOEDITOR_CHECK((0 <= result) && (FREQ_TABLE_SIZE > result),
-        M4ERR_PARAMETER);
-    pProperties->aSampFreq = AD_AAC_FREQ_TABLE[result];
-    pProperties->aExtensionSampFreq = 0;
+    pProperties->aExtensionSampFreq = -1;
 
     // Get the number of channels
     err = VideoEditorAudioDecoder_getBits(pDSI, dsiSize, 4, &result, &offset);
@@ -384,23 +386,25 @@ M4OSA_ERR VideoEditorAudioDecoder_parse_AAC_DSI(M4OSA_Int8* pDSI,
 
     if (pProperties->aAudioObjectType == 5) {
         extensionAudioObjectType = pProperties->aAudioObjectType;
+        pProperties->aSBRPresent = 1;
         // Get extension sampling frequency index
         err = VideoEditorAudioDecoder_getBits(pDSI, dsiSize, 4, &result, &offset);
         VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
         if (result == 0x0f) {
             err = VideoEditorAudioDecoder_getBits(pDSI, dsiSize, 24, &result, &offset);
             VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
+            pProperties->aExtensionSampFreq = result;
+        } else {
+            VIDEOEDITOR_CHECK((0 <= result) && (FREQ_TABLE_SIZE > result),
+                M4ERR_PARAMETER);
+            pProperties->aExtensionSampFreq = AD_AAC_FREQ_TABLE[result];
         }
-        VIDEOEDITOR_CHECK((0 <= result) && (FREQ_TABLE_SIZE > result),
-            M4ERR_PARAMETER);
-        pProperties->aExtensionSampFreq = AD_AAC_FREQ_TABLE[result];
         // Get the object type again
         err = VideoEditorAudioDecoder_getBits(pDSI, dsiSize, 5, &result, &offset);
         VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
         pProperties->aAudioObjectType = (M4OSA_Int32)result;
     }
 
-    // It's for implicit signal the presence of SBR data with AAC-LC  audio object type(AOT = 2)
     if (pProperties->aAudioObjectType == 2) { /* parseGASpecificConfig begin*/
         // Get frame length flag
         err = VideoEditorAudioDecoder_getBits(pDSI, dsiSize, 1, &result, &offset);
@@ -433,21 +437,25 @@ M4OSA_ERR VideoEditorAudioDecoder_parse_AAC_DSI(M4OSA_Int8* pDSI,
             err = VideoEditorAudioDecoder_getBits(pDSI, dsiSize, 5, &extensionAudioObjectType, &offset);
             VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
             // get SBR present flag
-            err = VideoEditorAudioDecoder_getBits(pDSI, dsiSize, 1, &result, &offset);
-            VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
-            pProperties->aSBRPresent = result;
-            if (result == 1) {
-                // Get extension sampling frequency index
-                err = VideoEditorAudioDecoder_getBits(pDSI, dsiSize, 4, &result, &offset);
+            if (extensionAudioObjectType == 5) {
+                err = VideoEditorAudioDecoder_getBits(pDSI, dsiSize, 1, &result, &offset);
                 VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
-                if (result == 0x0f) {
-                    // Get extension sampling frequency index again
-                    err = VideoEditorAudioDecoder_getBits(pDSI, dsiSize, 24, &result, &offset);
+                pProperties->aSBRPresent = result;
+                if (result == 1) {
+                    // Get extension sampling frequency index
+                    err = VideoEditorAudioDecoder_getBits(pDSI, dsiSize, 4, &result, &offset);
                     VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
+                    if (result == 0x0f) {
+                        // Get extension sampling frequency index again
+                        err = VideoEditorAudioDecoder_getBits(pDSI, dsiSize, 24, &result, &offset);
+                        VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
+                        pProperties->aExtensionSampFreq = result;
+                    } else {
+                        VIDEOEDITOR_CHECK((0 <= result) && (FREQ_TABLE_SIZE > result),
+                           M4ERR_PARAMETER);
+                        pProperties->aExtensionSampFreq = AD_AAC_FREQ_TABLE[result];
+                    }
                 }
-                VIDEOEDITOR_CHECK((0 <= result) && (FREQ_TABLE_SIZE > result),
-                    M4ERR_PARAMETER);
-                pProperties->aExtensionSampFreq = AD_AAC_FREQ_TABLE[result];
             }
         }
     }
@@ -751,7 +759,23 @@ M4OSA_ERR VideoEditorAudioDecoder_processOutputBuffer(M4AD_Context pContext,
     if( pDecoderContext->mAudioStreamHandler->m_nbChannels ==
         (M4OSA_UInt32)pDecoderContext->mNbOutputChannels ) {
         // Just copy the PCMs
-        pOuputBuffer->m_bufferSize = (M4OSA_UInt32)buffer->range_length();
+        if (pOuputBuffer->m_bufferSize == buffer->range_length()) {
+            ALOGV("No need update buffer size");
+        } else {
+            ALOGV("Need reallocate the buffer, pOuputBuffer->m_bufferSize = 0x%x,buffer->range_length() = 0x%x", \
+                   pOuputBuffer->m_bufferSize,buffer->range_length());
+            free(pOuputBuffer->m_dataAddress);
+            pOuputBuffer->m_dataAddress =
+                (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(buffer->range_length()
+                * sizeof(M4OSA_Int16),
+                M4DECODER_AUDIO, (M4OSA_Char *)"buffer->range_length");
+            if( M4OSA_NULL == pOuputBuffer->m_dataAddress ) {
+                ALOGE("VideoEditorAudioDecoder_processOutputBuffer():\
+                       unable to allocate pOuputBuffer->m_dataAddress, returning M4ERR_ALLOC");
+                return M4ERR_ALLOC;
+            }
+            pOuputBuffer->m_bufferSize = (M4OSA_UInt32)buffer->range_length();
+        }
         memcpy((void *)pOuputBuffer->m_dataAddress,
             (void *)(((M4OSA_MemAddr8)buffer->data())+buffer->range_offset()),
             buffer->range_length());
