@@ -232,6 +232,7 @@ status_t VPPWorker::setupVA() {
         return STATUS_ALLOCATION_ERROR;
     }
     VASurfaceAttrib attribs[2];
+#ifndef TARGET_VPP_USE_GEN
     int supportedMemType = 0;
 
     //check whether it support create surface from external buffer
@@ -265,6 +266,7 @@ status_t VPPWorker::setupVA() {
 
     if (supportedMemType & VA_SURFACE_ATTRIB_MEM_TYPE_ANDROID_GRALLOC == 0)
         return VA_INVALID_SURFACE;
+#endif
 
     mVAExtBuf->pixel_format = mGraphicBufferConfig.colorFormat;
     mVAExtBuf->width = mGraphicBufferConfig.width;
