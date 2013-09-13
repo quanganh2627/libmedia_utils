@@ -21,6 +21,7 @@
 #include "VPPFillThread.h"
 #include "VPPProcThread.h"
 #include "VPPWorker.h"
+#include "VPPSetting.h"
 
 #include <stdint.h>
 

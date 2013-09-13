@@ -20,6 +20,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "VPPWorker"
 
+#include "VPPSetting.h"
 #include "VPPWorker.h"
 #define CHECK_VASTATUS(str) \
     do { \
@@ -325,48 +326,56 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
     mInputFps = fps;
     uint32_t area = mWidth * mHeight;
 
-#ifdef TARGET_VPP_USE_GEN
-    if (area <= VGA_AREA) {
-        mDenoiseOn = true;
-    }
-    mColorOn = true;
-    mDeinterlacingOn = true;
+    if (VPPSetting::VPPStatus) {
+        LOGV("vpp is on in settings");
 
-    return STATUS_OK;
+#ifdef TARGET_VPP_USE_GEN
+        if (area <= VGA_AREA) {
+            mDenoiseOn = true;
+        }
+        mColorOn = true;
+        mDeinterlacingOn = true;
+
+        return STATUS_OK;
 #endif
 
-    // <QCIF or >1080P
-    if (mHeight < 144 || mHeight > 1080)
-        return STATUS_NOT_SUPPORT;
+        // <QCIF or >1080P
+        if (mHeight < 144 || mHeight > 1080)
+            return STATUS_NOT_SUPPORT;
 
-    // QCIF to QVGA
-    if (area <= QVGA_AREA) {
-        mDeblockOn = true;
-        mSharpenOn = true;
-        mColorOn = true;
-    }
-    // QVGA to VGA
-    else if (area <= VGA_AREA) {
-        mDenoiseOn = true;
-        mSharpenOn = true;
-        mColorOn = true;
-    }
-    // VGA to 1080P
-    else if (area <= HD1080P_AREA) {
-        mSharpenOn = true;
+        // QCIF to QVGA
+        if (area <= QVGA_AREA) {
+            mDeblockOn = true;
+            mSharpenOn = true;
+            mColorOn = true;
+        }
+        // QVGA to VGA
+        else if (area <= VGA_AREA) {
+            mDenoiseOn = true;
+            mSharpenOn = true;
+            mColorOn = true;
+        }
+        // VGA to 1080P
+        else if (area <= HD1080P_AREA) {
+            mSharpenOn = true;
+        }
     }
 
-    if (mInputFps == 15) {
-        mFrcOn = true;
-        mFrcRate = FRC_RATE_4X;
-    }
-    else if (mInputFps == 24) {
-        mFrcOn = true;
-        mFrcRate = FRC_RATE_2_5X;
-    }
-    else if (mInputFps == 30) {
-        mFrcOn = true;
-        mFrcRate = FRC_RATE_2X;
+    if (VPPSetting::FRCStatus) {
+        LOGV("FRC is on in Settings");
+
+        if (mInputFps == 15) {
+            mFrcOn = true;
+            mFrcRate = FRC_RATE_4X;
+        }
+        else if (mInputFps == 24) {
+            mFrcOn = true;
+            mFrcRate = FRC_RATE_2_5X;
+        }
+        else if (mInputFps == 30) {
+            mFrcOn = true;
+            mFrcRate = FRC_RATE_2X;
+        }
     }
 
     LOGV("mDeblockOn=%d, mDenoiseOn=%d, mSharpenOn=%d, mColorOn=%d, mFrcOn=%d, mFrcRate=%d",

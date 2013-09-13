@@ -248,7 +248,7 @@ status_t NuPlayerVPPProcessor::validateVideoInfo(VPPVideoInfo *videoInfo){
 
 // static
 bool NuPlayerVPPProcessor::isVppOn() {
-    return VPPBuffer::isVppOn();
+    return VPPSetting::isVppOn();
 }
 
 ACodec::BufferInfo * NuPlayerVPPProcessor::findBufferByID(IOMX::buffer_id bufferID) {

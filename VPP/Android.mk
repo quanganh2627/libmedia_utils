@@ -4,6 +4,7 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
+        VPPSetting.cpp \
         VPPProcessor.cpp \
         VPPProcThread.cpp \
         VPPFillThread.cpp \
@@ -23,6 +24,7 @@ LOCAL_COPY_HEADERS_TO := libmedia_utils_vpp
 LOCAL_COPY_HEADERS := \
     VPPProcessor.h \
     VPPBuffer.h \
+    VPPSetting.h \
     VPPProcThread.h \
     VPPFillThread.h \
     VPPWorker.h \
