@@ -80,7 +80,7 @@ VPPProcessor* VPPProcessor::getInstance(const sp<ANativeWindow> &native, OMXCode
 
 //static
 bool VPPProcessor::isVppOn() {
-    return VPPBuffer::isVppOn();
+    return VPPSetting::isVppOn();
 }
 
 status_t VPPProcessor::init() {
