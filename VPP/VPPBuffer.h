@@ -24,8 +24,6 @@
 
 namespace android {
 
-static const char VPP_STATUS_STORAGE[] = "/data/data/com.intel.vpp/shared_prefs/vpp_settings.xml";
-
 enum VPPStatus {
     VPP_OK = 0,
     VPP_BUFFER_NOT_READY,
@@ -63,29 +61,6 @@ public:
     VPPBuffer(){}
     ~VPPBuffer(){}
 
-    static bool isVppOn()
-    {
-        FILE *handle = fopen(VPP_STATUS_STORAGE, "r");
-        if(handle == NULL)
-            return false;
-
-        const int MAXLEN = 1024;
-        char buf[MAXLEN] = {0};
-        memset(buf, 0 ,MAXLEN);
-        if(fread(buf, 1, MAXLEN, handle) <= 0) {
-            fclose(handle);
-            return false;
-        }
-        buf[MAXLEN - 1] = '\0';
-
-        if(strstr(buf, "true") == NULL) {
-            fclose(handle);
-            return false;
-        }
-
-        fclose(handle);
-        return true;
-    }
     // reset one input or output buffer
     void resetBuffer(sp<GraphicBuffer> buffer)
     {

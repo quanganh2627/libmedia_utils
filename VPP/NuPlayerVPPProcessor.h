@@ -20,6 +20,7 @@
 #include "VPPBuffer.h"
 #include "VPPProcThread.h"
 #include "VPPFillThread.h"
+#include "VPPSetting.h"
 #include <media/stagefright/foundation/AHandler.h>
 #include <media/stagefright/NativeWindowWrapper.h>
 #include <media/stagefright/ACodec.h>
