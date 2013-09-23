@@ -994,7 +994,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
     status_t error;
     int32_t i32Tmp = 0, isFakeSync = 0;
 
-    M4OSA_DEBUG_IF1((pReaderContext == 0), M4ERR_PARAMETER,
+    M4OSA_DEBUG_IF1((pC == 0), M4ERR_PARAMETER,
         "VideoEditor3gpReader_getNextAu: invalid context");
     M4OSA_DEBUG_IF1((pStreamHandler == 0), M4ERR_PARAMETER,
         "VideoEditor3gpReader_getNextAu: invalid pointer to M4_StreamHandler");
@@ -1697,6 +1697,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
             }
             else {
                 ALOGV("VideoEditor3gpReader_getNextStream NO video stream");
+                pC->mCurrTrack++; //Increment current track to get the next track
                 return M4ERR_READER_UNKNOWN_STREAM_TYPE;
             }
 
@@ -1847,6 +1848,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                 }
             } else {
                 ALOGV("VideoEditor3gpReader_getNextStream mStreamType: none ");
+                pC->mCurrTrack++; //Increment current track to get the next track
                 return M4ERR_READER_UNKNOWN_STREAM_TYPE;
             }
         } else {
