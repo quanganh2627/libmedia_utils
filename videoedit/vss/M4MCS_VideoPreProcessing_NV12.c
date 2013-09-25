@@ -155,7 +155,8 @@ M4OSA_ERR M4MCS_intApplyVPP_NV12(M4VPP_Context pContext,
                 M4OSA_UInt32 i = 0;
 
                 // Rotate the buffer if the original video has rotation information in MCS process.
-                if (pC->pReaderVideoStream->videoRotationDegrees != 0) {
+                if (pC->EncodingVideoFormat != M4ENCODER_kNULL
+                    && pC->pReaderVideoStream->videoRotationDegrees != 0) {
                    yuvFrameWidth = pC->pPreResizeFrame[0].u_width;
                    yuvFrameHeight = pC->pPreResizeFrame[0].u_height;
                    err = M4VSS3GPP_intRotateVideo_NV12(pC->pPreResizeFrame, pC->pReaderVideoStream->videoRotationDegrees);
@@ -380,7 +381,9 @@ M4OSA_ERR M4MCS_intApplyVPP_NV12(M4VPP_Context pContext,
                 }
             }
 
-            if(pC->pReaderVideoStream->videoRotationDegrees !=0 && pC->pReaderVideoStream->videoRotationDegrees !=180) {
+            if (pC->EncodingVideoFormat != M4ENCODER_kNULL
+                && pC->pReaderVideoStream->videoRotationDegrees !=0
+                && pC->pReaderVideoStream->videoRotationDegrees !=180) {
                M4VSS3GPP_intSetNV12Plane(pC->pPreResizeFrame,yuvFrameWidth, yuvFrameHeight);
             }
 
