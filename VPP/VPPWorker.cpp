@@ -155,7 +155,7 @@ VASurfaceID VPPWorker::mapBuffer(sp<GraphicBuffer> graphicBuffer) {
         return VA_INVALID_SURFACE;
     ANativeWindowBuffer * nativeBuffer = graphicBuffer->getNativeBuffer();
     for (uint32_t i = 0; i < mNumSurfaces; i++) {
-        if (mVAExtBuf->buffers[i] == (uint32_t)nativeBuffer->handle)
+        if (mGraphicBufferConfig.buffer[i] == (uint32_t)nativeBuffer->handle)
             return mSurfaces[i];
     }
     return VA_INVALID_SURFACE;
@@ -268,7 +268,7 @@ status_t VPPWorker::setupVA() {
         return VA_INVALID_SURFACE;
 #endif
 
-    mVAExtBuf->pixel_format = mGraphicBufferConfig.colorFormat;
+    mVAExtBuf->pixel_format = VA_FOURCC_NV12;
     mVAExtBuf->width = mGraphicBufferConfig.width;
     mVAExtBuf->height = mGraphicBufferConfig.height;
     mVAExtBuf->data_size = mGraphicBufferConfig.stride * mGraphicBufferConfig.height * 1.5;
@@ -282,7 +282,7 @@ status_t VPPWorker::setupVA() {
     mVAExtBuf->offsets[1] = mGraphicBufferConfig.stride * mGraphicBufferConfig.height;
     mVAExtBuf->offsets[2] = mVAExtBuf->offsets[1];
     mVAExtBuf->offsets[3] = 0;
-    mVAExtBuf->flags = 0;
+    mVAExtBuf->flags = VA_SURFACE_ATTRIB_MEM_TYPE_ANDROID_GRALLOC;
     mVAExtBuf->private_data = mNativeWindow.get(); //pass nativeWindow through private_data
 
     mVAExtBuf->buffers= (long unsigned int *)malloc(sizeof(long unsigned int)*mNumSurfaces);
@@ -340,6 +340,10 @@ status_t VPPWorker::terminateVA() {
         vaDestroySurfaces(mVADisplay, mSurfaces, mNumSurfaces);
         delete [] mSurfaces;
         mSurfaces = NULL;
+    }
+
+    for (int i = 0; i < mNumFilterBuffers; i++) {
+        vaDestroyBuffer(mVADisplay, mFilterBuffers[i]);
     }
 
     if (mVAContext != VA_INVALID_ID) {
