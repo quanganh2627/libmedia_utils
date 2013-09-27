@@ -65,7 +65,7 @@ LOCAL_SHARED_LIBRARIES :=     \
 LOCAL_CFLAGS += -DVIDEOEDITOR_INTEL_NV12_VERSION
 
 # Add specific code for Merrifield
-ifeq ($(TARGET_BOARD_PLATFORM),merrifield)
+ifneq ($(filter $(TARGET_BOARD_PLATFORM),merrifield moorefield),)
 LOCAL_CFLAGS += -DRUN_IN_MERRIFIELD
 endif
 LOCAL_STATIC_LIBRARIES := \
