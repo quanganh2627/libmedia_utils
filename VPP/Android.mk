@@ -30,7 +30,7 @@ LOCAL_COPY_HEADERS := \
     VPPWorker.h \
     NuPlayerVPPProcessor.h
 
-LOCAL_CFLAGS += -DTARGET_HAS_VPP
+LOCAL_CFLAGS += -DTARGET_HAS_VPP -Wno-non-virtual-dtor
 ifeq ($(TARGET_VPP_USE_GEN),true)
 	LOCAL_CFLAGS += -DTARGET_VPP_USE_GEN
 endif
