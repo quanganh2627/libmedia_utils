@@ -188,17 +188,20 @@ status_t IntelVideoEditorAVCEncoder::initCheck(const sp<MetaData>& meta) {
         LOGV("got encoder frame skip/bits stuffing set");
     }
 
-    VideoParamsHRD hrdParam;
-    encStatus = mVAEncoder->getParameters(&hrdParam);
-    CHECK(encStatus == ENCODE_SUCCESS);
-    LOGV("got encoder hrd params ");
+    // Only CBR support HRD feature
+    if (mEncParamsCommon.rcMode == RATE_CONTROL_CBR) {
+        VideoParamsHRD hrdParam;
+        encStatus = mVAEncoder->getParameters(&hrdParam);
+        CHECK(encStatus == ENCODE_SUCCESS);
+        LOGV("got encoder hrd params ");
 
-    hrdParam.bufferSize = mVideoBitRate;
-    hrdParam.initBufferFullness = hrdParam.bufferSize * INIT_BUF_FULLNESS_RATIO;
+        hrdParam.bufferSize = mVideoBitRate;
+        hrdParam.initBufferFullness = hrdParam.bufferSize * INIT_BUF_FULLNESS_RATIO;
 
-    encStatus = mVAEncoder->setParameters(&hrdParam);
-    CHECK(encStatus == ENCODE_SUCCESS);
-    LOGV("new  encoder hard params set");
+        encStatus = mVAEncoder->setParameters(&hrdParam);
+        CHECK(encStatus == ENCODE_SUCCESS);
+        LOGV("new  encoder hrd params set");
+    }
 
     mOutBufGroup = new MediaBufferGroup();
     CHECK(mOutBufGroup != NULL);
