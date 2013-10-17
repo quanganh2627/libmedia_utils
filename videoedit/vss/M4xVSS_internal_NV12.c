@@ -1973,7 +1973,7 @@ M4OSA_ERR M4xVSS_internalConvertRGBtoNV12(M4xVSS_FramingStruct* framingCtx)
 static M4OSA_ERR M4xVSS_internalProbeFramingBoundaryNV12(M4xVSS_FramingStruct *framingCtx)
 {
     M4OSA_ERR err = M4NO_ERROR;
-    M4OSA_UInt32   topleft_x, topleft_y, botright_x, botright_y;
+    M4OSA_Int32   topleft_x, topleft_y, botright_x, botright_y;
     M4OSA_UInt32   isTopLeftFound, isBottomRightFound;
     M4OSA_UInt32   u32_width, u32_height;
     M4OSA_UInt32   u32_stride_rgb, u32_stride_2rgb;
