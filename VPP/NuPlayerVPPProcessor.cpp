@@ -129,6 +129,7 @@ status_t NuPlayerVPPProcessor::setBufferToVPP(const sp<ABuffer> &buffer, const s
     CHECK(info != NULL);
     sp<GraphicBuffer> graphicBuffer = info->mGraphicBuffer;
 
+    mInput[mInputLoadPoint].mFlags = 0;
     mInput[mInputLoadPoint].mGraphicBuffer = graphicBuffer;
     mInput[mInputLoadPoint].mTimeUs = timeBuf;
     notifyConsumed->setInt32("vppInput", true);
