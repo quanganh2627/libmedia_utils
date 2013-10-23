@@ -490,7 +490,7 @@ status_t VPPWorker::setupFilters() {
                     // create parameter buffer
                     denoise.type = VAProcFilterNoiseReduction;
 #ifdef TARGET_VPP_USE_GEN
-                    char propValueString[32];
+                    char propValueString[PROPERTY_VALUE_MAX];
 
                     // placeholder for vpg driver: can't support denoise factor auto adjust, so leave config to user.
                     property_get("vpp.filter.denoise.factor", propValueString, "32.0");
@@ -584,7 +584,7 @@ status_t VPPWorker::setupFilters() {
 #ifdef TARGET_VPP_USE_GEN
                     //TODO: VPG need to support check input value by colorCaps.
                     enum {kHue = 0, kSaturation, kBrightness, kContrast};
-                    char propValueString[32];
+                    char propValueString[PROPERTY_VALUE_MAX];
                     color[kHue].type = VAProcFilterColorBalance;
                     color[kHue].attrib = VAProcColorBalanceHue;
 
