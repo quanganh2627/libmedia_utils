@@ -97,7 +97,7 @@ status_t NuPlayerVPPProcessor::canSetBufferToVPP() {
     if (!mThreadRunning)
         return VPP_FAIL;
 
-    if (mInput[mInputLoadPoint].mStatus == VPP_BUFFER_FREE) {
+    if (!mEOS && mInput[mInputLoadPoint].mStatus == VPP_BUFFER_FREE) {
         return VPP_OK;
     }
 
