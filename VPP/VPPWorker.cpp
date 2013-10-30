@@ -428,6 +428,11 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
 
     LOGV("mDeblockOn=%d, mDenoiseOn=%d, mSharpenOn=%d, mColorOn=%d, mFrcOn=%d, mFrcRate=%d",
           mDeblockOn, mDenoiseOn, mSharpenOn, mColorOn, mFrcOn, mFrcRate);
+
+    if (!mDeblockOn && !mDenoiseOn && !mSharpenOn && !mColorOn && !mFrcOn) {
+        LOGW("all the filters are off, do not do VPP, either FRC");
+        return STATUS_NOT_SUPPORT;
+    }
     return STATUS_OK;
 }
 
