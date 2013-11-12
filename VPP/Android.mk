@@ -1,10 +1,31 @@
 ifeq ($(TARGET_HAS_VPP),true)
 
 LOCAL_PATH := $(call my-dir)
+
+#### first ####
+
+include $(CLEAR_VARS)
+LOCAL_SRC_FILES:= \
+        VPPSetting.cpp
+
+LOCAL_COPY_HEADERS_TO := libmedia_utils_vpp
+
+LOCAL_COPY_HEADERS := \
+    VPPSetting.h \
+
+LOCAL_CFLAGS += -DTARGET_HAS_VPP -Wno-non-virtual-dtor
+
+LOCAL_MODULE:=  libvpp_setting
+LOCAL_MODULE_TAGS := optional
+
+include $(BUILD_SHARED_LIBRARY)
+
+
+#### second ####
+
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
-        VPPSetting.cpp \
         VPPProcessor.cpp \
         VPPProcThread.cpp \
         VPPFillThread.cpp \
@@ -17,14 +38,13 @@ LOCAL_C_INCLUDES:= \
         $(call include-path-for, frameworks-native)/media/openmax \
         $(TARGET_OUT_HEADERS)/libva
 
-LOCAL_SHARED_LIBRARIES := libva
+LOCAL_SHARED_LIBRARIES := libva libvpp_setting
 
 LOCAL_COPY_HEADERS_TO := libmedia_utils_vpp
 
 LOCAL_COPY_HEADERS := \
     VPPProcessor.h \
     VPPBuffer.h \
-    VPPSetting.h \
     VPPProcThread.h \
     VPPFillThread.h \
     VPPWorker.h \
@@ -39,5 +59,6 @@ LOCAL_MODULE:=  libvpp
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_STATIC_LIBRARY)
+
 endif
 
