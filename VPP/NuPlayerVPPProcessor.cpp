@@ -25,6 +25,11 @@
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaDefs.h>
 
+#if defined (TARGET_HAS_MULTIPLE_DISPLAY) && !defined (USE_MDS_LEGACY)
+#include <display/MultiDisplayService.h>
+using namespace android::intel;
+#endif
+
 namespace android {
 
 NuPlayerVPPProcessor::NuPlayerVPPProcessor(
@@ -249,7 +254,30 @@ status_t NuPlayerVPPProcessor::validateVideoInfo(VPPVideoInfo *videoInfo){
 
 // static
 bool NuPlayerVPPProcessor::isVppOn() {
+#if defined (TARGET_HAS_MULTIPLE_DISPLAY) && !defined (USE_MDS_LEGACY)
+    if (!VPPSetting::isVppOn())
+        return false;
+
+    sp<IServiceManager> sm = defaultServiceManager();
+    if (sm == NULL) {
+        LOGE("%s: Failed to get service manager", __func__);
+        return false;
+    }
+    sp<IMDService> mds = interface_cast<IMDService>(
+            sm->getService(String16(INTEL_MDS_SERVICE_NAME)));
+    if (mds == NULL) {
+        LOGE("%s: Failed to get MDS service", __func__);
+        return false;
+    }
+    sp<IMultiDisplayInfoProvider> mdsInfoProvider = mds->getInfoProvider();
+    if (mdsInfoProvider == NULL) {
+        LOGE("%s: Failed to get info provider", __func__);
+        return false;
+    }
+    return mdsInfoProvider->getVppState();
+#else
     return VPPSetting::isVppOn();
+#endif
 }
 
 ACodec::BufferInfo * NuPlayerVPPProcessor::findBufferByID(IOMX::buffer_id bufferID) {
