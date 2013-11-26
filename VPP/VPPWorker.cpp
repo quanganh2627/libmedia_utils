@@ -16,6 +16,7 @@
  */
 #include <cutils/properties.h>
 #include <OMX_Core.h>
+#include <OMX_IVCommon.h>
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "VPPWorker"
@@ -281,6 +282,10 @@ status_t VPPWorker::setupVA() {
     mVAExtBuf->offsets[2] = mVAExtBuf->offsets[1];
     mVAExtBuf->offsets[3] = 0;
     mVAExtBuf->flags = VA_SURFACE_ATTRIB_MEM_TYPE_ANDROID_GRALLOC;
+    if (mGraphicBufferConfig.colorFormat == OMX_INTEL_COLOR_FormatYUV420PackedSemiPlanar_Tiled) {
+        LOGV("set TILING flag");
+        mVAExtBuf->flags |= VA_SURFACE_EXTBUF_DESC_ENABLE_TILING;
+    }
     mVAExtBuf->private_data = mNativeWindow.get(); //pass nativeWindow through private_data
 
     mVAExtBuf->buffers= (long unsigned int *)malloc(sizeof(long unsigned int)*mNumSurfaces);
