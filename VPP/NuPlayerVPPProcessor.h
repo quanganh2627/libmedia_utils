@@ -19,7 +19,6 @@
 
 #include "VPPBuffer.h"
 #include "VPPProcThread.h"
-#include "VPPFillThread.h"
 #include "VPPSetting.h"
 #include <media/stagefright/foundation/AHandler.h>
 #include <media/stagefright/NativeWindowWrapper.h>
@@ -56,7 +55,7 @@ public:
     status_t validateVideoInfo(VPPVideoInfo *videoInfo);
 
     /*
-     * invoke VPPFillThread and VPPProcThread
+     * invoke VPPProcThread
      */
     void invokeThreads();
 
@@ -145,8 +144,6 @@ private:
     sp<AMessage> mNotify;
     // VPPProceThread
     sp<VPPProcThread> mProcThread;
-    // VPPFillThread
-    sp<VPPFillThread> mFillThread;
     bool mThreadRunning;
     VPPWorker * mWorker;
     sp<NativeWindowWrapper> mNativeWindow;

@@ -43,7 +43,8 @@ enum VPPWorkerStatus {
     STATUS_OK = 0,
     STATUS_NOT_SUPPORT,
     STATUS_ALLOCATION_ERROR,
-    STATUS_ERROR
+    STATUS_ERROR,
+    STATUS_DATA_RENDERING
 };
 
 struct GraphicBufferConfig {

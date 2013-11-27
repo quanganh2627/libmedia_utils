@@ -94,8 +94,10 @@ void NuPlayerVPPProcessor::invokeThreads() {
     if (!mThreadRunning)
         return;
 
-    mProcThread->mRunCond.signal();
-    mFillThread->mRunCond.signal();
+    if (mProcThread->bIOReady())
+    {
+         mProcThread->mRunCond.signal();
+    }
 }
 
 status_t NuPlayerVPPProcessor::canSetBufferToVPP() {
@@ -354,13 +356,9 @@ status_t NuPlayerVPPProcessor::init(sp<ACodec> &codec) {
     mProcThread = new VPPProcThread(false, mWorker,
             mInput, mInputBufferNum,
             mOutput, mOutputBufferNum);
-    mFillThread = new VPPFillThread(false, mWorker,
-            mInput, mInputBufferNum,
-            mOutput, mOutputBufferNum);
-    if (mProcThread == NULL || mFillThread == NULL)
+    if (mProcThread == NULL)
         return VPP_FAIL;
     mProcThread->run("VPPProcThread", ANDROID_PRIORITY_NORMAL);
-    mFillThread->run("VPPFillThread", ANDROID_PRIORITY_NORMAL);
     mThreadRunning = true;
 
     return VPP_OK;
@@ -470,14 +468,6 @@ void NuPlayerVPPProcessor::postAndResetInput(uint32_t index) {
 void NuPlayerVPPProcessor::quitThread() {
     LOGI("quitThread");
     if (mThreadRunning) {
-        mFillThread->requestExit();
-        {
-            Mutex::Autolock autoLock(mFillThread->mLock);
-            mFillThread->mRunCond.signal();
-        }
-        mFillThread->requestExitAndWait();
-        mFillThread.clear();
-
         mProcThread->requestExit();
         {
             Mutex::Autolock autoLock(mProcThread->mLock);
@@ -490,31 +480,37 @@ void NuPlayerVPPProcessor::quitThread() {
     return;
 }
 
+
 void NuPlayerVPPProcessor::seek() {
 
     LOGI("seek");
     /* invoke thread if it is waiting */
     if (mThreadRunning) {
-        Mutex::Autolock endLock(mFillThread->mEndLock);
+        Mutex::Autolock endLock(mProcThread->mEndLock);
         {
-            Mutex::Autolock fillLock(mFillThread->mLock);
             {
                 Mutex::Autolock procLock(mProcThread->mLock);
-                if (!hasProcessingBuffer()) return;
+                LOGV("got proc lock");
+                if (!hasProcessingBuffer()) {
+                     LOGI("seek done");
+                     return;
+                }
                 mProcThread->mSeek = true;
+                LOGV("set proc seek ");
                 mProcThread->mRunCond.signal();
+                LOGV("wake up proc thread");
             }
-            mFillThread->mSeek = true;
-            mFillThread->mRunCond.signal();
         }
-        LOGV("wait signal");
-        mFillThread->mEndCond.wait(mFillThread->mEndLock);
+        LOGI("waiting proc thread mEnd lock");
+        mProcThread->mEndCond.wait(mProcThread->mEndLock);
+        LOGI("wake up from proc thread");
         flushNoShutdown();
         mWorker->reset();
         mLastInputTimeUs = -1;
         LOGI("seek done");
     }
 }
+
 
 bool NuPlayerVPPProcessor::hasProcessingBuffer() {
     LOGV("before hasProcessingBuffer");
@@ -535,6 +531,7 @@ bool NuPlayerVPPProcessor::hasProcessingBuffer() {
     mInputLoadPoint = 0;
     mOutputLoadPoint = 0;
     LOGV("after hasProcessingBuffer");
+    LOGI("hasProcessingBuffer %d", hasProcBuffer);
     //printBuffers();
     return hasProcBuffer;
 }

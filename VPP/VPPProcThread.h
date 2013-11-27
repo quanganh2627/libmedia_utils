@@ -47,11 +47,15 @@ class VPPProcThread : public Thread {
         virtual bool threadLoop();
         bool isCurrentThread() const;
 
+        bool bIOReady();
+
     public:
         Mutex mLock;
+        Mutex mEndLock;
         // main thread send this condition to VPPProcThread,
         // VPPProcThread wait this condition to run
         Condition mRunCond;
+        Condition mEndCond;
         bool mWait;
         bool mError;
         bool mEOS;
@@ -60,6 +64,17 @@ class VPPProcThread : public Thread {
     private:
         VPPProcThread(const VPPProcThread &);
         VPPProcThread &operator=(const VPPProcThread &);
+        bool getBufForFirmwareOutput(Vector< sp<GraphicBuffer> > *fillBufList,
+                             uint32_t *fillBufNum);
+        int updateFirmwareOutputBufStatus(Vector< sp<GraphicBuffer> > fillBufList,
+                                    uint32_t fillBufNum);
+        bool getBufForFirmwareInput(Vector< sp<GraphicBuffer> > *procBufList,
+                            sp<GraphicBuffer> *inputBuf,
+                            bool bFlushPipeline,
+                            uint32_t *procBufNum );
+        int updateFirmwareInputBufStatus(Vector< sp<GraphicBuffer> > procBufList,
+                                   uint32_t procBufNum, int64_t timeUs,
+                                   bool bFlushPipeline);
 
     private:
         android_thread_id_t mThreadId;
@@ -71,6 +86,11 @@ class VPPProcThread : public Thread {
         uint32_t mInputProcIdx;
         uint32_t mOutputProcIdx;
         bool mFlagEnd;
+        uint32_t mNumTaskInProcesing;
+        bool mFirstInputFrame;
+        uint32_t mInputFillIdx;
+        uint32_t mOutputFillIdx;
+        bool mbFlushPipelineInProcessing;
 };
 
 } /* END namespace android */

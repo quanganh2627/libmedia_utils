@@ -159,11 +159,14 @@ status_t VPPProcessor::init() {
 bool VPPProcessor::canSetDecoderBufferToVPP() {
     if (!mThreadRunning)
         return true;
-    // invoke VPPProcThread as many as possible
-    mProcThread->mRunCond.signal();
-    mFillThread->mRunCond.signal();
     // put VPP output which still in output array to RenderList
     CHECK(updateRenderList() == VPP_OK);
+    // invoke VPPProcThread as many as possible
+
+    if (mProcThread->bIOReady())
+    {
+       mProcThread->mRunCond.signal();
+    }
     // release obsolete input buffers
     clearInput();
     // in non-EOS status, if input vectors has free position or
@@ -201,6 +204,7 @@ void VPPProcessor::printBuffers() {
         mediaBuffer = findMediaBuffer(mInput[i]);
         LOGV("input %d.   %p,  status = %d, time = %lld", i, mediaBuffer, mInput[i].mStatus, mInput[i].mTimeUs);
     }
+    LOGV("======================================= ");
     for (uint32_t i = 0; i < mOutputBufferNum; i++) {
         mediaBuffer = findMediaBuffer(mOutput[i]);
         LOGV("output %d.   %p,  status = %d, time = %lld", i, mediaBuffer, mOutput[i].mStatus, mOutput[i].mTimeUs);
@@ -218,7 +222,7 @@ void VPPProcessor::printRenderList() {
 status_t VPPProcessor::read(MediaBuffer **buffer) {
     printBuffers();
     printRenderList();
-    if (mProcThread->mError || mFillThread->mError) {
+    if (mProcThread->mError) {
         if (reset() != VPP_OK)
             return VPP_FAIL;
     }
@@ -258,21 +262,25 @@ int64_t VPPProcessor::getBufferTimestamp(MediaBuffer * buff) {
 void VPPProcessor::seek() {
     LOGI("seek");
     /* invoke thread if it is waiting */
-    if (!mEOS && mThreadRunning) {
-        Mutex::Autolock endLock(mFillThread->mEndLock);
+    if (mThreadRunning) {
+        Mutex::Autolock endLock(mProcThread->mEndLock);
         {
-            Mutex::Autolock fillLock(mFillThread->mLock);
             {
                 Mutex::Autolock procLock(mProcThread->mLock);
-                if (!hasProcessingBuffer()) return;
+                LOGV("got proc lock");
+                if (!hasProcessingBuffer()) {
+                    LOGI("seek done");
+                    return;
+                }
                 mProcThread->mSeek = true;
+                LOGV("set proc seek ");
                 mProcThread->mRunCond.signal();
+                LOGI("wake up proc thread");
             }
-            mFillThread->mSeek = true;
-            mFillThread->mRunCond.signal();
         }
-        LOGV("wait signal");
-        mFillThread->mEndCond.wait(mFillThread->mEndLock);
+        LOGI("waiting proc thread mEnd lock");
+        mProcThread->mEndCond.wait(mProcThread->mEndLock);
+        LOGI("wake up proc thread");
         flush();
         mWorker->reset();
         LOGI("seek done");
@@ -293,13 +301,9 @@ status_t VPPProcessor::createThread() {
     mProcThread = new VPPProcThread(false, mWorker,
             mInput, mInputBufferNum,
             mOutput, mOutputBufferNum);
-    mFillThread = new VPPFillThread(false, mWorker,
-            mInput, mInputBufferNum,
-            mOutput, mOutputBufferNum);
-    if (mProcThread == NULL || mFillThread == NULL)
+    if (mProcThread == NULL)
         return VPP_FAIL;
     mProcThread->run("VPPProcThread", ANDROID_PRIORITY_NORMAL);
-    mFillThread->run("VPPFillThread", ANDROID_PRIORITY_NORMAL);
     mThreadRunning = true;
     return VPP_OK;
 }
@@ -307,14 +311,6 @@ status_t VPPProcessor::createThread() {
 void VPPProcessor::quitThread() {
     LOGI("quitThread");
     if(mThreadRunning) {
-        mFillThread->requestExit();
-        {
-            Mutex::Autolock autoLock(mFillThread->mLock);
-            mFillThread->mRunCond.signal();
-        }
-        mFillThread->requestExitAndWait();
-        mFillThread.clear();
-
         mProcThread->requestExit();
         {
             Mutex::Autolock autoLock(mProcThread->mLock);
@@ -385,6 +381,7 @@ bool VPPProcessor::hasProcessingBuffer() {
     }
     mInputLoadPoint = 0;
     mOutputLoadPoint = 0;
+    LOGI("hasProcBuffer %d", hasProcBuffer);
     return hasProcBuffer;
 }
 

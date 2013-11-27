@@ -28,7 +28,6 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:= \
         VPPProcessor.cpp \
         VPPProcThread.cpp \
-        VPPFillThread.cpp \
         VPPWorker.cpp \
         NuPlayerVPPProcessor.cpp
 
@@ -54,7 +53,6 @@ LOCAL_COPY_HEADERS := \
     VPPProcessor.h \
     VPPBuffer.h \
     VPPProcThread.h \
-    VPPFillThread.h \
     VPPWorker.h \
     NuPlayerVPPProcessor.h
 

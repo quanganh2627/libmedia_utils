@@ -18,7 +18,6 @@
 #ifndef __VPP_PROCESSOR_H
 #define __VPP_PROCESSOR_H
 #include "VPPBuffer.h"
-#include "VPPFillThread.h"
 #include "VPPProcThread.h"
 #include "VPPWorker.h"
 #include "VPPSetting.h"
@@ -35,7 +34,6 @@ struct MediaBuffer;
 struct MediaBufferObserver;
 struct OMXCodec;
 class VPPProcThread;
-class VPPFillThread;
 
 class VPPProcessor : public MediaBufferObserver {
 public:
@@ -194,9 +192,7 @@ private:
     MediaBuffer* mLastRenderBuffer;
 
     sp<VPPProcThread> mProcThread;
-    sp<VPPFillThread> mFillThread;
     friend class VPPProcThread;
-    friend class VPPFillThread;
     VPPWorker* mWorker;
 
     sp<ANativeWindow> mNativeWindow;

@@ -429,6 +429,7 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
             mFrcOn = true;
             mFrcRate = FRC_RATE_2X;
         }
+        LOGV("FRC is %d", mFrcRate );
     }
 
     LOGV("mDeblockOn=%d, mDenoiseOn=%d, mSharpenOn=%d, mColorOn=%d, mFrcOn=%d, mFrcRate=%d",
@@ -837,22 +838,50 @@ status_t VPPWorker::fill(Vector< sp<GraphicBuffer> > outputGraphicBuffer, uint32
     // get output surface
     VASurfaceID output[MAX_FRC_OUTPUT];
     VAStatus vaStatus;
+    VASurfaceStatus surStatus;
+
     if (outputCount < 1)
         return STATUS_ERROR;
     // map GraphicBuffer to VASurface
     for (uint32_t i = 0; i < outputCount; i++) {
+
         output[i] = mapBuffer(outputGraphicBuffer[i]);
         if (output[i] == VA_INVALID_SURFACE) {
             LOGE("invalid output buffer");
             return STATUS_ERROR;
         }
+
+        vaStatus = vaQuerySurfaceStatus(mVADisplay, output[i],&surStatus);
+        CHECK_VASTATUS("vaQuerySurfaceStatus");
+        if (surStatus == VASurfaceRendering) {
+            LOGV("Rendering %d", i);
+            /* The behavior of driver is: all output of one process task are return in one interruption.
+               The whole outputs of one FRC task are all ready or none of them is ready.
+               If the behavior changed, it hurts the performance.
+            */
+            if (0 != i) {
+                LOGW("*****Driver behavior changed. The performance is hurt.");
+                LOGW("Please check driver behavior: all output of one task return in one interruption.");
+            }
+            vaStatus = STATUS_DATA_RENDERING;
+            break;
+        }
+        if ((surStatus != VASurfaceRendering) && (surStatus != VASurfaceReady)) {
+            LOGE("surface statu Error %d", surStatus);
+            vaStatus = STATUS_ERROR;
+        }
+
         vaStatus = vaSyncSurface(mVADisplay, output[i]);
         CHECK_VASTATUS("vaSyncSurface");
+        vaStatus = STATUS_OK;
         //dumpYUVFrameData(output[i]);
     }
-    mOutputIndex++;
+
+    if (vaStatus == STATUS_OK)
+        mOutputIndex++;
+
     LOGV("fill, exit");
-    return STATUS_OK;
+    return vaStatus;
 }
 
 VPPWorker::~VPPWorker() {
