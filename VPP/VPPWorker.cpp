@@ -421,11 +421,11 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
             mFrcOn = true;
             mFrcRate = FRC_RATE_4X;
         }
-        else if (mInputFps == 24 || mInputFps == 25) {
+        else if (mInputFps == 24) {
             mFrcOn = true;
             mFrcRate = FRC_RATE_2_5X;
         }
-        else if (mInputFps == 30) {
+        else if (mInputFps == 30 || mInputFps == 25) {
             mFrcOn = true;
             mFrcRate = FRC_RATE_2X;
         }
