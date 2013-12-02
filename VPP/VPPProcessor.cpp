@@ -258,7 +258,7 @@ int64_t VPPProcessor::getBufferTimestamp(MediaBuffer * buff) {
 void VPPProcessor::seek() {
     LOGI("seek");
     /* invoke thread if it is waiting */
-    if (mThreadRunning) {
+    if (!mEOS && mThreadRunning) {
         Mutex::Autolock endLock(mFillThread->mEndLock);
         {
             Mutex::Autolock fillLock(mFillThread->mLock);
