@@ -373,12 +373,12 @@ status_t VPPWorker::terminateVA() {
     return STATUS_OK;
 }
 
-status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, const uint32_t fps) {
+status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, const uint32_t fps, const uint32_t slowMotionFactor) {
     mWidth = width;
     mHeight = height;
     mInputFps = fps;
-    uint32_t area = mWidth * mHeight;
 
+    uint32_t area = mWidth * mHeight;
     if (VPPSetting::VPPStatus) {
         LOGV("vpp is on in settings");
 
@@ -414,7 +414,13 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
         }
     }
 
-    if (VPPSetting::FRCStatus) {
+    if (slowMotionFactor == 2 || slowMotionFactor == 4) {
+        // slow motion mode, only do FRC according to slow motion factor
+        mFrcOn = true;
+        mFrcRate = FRC_RATE_2X;
+        mInputFps = fps / slowMotionFactor;
+
+    } else if (VPPSetting::FRCStatus) {
         LOGV("FRC is on in Settings");
 
         if (mInputFps >= 15 && mInputFps <= 23) {
@@ -429,10 +435,9 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
             mFrcOn = true;
             mFrcRate = FRC_RATE_2X;
         }
-        LOGV("FRC is %d", mFrcRate );
     }
 
-    LOGV("mDeblockOn=%d, mDenoiseOn=%d, mSharpenOn=%d, mColorOn=%d, mFrcOn=%d, mFrcRate=%d",
+    LOGI("mDeblockOn=%d, mDenoiseOn=%d, mSharpenOn=%d, mColorOn=%d, mFrcOn=%d, mFrcRate=%d",
           mDeblockOn, mDenoiseOn, mSharpenOn, mColorOn, mFrcOn, mFrcRate);
 
     if (!mDeblockOn && !mDenoiseOn && !mSharpenOn && !mColorOn && !mFrcOn) {

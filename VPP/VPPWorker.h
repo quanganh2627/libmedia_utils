@@ -61,7 +61,7 @@ class VPPWorker {
         static VPPWorker* getInstance(const sp<ANativeWindow> &nativeWindow);
 
         // config filters on or off based on video info
-        status_t configFilters(const uint32_t width, const uint32_t height, const uint32_t fps);
+        status_t configFilters(const uint32_t width, const uint32_t height, const uint32_t fps, const uint32_t slowMotionFactor = 1);
 
         // Initialize: setupVA()->setupFilters()->setupPipelineCaps()
         status_t init();

@@ -639,11 +639,11 @@ void VPPProcessor::signalBufferReturned(MediaBuffer *buff) {
     return;
 }
 
-status_t VPPProcessor::validateVideoInfo(VPPVideoInfo * videoInfo)
+status_t VPPProcessor::validateVideoInfo(VPPVideoInfo * videoInfo, uint32_t slowMotionFactor)
 {
     if (videoInfo == NULL || mWorker == NULL)
         return VPP_FAIL;
-    if (mWorker->configFilters(videoInfo->width, videoInfo->height, videoInfo->fps) != VPP_OK)
+    if (mWorker->configFilters(videoInfo->width, videoInfo->height, videoInfo->fps, slowMotionFactor) != VPP_OK)
         return VPP_FAIL;
     mInputBufferNum = mWorker->mNumForwardReferences + 3;
     mOutputBufferNum = (mWorker->mNumForwardReferences + 2) * mWorker->mFrcRate;

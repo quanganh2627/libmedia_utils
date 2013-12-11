@@ -46,11 +46,12 @@ public:
     /* Set video clip info and calculate buffer number needed
      * @param
      *      info: video clip info
+     *      slowMotionFactor: slow motion factor, 1 mean no slow motin effect
      * @return:
      *      VPP_OK: success
      *      VPP_FAIL: fail
      */
-    status_t validateVideoInfo(VPPVideoInfo* info);
+    status_t validateVideoInfo(VPPVideoInfo* info, uint32_t slowMotionFactor = 1);
 
     /*
      * Get VPP on/off status from VppSettings
