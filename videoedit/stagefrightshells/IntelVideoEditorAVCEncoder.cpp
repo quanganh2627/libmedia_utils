@@ -131,7 +131,11 @@ status_t IntelVideoEditorAVCEncoder::initCheck(const sp<MetaData>& meta) {
     mEncParamsCommon.rawFormat =  RAW_FORMAT_NV12;
 
     mEncParamsCommon.rcParams.minQP  = 0;
+    mEncParamsCommon.rcParams.maxQP = 0;
     mEncParamsCommon.rcParams.initQP = 0;
+    mEncParamsCommon.rcParams.I_minQP = 0;
+    mEncParamsCommon.rcParams.I_maxQP = 0;
+    mEncParamsCommon.rcParams.enableIntraFrameQPControl = 0;
 
     if (mVideoBitRate < LOW_QUALITY_BITRATE) {
         mEncParamsCommon.intraPeriod = LONG_INTRA_PERIOD;
