@@ -163,7 +163,7 @@ bool VPPProcessor::canSetDecoderBufferToVPP() {
     CHECK(updateRenderList() == VPP_OK);
     // invoke VPPProcThread as many as possible
 
-    if (mProcThread->bIOReady())
+    if (mProcThread->isReadytoRun())
     {
        mProcThread->mRunCond.signal();
     }
@@ -263,26 +263,24 @@ void VPPProcessor::seek() {
     LOGI("seek");
     /* invoke thread if it is waiting */
     if (mThreadRunning) {
-        Mutex::Autolock endLock(mProcThread->mEndLock);
         {
-            {
-                Mutex::Autolock procLock(mProcThread->mLock);
-                LOGV("got proc lock");
-                if (!hasProcessingBuffer()) {
-                    LOGI("seek done");
-                    return;
-                }
-                mProcThread->mSeek = true;
-                LOGV("set proc seek ");
-                mProcThread->mRunCond.signal();
-                LOGI("wake up proc thread");
-            }
+            Mutex::Autolock procLock(mProcThread->mLock);
+            LOGV("got proc lock");
+            if (!hasProcessingBuffer()) {
+                LOGI("seek done");
+                return;
+             }
+             mProcThread->mSeek = true;
+             LOGV("set proc seek ");
+             mProcThread->mRunCond.signal();
+             LOGI("wake up proc thread");
         }
-        LOGI("waiting proc thread mEnd lock");
+        LOGI("try to get mEnd lock");
+        Mutex::Autolock endLock(mProcThread->mEndLock);
+        LOGI("waiting mEnd lock(seek finish) ");
         mProcThread->mEndCond.wait(mProcThread->mEndLock);
         LOGI("wake up proc thread");
         flush();
-        mWorker->reset();
         LOGI("seek done");
     }
 }
@@ -369,8 +367,8 @@ bool VPPProcessor::hasProcessingBuffer() {
         }
     }
     for (uint32_t i = 0; i < mOutputBufferNum; i++) {
-        if (mOutput[i].mStatus != VPP_BUFFER_PROCESSING &&
-            mOutput[i].mStatus != VPP_BUFFER_FREE) {
+        if ((mOutput[i].mStatus != VPP_BUFFER_PROCESSING) &&
+            (mOutput[i].mStatus != VPP_BUFFER_FREE) && (mOutput[i].mStatus != VPP_BUFFER_END_FLAG)) {
             MediaBuffer *mediaBuffer = findMediaBuffer(mOutput[i]);
             if (mediaBuffer != NULL && mediaBuffer->refcount() > 0) {
                 OMXCodec::BufferInfo *info = findBufferInfo(mediaBuffer);

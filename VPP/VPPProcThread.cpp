@@ -20,8 +20,6 @@
 #include "VPPProcThread.h"
 #include <utils/Log.h>
 
-#define MAXNUM_TASKS 4
-
 namespace android {
 
 VPPProcThread::VPPProcThread(bool canCallJava, VPPWorker* vppWorker,
@@ -211,25 +209,33 @@ int VPPProcThread::updateFirmwareInputBufStatus(Vector< sp<GraphicBuffer> > proc
 }
 
 
-bool VPPProcThread::bIOReady() {
+bool VPPProcThread::isReadytoRun() {
 
     bool bInputReady = (mInput[mInputProcIdx].mStatus == VPP_BUFFER_LOADED) ? true : false;
-    bool bOutBufReady;
-    uint32_t procBufNum = mVPPWorker->getProcBufCount();
-    uint32_t procPos;
+    bool bOutBufFree = isOutputBufFree();
 
-    uint32_t i = 0;
-    do {
-        procPos = (mOutputProcIdx + i) % mOutputBufferNum;
-        bOutBufReady = (mOutput[procPos].mStatus == VPP_BUFFER_FREE);
-        if (bOutBufReady)
-           i++;
-    } while (bOutBufReady && i < procBufNum);
-
-    if ( ((i == procBufNum) && bInputReady) || (mNumTaskInProcesing > 0))
+    if ((bInputReady && bOutBufFree) || (mNumTaskInProcesing > 0))
        return true;
     else
        return false;
+}
+
+
+bool VPPProcThread::isOutputBufFree() {
+    uint32_t procPos;
+    uint32_t i = 0;
+    uint32_t needOutputBufNum = mVPPWorker->getProcBufCount();
+    bool bOutBufFree;
+
+    do {
+        procPos = (mOutputProcIdx + i) % mOutputBufferNum;
+        bOutBufFree = (mOutput[procPos].mStatus == VPP_BUFFER_FREE);
+        if (bOutBufFree)
+           i++;
+    } while (bOutBufFree && i < (needOutputBufNum + 1));
+
+    //Reserved one free buffer for flushpipeline
+    return (i >= (needOutputBufNum + 1));
 }
 
 
@@ -241,10 +247,10 @@ bool VPPProcThread::threadLoop() {
     Vector< sp<GraphicBuffer> > fillBufList;
     int64_t timeUs = 0ll;
     bool bInputReady = false;
+    bool bOutputBufFree = true;
     uint32_t flags = 0;
     bool bPendingOnFirmware = false;
     bool bFlushPipeline = false;
-    bool bOutputBuffAvail = true;
     bool bGetBufSuccess = true;
 
     Mutex::Autolock autoLock(mLock);
@@ -264,6 +270,7 @@ bool VPPProcThread::threadLoop() {
                     mSeek = false;
                     mEOS = false;
                     mbFlushPipelineInProcessing = false;
+                    mVPPWorker->reset();
                     Mutex::Autolock endLock(mEndLock);
                     LOGV("send out end signal, mInputFillIdx = %d",mInputFillIdx);
                     mEndCond.signal();
@@ -283,20 +290,22 @@ bool VPPProcThread::threadLoop() {
     }
     LOGV("after mNumTaskInProcesing %d ...", mNumTaskInProcesing);
 
-    if (mWait && (!mSeek && !mEOS)) {
+    bInputReady = (mInput[mInputProcIdx].mStatus == VPP_BUFFER_LOADED) ? true : false;
+    bOutputBufFree = isOutputBufFree();
+    bFlushPipeline = (!bInputReady && (mEOS || mSeek)) && (!mbFlushPipelineInProcessing);
+
+    mWait = (!bInputReady || !bOutputBufFree) && (!mSeek && !mEOS);
+    if (mWait) {
         LOGV("wait for input/outpu ...");
         mRunCond.wait(mLock);
         LOGV("wake up from mLock ...");
     }
 
-    bInputReady = (mInput[mInputProcIdx].mStatus == VPP_BUFFER_LOADED) ? true : false;
-    bFlushPipeline = (!bInputReady && (mEOS || mSeek)) && (!mbFlushPipelineInProcessing);
     LOGV("before send: bInputReady %d flush: %d flushinProcess %d ...", bInputReady, bFlushPipeline, mbFlushPipelineInProcessing);
 
-    if ((bInputReady || bFlushPipeline) && mNumTaskInProcesing < MAXNUM_TASKS) {
+    if (((bInputReady && bOutputBufFree) || bFlushPipeline) && !mbFlushPipelineInProcessing ) {
         bool bGetInBuf = getBufForFirmwareInput(&procBufList, &inputBuf, bFlushPipeline, &procBufNum);
         if (bGetInBuf) {
-            bOutputBuffAvail = true;
             if (!bFlushPipeline) {
                 flags = mInput[mInputProcIdx].mFlags;
                 // get input buffer timestamp
@@ -312,18 +321,10 @@ bool VPPProcThread::threadLoop() {
             } else {
                 LOGE("process error %d ...", __LINE__);
             }
-        } else {
-           bOutputBuffAvail = false;
         }
     }
 
-    bInputReady = (mInput[mInputProcIdx].mStatus == VPP_BUFFER_LOADED) ? true : false;
-    LOGV("send input bInputReady %d  tasks %d outbuffAail %d...", bInputReady, mNumTaskInProcesing, bOutputBuffAvail);
-
-    if (!bInputReady || !bOutputBuffAvail) {
-        mWait = true;
-        LOGV("wait set true.");
-    }
+    LOGV("send input bInputReady %d  tasks %d outbufFree %d...", bInputReady, mNumTaskInProcesing, bOutputBufFree);
 
    return true;
 }

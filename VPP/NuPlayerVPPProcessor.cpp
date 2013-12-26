@@ -94,7 +94,7 @@ void NuPlayerVPPProcessor::invokeThreads() {
     if (!mThreadRunning)
         return;
 
-    if (mProcThread->bIOReady())
+    if (mProcThread->isReadytoRun())
     {
          mProcThread->mRunCond.signal();
     }
@@ -486,26 +486,23 @@ void NuPlayerVPPProcessor::seek() {
     LOGI("seek");
     /* invoke thread if it is waiting */
     if (mThreadRunning) {
-        Mutex::Autolock endLock(mProcThread->mEndLock);
         {
-            {
-                Mutex::Autolock procLock(mProcThread->mLock);
-                LOGV("got proc lock");
-                if (!hasProcessingBuffer()) {
-                     LOGI("seek done");
-                     return;
-                }
-                mProcThread->mSeek = true;
-                LOGV("set proc seek ");
-                mProcThread->mRunCond.signal();
-                LOGV("wake up proc thread");
+            Mutex::Autolock procLock(mProcThread->mLock);
+            LOGV("got proc lock");
+            if (!hasProcessingBuffer()) {
+                LOGI("seek done");
+                return;
             }
+            mProcThread->mSeek = true;
+            LOGV("set proc seek ");
+            mProcThread->mRunCond.signal();
+            LOGV("wake up proc thread");
         }
+        Mutex::Autolock endLock(mProcThread->mEndLock);
         LOGI("waiting proc thread mEnd lock");
         mProcThread->mEndCond.wait(mProcThread->mEndLock);
         LOGI("wake up from proc thread");
         flushNoShutdown();
-        mWorker->reset();
         mLastInputTimeUs = -1;
         LOGI("seek done");
     }
@@ -524,7 +521,7 @@ bool NuPlayerVPPProcessor::hasProcessingBuffer() {
         }
     }
     for (uint32_t i = 0; i < mOutputBufferNum; i++) {
-        if (mOutput[i].mStatus != VPP_BUFFER_PROCESSING && mOutput[i].mStatus != VPP_BUFFER_FREE) {
+        if ((mOutput[i].mStatus != VPP_BUFFER_PROCESSING) && (mOutput[i].mStatus != VPP_BUFFER_FREE) && (mOutput[i].mStatus != VPP_BUFFER_END_FLAG)) {
             mOutput[i].resetBuffer(mOutput[i].mGraphicBuffer);
         }
     }

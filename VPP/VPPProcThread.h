@@ -47,7 +47,7 @@ class VPPProcThread : public Thread {
         virtual bool threadLoop();
         bool isCurrentThread() const;
 
-        bool bIOReady();
+        bool isReadytoRun();
 
     public:
         Mutex mLock;
@@ -75,6 +75,7 @@ class VPPProcThread : public Thread {
         int updateFirmwareInputBufStatus(Vector< sp<GraphicBuffer> > procBufList,
                                    uint32_t procBufNum, int64_t timeUs,
                                    bool bFlushPipeline);
+        bool isOutputBufFree();
 
     private:
         android_thread_id_t mThreadId;
