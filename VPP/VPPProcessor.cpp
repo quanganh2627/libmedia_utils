@@ -533,30 +533,36 @@ MediaBuffer * VPPProcessor::dequeueBufferFromNativeWindow() {
         return NULL;
 
     ANativeWindowBuffer *buff;
-    //int err = mNativeWindow->dequeueBuffer(mNativeWindow.get(), &buff);
-    int err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buff);
-    if (err != 0) {
-        LOGE("dequeueBuffer from native window failed");
-        return NULL;
-    }
-
     OMXCodec::BufferInfo *info = NULL;
-    for (uint32_t i = 0; i < mBufferInfos->size(); i++) {
-        sp<GraphicBuffer> graphicBuffer = mBufferInfos->itemAt(i).mMediaBuffer->graphicBuffer();
-        if (graphicBuffer->handle == buff->handle) {
-            info = &mBufferInfos->editItemAt(i);
-            break;
+    //int err = mNativeWindow->dequeueBuffer(mNativeWindow.get(), &buff);
+    while (1) {
+        int err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buff);
+        if (err != 0) {
+            LOGE("dequeueBuffer from native window failed");
+            return NULL;
         }
-    }
-    if (info == NULL) return NULL;
 
-    LOGV("VPPProcessor::dequeueBuffer = %p, status = %d", info->mMediaBuffer, info->mStatus);
-    CHECK_EQ((int)info->mStatus, (int)OMXCodec::OWNED_BY_NATIVE_WINDOW);
-    info->mMediaBuffer->add_ref();
-    info->mStatus = OMXCodec::OWNED_BY_VPP;
-    info->mMediaBuffer->setObserver(this);
-    sp<MetaData> metaData = info->mMediaBuffer->meta_data();
-    metaData->setInt32(kKeyRendered, 0);
+        for (uint32_t i = 0; i < mBufferInfos->size(); i++) {
+            sp<GraphicBuffer> graphicBuffer = mBufferInfos->itemAt(i).mMediaBuffer->graphicBuffer();
+            if (graphicBuffer->handle == buff->handle) {
+                info = &mBufferInfos->editItemAt(i);
+                break;
+            }
+        }
+        if (info == NULL) return NULL;
+
+        sp<MetaData> metaData = info->mMediaBuffer->meta_data();
+        metaData->setInt32(kKeyRendered, 0);
+
+        if (info->mStatus == OMXCodec::OWNED_BY_CLIENT)
+            continue;
+
+        CHECK_EQ((int)info->mStatus, (int)OMXCodec::OWNED_BY_NATIVE_WINDOW);
+        info->mMediaBuffer->add_ref();
+        info->mStatus = OMXCodec::OWNED_BY_VPP;
+        info->mMediaBuffer->setObserver(this);
+        break;
+    }
     return info->mMediaBuffer;
 }
 
