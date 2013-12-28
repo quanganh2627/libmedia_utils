@@ -423,17 +423,13 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
     } else if (VPPSetting::FRCStatus) {
         LOGV("FRC is on in Settings");
 
-        if (mInputFps >= 15 && mInputFps <= 23) {
+        if (mInputFps == 15 || mInputFps == 25 || mInputFps == 30) {
             mFrcOn = true;
             mFrcRate = FRC_RATE_2X;
         }
         else if (mInputFps == 24) {
             mFrcOn = true;
             mFrcRate = FRC_RATE_2_5X;
-        }
-        else if (mInputFps <= 30 && mInputFps >= 25) {
-            mFrcOn = true;
-            mFrcRate = FRC_RATE_2X;
         }
     }
 
