@@ -94,10 +94,8 @@ void NuPlayerVPPProcessor::invokeThreads() {
     if (!mThreadRunning)
         return;
 
-    if (mProcThread->isReadytoRun())
-    {
-         mProcThread->mRunCond.signal();
-    }
+    // invoke thread as many as possible
+    mProcThread->mRunCond.signal();
 }
 
 status_t NuPlayerVPPProcessor::canSetBufferToVPP() {
@@ -245,7 +243,8 @@ status_t NuPlayerVPPProcessor::validateVideoInfo(VPPVideoInfo *videoInfo){
     if (mWorker->configFilters(videoInfo->width, videoInfo->height, videoInfo->fps) != VPP_OK)
         return VPP_FAIL;
     mInputBufferNum = mWorker->mNumForwardReferences + 3;
-    mOutputBufferNum = (mWorker->mNumForwardReferences + 2) * mWorker->mFrcRate;
+    /* reserve one buffer in VPPProcThread, on add one more buffer here */
+    mOutputBufferNum = 1 + (mWorker->mNumForwardReferences + 2) * mWorker->mFrcRate;
     if (mInputBufferNum > VPPBuffer::MAX_VPP_BUFFER_NUMBER
             || mOutputBufferNum > VPPBuffer::MAX_VPP_BUFFER_NUMBER) {
         LOGE("buffer number needed are exceeded limitation");

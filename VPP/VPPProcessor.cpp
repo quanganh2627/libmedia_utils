@@ -161,12 +161,10 @@ bool VPPProcessor::canSetDecoderBufferToVPP() {
         return true;
     // put VPP output which still in output array to RenderList
     CHECK(updateRenderList() == VPP_OK);
-    // invoke VPPProcThread as many as possible
 
-    if (mProcThread->isReadytoRun())
-    {
-       mProcThread->mRunCond.signal();
-    }
+    // invoke VPPProcThread as many as possible
+    mProcThread->mRunCond.signal();
+
     // release obsolete input buffers
     clearInput();
     // in non-EOS status, if input vectors has free position or
@@ -650,7 +648,8 @@ status_t VPPProcessor::validateVideoInfo(VPPVideoInfo * videoInfo, uint32_t slow
     if (mWorker->configFilters(videoInfo->width, videoInfo->height, videoInfo->fps, slowMotionFactor) != VPP_OK)
         return VPP_FAIL;
     mInputBufferNum = mWorker->mNumForwardReferences + 3;
-    mOutputBufferNum = (mWorker->mNumForwardReferences + 2) * mWorker->mFrcRate;
+    /* reserve one buffer in VPPProcThread, so add one more buffer here */
+    mOutputBufferNum = 1 + (mWorker->mNumForwardReferences + 2) * mWorker->mFrcRate;
     if (mInputBufferNum > VPPBuffer::MAX_VPP_BUFFER_NUMBER 
             || mOutputBufferNum > VPPBuffer::MAX_VPP_BUFFER_NUMBER) {
         LOGE("buffer number needed are exceeded limitation");
