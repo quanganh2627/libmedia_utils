@@ -796,6 +796,8 @@ status_t VPPWorker::process(sp<GraphicBuffer> inputGraphicBuffer,
     pipeline->output_region = NULL;//&output_region;
     pipeline->surface_color_standard = VAProcColorStandardNone;
     pipeline->output_color_standard = VAProcColorStandardNone;
+    /* real rotate state will be decided in psb video */
+    pipeline->rotation_state = 0;
 #endif
     /* FIXME: set more meaningful background color */
     pipeline->output_background_color = 0;
