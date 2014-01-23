@@ -290,12 +290,9 @@ status_t VAVideoDecoder::read(MediaBuffer **out, const ReadOptions *options)  {
     memset(&decodeBuffer, 0, sizeof(decodeBuffer));
     decodeBuffer.data = (uint8_t*)mInputBuffer->data() + mInputBuffer->range_offset();
     decodeBuffer.size = mInputBuffer->range_length();
-    decodeBuffer.flag = seeking ? HAS_DISCONTINUITY : 0;
+    decodeBuffer.flag = seeking ? (HAS_DISCONTINUITY | IS_SYNC_FRAME) : 0;
     mInputBuffer->meta_data()->findInt64(kKeyTime, &decodeBuffer.timeStamp);
     Decode_Status res = mDecoder->decode(&decodeBuffer);
-
-    mInputBuffer->release();
-    mInputBuffer = NULL;
 
     if (res == DECODE_FORMAT_CHANGE) {
         LOGW("Format changed.");
@@ -309,13 +306,18 @@ status_t VAVideoDecoder::read(MediaBuffer **out, const ReadOptions *options)  {
         if (info != NULL) {
             cropWidth = info->width - (info->cropLeft + info->cropRight);
             cropHeight = info->height - (info->cropBottom + info->cropTop);
+
             mFormat->setInt32(kKeyWidth, cropWidth);
             mFormat->setInt32(kKeyHeight, cropHeight);
+
+            res = mDecoder->decode(&decodeBuffer);
+        } else {
+            // TODO: handle format change
+            err = INFO_FORMAT_CHANGED;
         }
-        // TODO: handle format change
-        err = INFO_FORMAT_CHANGED;
     }
-    else if (res == DECODE_SUCCESS) {
+
+    if (res == DECODE_SUCCESS) {
         mErrorCount = 0;
         err = OK;
         MediaBuffer *mbuf = getOutputBuffer(true);
@@ -336,6 +338,8 @@ status_t VAVideoDecoder::read(MediaBuffer **out, const ReadOptions *options)  {
         }
     }
 
+    mInputBuffer->release();
+    mInputBuffer = NULL;
     return err;
 }
 
