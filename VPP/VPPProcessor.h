@@ -190,8 +190,6 @@ private:
     // output load to RenderList point
     uint32_t mOutputLoadPoint;
 
-    MediaBuffer* mLastRenderBuffer;
-
     sp<VPPProcThread> mProcThread;
     friend class VPPProcThread;
     VPPWorker* mWorker;
@@ -202,6 +200,7 @@ private:
     Vector<OMXCodec::BufferInfo> * mBufferInfos;
     bool mThreadRunning;
     bool mEOS;
+    bool mIsEosRead;
     uint32_t mTotalDecodedCount, mInputCount, mVPPProcCount, mVPPRenderCount;
     uint32_t mVppOutputFps;
 };

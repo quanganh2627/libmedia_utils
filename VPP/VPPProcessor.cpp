@@ -37,10 +37,9 @@ namespace android {
 VPPProcessor::VPPProcessor(const sp<ANativeWindow> &native, OMXCodec *codec)
         :mInputBufferNum(0), mOutputBufferNum(0),
          mInputLoadPoint(0), mOutputLoadPoint(0),
-         mLastRenderBuffer(NULL),
          mNativeWindow(native), mCodec(codec),
          mBufferInfos(NULL),
-         mThreadRunning(false), mEOS(false),
+         mThreadRunning(false), mEOS(false), mIsEosRead(false),
          mTotalDecodedCount(0), mInputCount(0), mVPPProcCount(0), mVPPRenderCount(0),
          mVppOutputFps(0) {
     LOGI("construction");
@@ -180,6 +179,7 @@ status_t VPPProcessor::setDecoderBufferToVPP(MediaBuffer *buff) {
         mTotalDecodedCount ++;
         // put buff in inputBuffers when there is empty buffer
         if (mInput[mInputLoadPoint].mStatus == VPP_BUFFER_FREE) {
+            mIsEosRead = false;
             buff->add_ref();
 
             OMXCodec::BufferInfo *info = findBufferInfo(buff);
@@ -225,7 +225,7 @@ status_t VPPProcessor::read(MediaBuffer **buffer) {
             return VPP_FAIL;
     }
     if (mRenderList.empty()) {
-        if (!mEOS) {
+        if (!mEOS && !mIsEosRead) {
             // no buffer ready to render
             return VPP_BUFFER_NOT_READY;
         }
@@ -235,11 +235,11 @@ status_t VPPProcessor::read(MediaBuffer **buffer) {
         LOGD("======mTotalDecodedCount=%d, mInputCount=%d, mVPPProcCount=%d, mVPPRenderCount=%d======",
             mTotalDecodedCount, mInputCount, mVPPProcCount, mVPPRenderCount);
         mEOS = false;
+        mIsEosRead = true;
         return ERROR_END_OF_STREAM;
     }
 
     *buffer = *(mRenderList.begin());
-    mLastRenderBuffer = *buffer;
     mRenderList.erase(mRenderList.begin());
 
     OMXCodec::BufferInfo *info = findBufferInfo(*buffer);
@@ -668,6 +668,9 @@ status_t VPPProcessor::validateVideoInfo(VPPVideoInfo * videoInfo, uint32_t slow
 
 void VPPProcessor::setEOS()
 {
+    if (mIsEosRead)
+        return;
+
     LOGI("setEOS");
     mEOS = true;
     mProcThread->mEOS = true;
