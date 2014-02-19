@@ -433,6 +433,10 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
         }
     }
 
+    // enable sharpen always while FRC is on
+    if (mFrcOn)
+        mSharpenOn = true;
+
     LOGI("mDeblockOn=%d, mDenoiseOn=%d, mSharpenOn=%d, mColorOn=%d, mFrcOn=%d, mFrcRate=%d",
           mDeblockOn, mDenoiseOn, mSharpenOn, mColorOn, mFrcOn, mFrcRate);
 
