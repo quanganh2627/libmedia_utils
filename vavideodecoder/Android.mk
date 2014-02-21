@@ -15,8 +15,8 @@ LOCAL_C_INCLUDES := \
     $(call include-path-for, frameworks-native)/media/openmax \
     $(TARGET_OUT_HEADERS)/libmix_videodecoder \
     $(TARGET_OUT_HEADERS)/libmix_asf_extractor \
-    $(TARGET_OUT_HEADERS)/libva/
-
+    $(TARGET_OUT_HEADERS)/libva/ \
+    $(LOCAL_PATH)/../asf_extractor \
 
 LOCAL_MODULE:= libvavideodecoder
 LOCAL_MODULE_TAGS := optional
