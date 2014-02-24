@@ -40,8 +40,7 @@ VPPProcessor::VPPProcessor(const sp<ANativeWindow> &native, OMXCodec *codec)
          mNativeWindow(native), mCodec(codec),
          mBufferInfos(NULL),
          mThreadRunning(false), mEOS(false), mIsEosRead(false),
-         mTotalDecodedCount(0), mInputCount(0), mVPPProcCount(0), mVPPRenderCount(0),
-         mVppOutputFps(0) {
+         mTotalDecodedCount(0), mInputCount(0), mVPPProcCount(0), mVPPRenderCount(0) {
     LOGI("construction");
     memset(mInput, 0, VPPBuffer::MAX_VPP_BUFFER_NUMBER * sizeof(VPPBuffer));
     memset(mOutput, 0, VPPBuffer::MAX_VPP_BUFFER_NUMBER * sizeof(VPPBuffer));
@@ -656,13 +655,6 @@ status_t VPPProcessor::validateVideoInfo(VPPVideoInfo * videoInfo, uint32_t slow
         return VPP_FAIL;
     }
 
-    // mFrcRate is 1 if FRC is disabled or input FPS is not changed by VPP
-    if (mWorker->mFrcRate == FRC_RATE_2_5X) {
-        mVppOutputFps = videoInfo->fps * 5 / 2;
-    } else {
-        mVppOutputFps = videoInfo->fps * mWorker->mFrcRate;
-    }
-
     return VPP_OK;
 }
 
@@ -697,6 +689,6 @@ MediaBuffer * VPPProcessor::findMediaBuffer(VPPBuffer &buff) {
 
 uint32_t VPPProcessor::getVppOutputFps()
 {
-  return mVppOutputFps;
+    return mWorker->getVppOutputFps();
 }
 } /* namespace android */

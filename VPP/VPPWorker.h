@@ -86,6 +86,8 @@ class VPPWorker {
         // reset index
         status_t reset();
 
+        uint32_t getVppOutputFps();
+
         ~VPPWorker();
 
     private:

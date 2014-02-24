@@ -600,4 +600,7 @@ void NuPlayerVPPProcessor::flushShutdown() {
     mOutputLoadPoint = 0;
 }
 
+uint32_t NuPlayerVPPProcessor::getVppOutputFps() {
+    return mWorker->getVppOutputFps();
+}
 } //namespace android

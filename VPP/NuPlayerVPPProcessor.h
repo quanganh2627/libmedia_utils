@@ -107,6 +107,11 @@ public:
      */
     void flushShutdown();
 
+    /*
+     * get VPP output frame rate.
+     */
+    uint32_t getVppOutputFps();
+
 
 public:
     // number of extra input buffer needed by VPP

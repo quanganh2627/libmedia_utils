@@ -968,6 +968,20 @@ status_t VPPWorker::reset() {
     return setupPipelineCaps();
 }
 
+uint32_t VPPWorker::getVppOutputFps() {
+    uint32_t outputFps;
+
+    //mFrcRate is 1 if FRC is disabled or input FPS is not changed by VPP.
+    if (FRC_RATE_2_5X == mFrcRate) {
+        outputFps = mInputFps * 5 / 2;
+    } else {
+        outputFps = mInputFps * mFrcRate;
+    }
+
+    LOGI("vpp is on in settings %d %d %d", outputFps,  mInputFps, mFrcRate);
+    return outputFps;
+}
+
 status_t VPPWorker::writeNV12(int width, int height, unsigned char *out_buf, int y_pitch, int uv_pitch) {
     size_t result;
     int frame_size;
