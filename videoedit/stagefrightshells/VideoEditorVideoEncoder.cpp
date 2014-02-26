@@ -614,8 +614,13 @@ M4OSA_ERR VideoEditorVideoEncoder_open(M4ENCODER_Context pContext,
         pEncoderContext->mCodecParams->FrameHeight != HEIGHT_1080P_INTEL) {
         VIDEOEDITOR_CHECK(0 == pEncoderContext->mCodecParams->FrameWidth  % 16,
             M4ERR_PARAMETER);
+#ifdef NEED_REMOVE_PADDING_BYTE
+        if (0 != pEncoderContext->mCodecParams->FrameHeight % 16)
+            ALOGW("The encode height is not multiple of 16");
+#else
         VIDEOEDITOR_CHECK(0 == pEncoderContext->mCodecParams->FrameHeight % 16,
             M4ERR_PARAMETER);
+#endif
     }
 
     /**

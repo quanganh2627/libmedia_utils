@@ -68,6 +68,11 @@ LOCAL_CFLAGS += -DVIDEOEDITOR_INTEL_NV12_VERSION
 ifneq ($(filter $(TARGET_BOARD_PLATFORM),merrifield moorefield),)
 LOCAL_CFLAGS += -DRUN_IN_MERRIFIELD
 endif
+
+ifeq ($(NEED_REMOVE_PADDING_BYTE),true)
+LOCAL_CFLAGS += -DNEED_REMOVE_PADDING_BYTE
+endif
+
 LOCAL_STATIC_LIBRARIES := \
     libstagefright_color_conversion
 
