@@ -62,6 +62,7 @@ private:
     int64_t mTargetTimeUs;
     uint32_t mFrameIndex;
     uint32_t mErrorCount;
+    bool mDecodeMore;
     IVideoDecoder *mDecoder;
 };
 

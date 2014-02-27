@@ -42,6 +42,7 @@ VAVideoDecoder::VAVideoDecoder(const sp<MediaSource> &source)
       mTargetTimeUs(-1),
       mFrameIndex(0),
       mErrorCount(0),
+      mDecodeMore(false),
       mDecoder(NULL) {
 
     const char *mime;
@@ -294,6 +295,15 @@ status_t VAVideoDecoder::read(MediaBuffer **out, const ReadOptions *options)  {
     mInputBuffer->meta_data()->findInt64(kKeyTime, &decodeBuffer.timeStamp);
     Decode_Status res = mDecoder->decode(&decodeBuffer);
 
+    if (mDecodeMore) {
+        mDecodeMore = false;
+    } else {
+        const VideoFormatInfo* formatInfo = mDecoder->getFormatInfo();
+        if ((formatInfo->flags & IS_SINGLE_FIELD) == IS_SINGLE_FIELD) {
+            mDecodeMore = true;
+        }
+    }
+
     if (res == DECODE_FORMAT_CHANGE) {
         LOGW("Format changed.");
         // drain all the frames.
@@ -320,11 +330,16 @@ status_t VAVideoDecoder::read(MediaBuffer **out, const ReadOptions *options)  {
     if (res == DECODE_SUCCESS) {
         mErrorCount = 0;
         err = OK;
-        MediaBuffer *mbuf = getOutputBuffer(true);
-        if (mbuf == NULL) {
+        if (mDecodeMore) {
             *out = new MediaBuffer(0);
+             LOGW("Current decoder buffer only contains one field!");
         } else {
-              *out = mbuf;
+            MediaBuffer *mbuf = getOutputBuffer(true);
+            if (mbuf == NULL) {
+                *out = new MediaBuffer(0);
+            } else {
+                *out = mbuf;
+            }
         }
     } else {
         mErrorCount++;
