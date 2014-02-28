@@ -673,7 +673,12 @@ void VPPProcessor::setEOS()
 
     LOGI("setEOS");
     mEOS = true;
-    mProcThread->mEOS = true;
+
+    if ((mProcThread != NULL) && mThreadRunning) {
+        mProcThread->mEOS = true;
+    } else {
+        LOGW("VPP processs thread is not running");
+    }
 }
 
 MediaBuffer * VPPProcessor::findMediaBuffer(VPPBuffer &buff) {

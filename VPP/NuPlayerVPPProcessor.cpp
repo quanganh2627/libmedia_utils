@@ -558,7 +558,10 @@ void NuPlayerVPPProcessor::setEOS() {
         return;
     LOGI("set eos");
     mEOS = true;
-    mProcThread->mEOS = true;
+    if (mProcThread != NULL) {
+        mProcThread->mEOS = true;
+    }
+
 }
 
 void NuPlayerVPPProcessor::flushShutdown() {
