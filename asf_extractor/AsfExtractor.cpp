@@ -557,6 +557,8 @@ status_t AsfExtractor::setupTracks() {
             track->encrypted = videoInfo->encryptedContentFlag;
             track->meta->setInt32(kKeyWidth, videoInfo->width);
             track->meta->setInt32(kKeyHeight, videoInfo->height);
+            track->meta->setInt32(kKeyDisplayWidth, videoInfo->width);
+            track->meta->setInt32(kKeyDisplayHeight, videoInfo->height);
             if (videoInfo->codecDataSize) {
                 track->meta->setData(
                     kKeyConfigData,
