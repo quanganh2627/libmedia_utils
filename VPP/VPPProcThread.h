@@ -21,13 +21,14 @@
 #include <media/stagefright/MetaData.h>
 #include "VPPBuffer.h"
 #include "VPPWorker.h"
+#include "VPPMds.h"
 
 #include <utils/threads.h>
 #include <utils/Errors.h>
 
-namespace android {
 
-class VPPProcessor;
+namespace android {
+class VPPWorker;
 
 class VPPProcThread : public Thread {
     public:
@@ -60,6 +61,7 @@ class VPPProcThread : public Thread {
         bool mError;
         bool mEOS;
         bool mSeek;
+        bool mNeedCheckFrc;
 
     private:
         VPPProcThread(const VPPProcThread &);
@@ -92,6 +94,7 @@ class VPPProcThread : public Thread {
         uint32_t mInputFillIdx;
         uint32_t mOutputFillIdx;
         bool mbFlushPipelineInProcessing;
+        bool mFrcChange;
 };
 
 } /* END namespace android */

@@ -28,6 +28,7 @@ public:
 
 private:
     friend class VPPWorker;
+    friend class VPPProcessor;
     static bool FRCStatus;
     static bool VPPStatus;
 

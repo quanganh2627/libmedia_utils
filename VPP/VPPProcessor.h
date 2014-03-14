@@ -21,6 +21,7 @@
 #include "VPPProcThread.h"
 #include "VPPWorker.h"
 #include "VPPSetting.h"
+#include "VPPMds.h"
 
 #include <stdint.h>
 
@@ -34,6 +35,8 @@ struct MediaBuffer;
 struct MediaBufferObserver;
 struct OMXCodec;
 class VPPProcThread;
+class VPPMDSListener;
+class VPPWorker;
 
 class VPPProcessor : public MediaBufferObserver {
 public:
@@ -132,6 +135,14 @@ public:
       */
      uint32_t getVppOutputFps();
 
+     /* set display information to VPP
+      */
+     void setDisplayMode(int32_t mode);
+
+     /* config enable/disable VPP frame rate conversion for HDMI
+      */
+     status_t configFrc4Hdmi(bool enable);
+
 public:
     // number of extra input buffer needed by VPP
     uint32_t mInputBufferNum;
@@ -202,7 +213,7 @@ private:
     bool mEOS;
     bool mIsEosRead;
     uint32_t mTotalDecodedCount, mInputCount, mVPPProcCount, mVPPRenderCount;
-    uint32_t mVppOutputFps;
+    sp<VPPMDSListener> mMds;
 };
 
 } /* namespace android */

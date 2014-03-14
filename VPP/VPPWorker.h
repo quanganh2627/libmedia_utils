@@ -27,10 +27,18 @@
 #include "va/va_android.h"
 #define Display unsigned int
 #include <stdint.h>
+#include "VPPMds.h"
 
 #include <android/native_window.h>
+//HDMI max timing is defined drm_hdmi.h
+#define HDMI_TIMING_MAX (128)
+
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+using namespace android::intel;
+#endif
 
 namespace android {
+class VPPMDSListener;
 
 typedef enum _FRC_RATE {
     FRC_RATE_1X = 1,
@@ -38,6 +46,16 @@ typedef enum _FRC_RATE {
     FRC_RATE_2_5X,
     FRC_RATE_4X
 }FRC_RATE;
+
+typedef enum _IINPUT_FRAME_RATE {
+    FRAME_RATE_0 = 0,
+    FRAME_RATE_15 = 15,
+    FRAME_RATE_24 = 24,
+    FRAME_RATE_25 = 25,
+    FRAME_RATE_30 = 30,
+    FRAME_RATE_50 = 50,
+    FRAME_RATE_60 = 60
+} IPNPUT_FRAME_RATE;
 
 enum VPPWorkerStatus {
     STATUS_OK = 0,
@@ -86,7 +104,22 @@ class VPPWorker {
         // reset index
         status_t reset();
 
+        // set video display mode
+        void setDisplayMode(int32_t mode);
+
+        // get video display mode
+        int32_t getDisplayMode();
+
+        // check HDMI connection status
+        bool isHdmiConnected();
+
+        /* config enable or disable VPP frame rate conversion for HDMI feature.
+         * To enable this feature, MDS listener is MUST
+         */
+        status_t configFrc4Hdmi(bool enableFrc4Hdmi, sp<VPPMDSListener>* pmds);
+
         uint32_t getVppOutputFps();
+        status_t calculateFrc(bool *frcOn, FRC_RATE *rate);
 
         ~VPPWorker();
 
@@ -110,8 +143,28 @@ class VPPWorker {
         // Map GraphicBuffer to VASurface
         VASurfaceID mapBuffer(sp<GraphicBuffer> graphicBuffer);
 
+        /* calcualte VPP FRC rate according to input video frame rate.
+         * Here set VPP output target fps as MIPI fresh rate, 60
+         * input are limited to 24, 25, 30, and 60
+         */
+        status_t calcFrcByInputFps(bool *FrcOn, FRC_RATE *FrcRat);
+
+        /* calcualte VPP FRC rate according to hdmi capability
+         * Here set VPP output target fps to match HDMI supported.
+         * If all VPP FRC output fps failed to match HDMI capability, disabled FRC.
+         * input fps are limited to 24, 25, 30, and 60
+         */
+        status_t calcFrcByMatchHdmiCap(bool *FrcOn, FRC_RATE *FrcRate);
+
+        /* read HDMI device capability and current HDMI setting
+         */
+        status_t getHdmiData();
+
         // Get output buffer needed based on input index
         uint32_t getOutputBufCount(uint32_t index);
+
+        //check if the input fps is suportted in array fpsSet.
+        bool isFpsSupport(int32_t fps, int32_t *fpsSet, int32_t fpsSetCnt);
 
         // Debug only
         // Dump YUV frame
@@ -124,6 +177,12 @@ class VPPWorker {
     public:
         uint32_t mNumForwardReferences;
         FRC_RATE mFrcRate;
+        bool mFrcOn;
+        //updated FrrRate used in VPP frc for HDMI only
+        FRC_RATE mUpdatedFrcRate;
+        bool mUpdatedFrcOn;
+        bool bNeedCheckFrc;
+
     private:
         // Graphic buffer
         static VPPWorker* mVPPWorker;
@@ -160,12 +219,19 @@ class VPPWorker {
         bool mDeinterlacingOn;
         bool mSharpenOn;
         bool mColorOn;
-        bool mFrcOn;
         VABufferID mFilterFrc;
 
         // status
         uint32_t mInputIndex;
         uint32_t mOutputIndex;
+        //MDS Display mode
+        int32_t mDisplayMode;
+        bool mEnableFrc4Hdmi;
+
+        sp<VPPMDSListener> *mMds;
+        MDSHdmiTiming currHdmiTiming;
+        MDSHdmiTiming *hdmiTimingList;
+        int32_t hdmiListCount;
 
         // FIXME: not very sure how to check color standard
         VAProcColorStandardType in_color_standards[VAProcColorStandardCount];

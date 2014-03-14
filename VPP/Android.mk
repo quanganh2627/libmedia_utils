@@ -29,7 +29,8 @@ LOCAL_SRC_FILES:= \
         VPPProcessor.cpp \
         VPPProcThread.cpp \
         VPPWorker.cpp \
-        NuPlayerVPPProcessor.cpp
+        NuPlayerVPPProcessor.cpp \
+        VPPMds.cpp
 
 LOCAL_C_INCLUDES:= \
         $(call include-path-for, frameworks-av) \
@@ -41,9 +42,6 @@ LOCAL_SHARED_LIBRARIES := libva libvpp_setting
 
 ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
 LOCAL_CFLAGS += -DTARGET_HAS_MULTIPLE_DISPLAY
-ifeq ($(USE_MDS_LEGACY),true)
-LOCAL_CFLAGS += -DUSE_MDS_LEGACY
-endif
 LOCAL_SHARED_LIBRARIES += libmultidisplay
 endif
 
@@ -54,7 +52,8 @@ LOCAL_COPY_HEADERS := \
     VPPBuffer.h \
     VPPProcThread.h \
     VPPWorker.h \
-    NuPlayerVPPProcessor.h
+    NuPlayerVPPProcessor.h\
+    VPPMds.h
 
 LOCAL_CFLAGS += -DTARGET_HAS_VPP -Wno-non-virtual-dtor
 ifeq ($(TARGET_VPP_USE_GEN),true)

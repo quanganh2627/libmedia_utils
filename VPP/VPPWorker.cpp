@@ -54,7 +54,7 @@ namespace android {
 
 VPPWorker::VPPWorker(const sp<ANativeWindow> &nativeWindow)
     :mGraphicBufferNum(0),
-        mWidth(0), mHeight(0), mInputFps(0),
+        mWidth(0), mHeight(0), mInputFps(FRAME_RATE_0),
         mVAStarted(false), mVAContext(VA_INVALID_ID),
         mDisplay(NULL), mVADisplay(NULL), mVAConfig(VA_INVALID_ID),
         mNumSurfaces(0), mSurfaces(NULL), mVAExtBuf(NULL),
@@ -62,10 +62,13 @@ VPPWorker::VPPWorker(const sp<ANativeWindow> &nativeWindow)
         mNumFilterBuffers(0),
         mDeblockOn(false), mDenoiseOn(false), mDeinterlacingOn(false),
         mSharpenOn(false), mColorOn(false),
-        mFrcOn(false), mFrcRate(FRC_RATE_1X),
-        mInputIndex(0), mOutputIndex(0) {
+        mFrcRate(FRC_RATE_1X), mFrcOn(false),
+        mUpdatedFrcRate(FRC_RATE_1X), mUpdatedFrcOn(false),
+        mInputIndex(0), mOutputIndex(0), mDisplayMode(0),
+        mEnableFrc4Hdmi(false), hdmiTimingList(NULL), hdmiListCount(0) {
     memset(&mFilterBuffers, 0, VAProcFilterCount * sizeof(VABufferID));
     memset(&mGraphicBufferConfig, 0, sizeof(GraphicBufferConfig));
+    memset(&currHdmiTiming, 0, sizeof(MDSHdmiTiming));
 }
 
 //static
@@ -419,23 +422,16 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
         mFrcOn = true;
         mInputFps = fps / slowMotionFactor;
 
-        if (fps == 24) {
+        if (fps == FRAME_RATE_24) {
             mFrcRate = FRC_RATE_2_5X;
-        } else if (fps == 30 || fps == 60) {
+        } else if (fps == FRAME_RATE_30 || fps == FRAME_RATE_60) {
             mFrcRate = FRC_RATE_2X;
         }
 
     } else if (VPPSetting::FRCStatus) {
         LOGV("FRC is on in Settings");
-
-        if (mInputFps == 15 || mInputFps == 25 || mInputFps == 30) {
-            mFrcOn = true;
-            mFrcRate = FRC_RATE_2X;
-        }
-        else if (mInputFps == 24) {
-            mFrcOn = true;
-            mFrcRate = FRC_RATE_2_5X;
-        }
+        calcFrcByInputFps(&mFrcOn, &mFrcRate);
+        LOGV("FRC enable %d, FrcRate %d", mFrcOn, mFrcRate);
     }
 
     // enable sharpen always while FRC is on
@@ -451,6 +447,88 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
         return STATUS_NOT_SUPPORT;
     }
     return STATUS_OK;
+}
+
+status_t VPPWorker::calcFrcByInputFps(bool *FrcOn, FRC_RATE *FrcRate) {
+    if (!FrcRate || !FrcOn) {
+        return STATUS_ERROR;
+    }
+
+    if ((mInputFps == FRAME_RATE_15) || (mInputFps == FRAME_RATE_25) || (mInputFps == FRAME_RATE_30)) {
+        *FrcOn = true;
+        *FrcRate = FRC_RATE_2X;
+    } else if (mInputFps == FRAME_RATE_24) {
+        *FrcOn = true;
+        *FrcRate = FRC_RATE_2_5X;
+    } else {
+        LOGI("Unsupported input frame rate %d. VPP FRC is OFF.", mInputFps);
+    }
+
+    return STATUS_OK;
+}
+
+status_t VPPWorker::calcFrcByMatchHdmiCap(bool *FrcOn, FRC_RATE *FrcRate) {
+    int32_t fpsSet[HDMI_TIMING_MAX];
+    int32_t fpsCnt = 0;
+
+    if (!FrcRate || !FrcOn || !hdmiTimingList || (hdmiListCount <= 0)) {
+        return STATUS_ERROR;
+    }
+    if ((currHdmiTiming.width <= 0) || (currHdmiTiming.height <=0)) {
+        LOGW("Current HDMI time set is invalid wxh: %d x %d ", currHdmiTiming.width, currHdmiTiming.height);
+        return STATUS_ERROR;
+    }
+
+    const int32_t width = currHdmiTiming.width;
+    const int32_t height = currHdmiTiming.height;
+    LOGI("current HDMI setting %d x %d ", currHdmiTiming.width, currHdmiTiming.height);
+    LOGI("hdmi curretn setting supported fps (in current resolution)");
+    //get hdmi supported FPS by of current resolution
+    for (int32_t i = 0; i < hdmiListCount; i++) {
+        if((width == hdmiTimingList[i].width) && (height == hdmiTimingList[i].height)) {
+              fpsSet[fpsCnt] = hdmiTimingList[i].refresh;
+              LOGI("%d", fpsSet[fpsCnt]);
+              fpsCnt++;
+         }
+    }
+
+    *FrcRate = FRC_RATE_1X;
+    *FrcOn = false;
+    switch (mInputFps) {
+        case FRAME_RATE_15:
+        case FRAME_RATE_25:
+        case FRAME_RATE_30:
+            if (isFpsSupport(mInputFps * 2, fpsSet, fpsCnt)) {
+                *FrcOn = true;
+                *FrcRate = FRC_RATE_2X;
+            }
+            break;
+        case FRAME_RATE_24:
+            if(isFpsSupport(FRAME_RATE_60, fpsSet, fpsCnt)) {
+                *FrcOn = true;
+                *FrcRate = FRC_RATE_2_5X;
+            }
+            break;
+        defalt:
+            LOGI("VPP FRC output cannot match HDMI capability. VPP FRC is OFF.", mInputFps);
+            break;
+    }
+
+    LOGI("VPP FRC for HDMI frcOn %d, rate %d ", *FrcOn, *FrcRate);
+
+    return STATUS_OK;
+}
+
+bool VPPWorker::isFpsSupport(int32_t fps, int32_t *fpsSet, int32_t fpsSetCnt) {
+    bool ret = false;
+    for (int32_t i = 0; i < fpsSetCnt; i++) {
+        if (fps == fpsSet[i]) {
+            ret = true;
+            break;
+        }
+    }
+
+    return ret;
 }
 
 status_t VPPWorker::setupFilters() {
@@ -903,6 +981,11 @@ VPPWorker::~VPPWorker() {
         mForwardReferences = NULL;
     }
 
+    if (hdmiTimingList != NULL) {
+        delete [] hdmiTimingList;
+        hdmiTimingList = NULL;
+    }
+
     if (mVAStarted) {
         terminateVA();
     }
@@ -970,7 +1053,6 @@ status_t VPPWorker::reset() {
 
 uint32_t VPPWorker::getVppOutputFps() {
     uint32_t outputFps;
-
     //mFrcRate is 1 if FRC is disabled or input FPS is not changed by VPP.
     if (FRC_RATE_2_5X == mFrcRate) {
         outputFps = mInputFps * 5 / 2;
@@ -980,6 +1062,82 @@ uint32_t VPPWorker::getVppOutputFps() {
 
     LOGI("vpp is on in settings %d %d %d", outputFps,  mInputFps, mFrcRate);
     return outputFps;
+}
+
+//set display mode
+void VPPWorker::setDisplayMode (int32_t mode) {
+    mDisplayMode = mode;
+}
+
+int32_t VPPWorker::getDisplayMode () {
+    return mDisplayMode;
+}
+
+bool VPPWorker::isHdmiConnected() {
+    return (mDisplayMode & MDS_HDMI_CONNECTED);
+}
+
+status_t VPPWorker::getHdmiData() {
+    if (!(isHdmiConnected())) {
+        LOGW("HDMI is NOT connected. Cannot get HDMI data");
+        return STATUS_ERROR;
+    }
+    if ((mMds == NULL) || (hdmiTimingList == NULL)) {
+        LOGW("Error. Input parameter is invalid.");
+        return STATUS_ERROR;
+    }
+    status_t ret = (*mMds)->getHdmiMetaData(&currHdmiTiming, hdmiTimingList,&hdmiListCount);
+    LOGI("HDMI setting: %d x %d @ %d, count %d", currHdmiTiming.width, currHdmiTiming.height,
+              currHdmiTiming.refresh, hdmiListCount);
+
+    return ret;
+}
+
+//set display mode
+status_t VPPWorker::configFrc4Hdmi(bool enableFrc4Hdmi, sp<VPPMDSListener>* pmds) {
+    status_t status = STATUS_OK;
+
+    mEnableFrc4Hdmi = enableFrc4Hdmi;
+    if (mEnableFrc4Hdmi) {
+        if (pmds == NULL) {
+            mEnableFrc4Hdmi = false;
+            status = STATUS_ERROR;
+            LOGE("MDS is NULL");
+        }
+
+        mMds = pmds;
+        if (hdmiTimingList != NULL)
+            delete []hdmiTimingList;
+        hdmiTimingList = new MDSHdmiTiming[HDMI_TIMING_MAX];
+        if (hdmiTimingList == NULL) {
+            status = STATUS_ERROR;
+            LOGE("failed to allocat memory for VPP FRC for HDMI ");
+        }
+    }
+
+    return status;
+}
+
+status_t VPPWorker::calculateFrc(bool *pFrcOn, FRC_RATE *pFrcRate) {
+    status_t status;
+    if (!pFrcRate || !pFrcOn) {
+        return STATUS_ERROR;
+    }
+
+    LOGV("EnableFrc4Hdmi %d  hdmiConnected %d", mEnableFrc4Hdmi, isHdmiConnected());
+    if (mEnableFrc4Hdmi && (isHdmiConnected())) {
+        status = getHdmiData();
+        if (status != STATUS_ERROR) {
+            //FRC policy for HDMI
+            status = calcFrcByMatchHdmiCap(pFrcOn,pFrcRate);
+        }
+    } else {
+        //FRC policy for MIPI
+        status = calcFrcByInputFps(pFrcOn, pFrcRate);
+    }
+
+    LOGI("FrcRate %d  mFrcOn %d", *pFrcRate, *pFrcOn);
+    return status;
 }
 
 status_t VPPWorker::writeNV12(int width, int height, unsigned char *out_buf, int y_pitch, int uv_pitch) {

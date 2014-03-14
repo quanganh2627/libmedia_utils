@@ -16,6 +16,7 @@
  */
 
 //#define LOG_NDEBUG 0
+#define LOG_TAG "VPPProcessor"
 #include "VPPProcessor.h"
 
 #include <media/stagefright/foundation/ADebug.h>
@@ -25,12 +26,11 @@
 #include <ui/GraphicBuffer.h>
 #include <utils/Log.h>
 
-#if defined (TARGET_HAS_MULTIPLE_DISPLAY) && !defined (USE_MDS_LEGACY)
+#if defined TARGET_HAS_MULTIPLE_DISPLAY
 #include <display/MultiDisplayService.h>
 using namespace android::intel;
 #endif
 
-#define LOG_TAG "VPPProcessor"
 
 namespace android {
 
@@ -40,7 +40,8 @@ VPPProcessor::VPPProcessor(const sp<ANativeWindow> &native, OMXCodec *codec)
          mNativeWindow(native), mCodec(codec),
          mBufferInfos(NULL),
          mThreadRunning(false), mEOS(false), mIsEosRead(false),
-         mTotalDecodedCount(0), mInputCount(0), mVPPProcCount(0), mVPPRenderCount(0) {
+         mTotalDecodedCount(0), mInputCount(0), mVPPProcCount(0), mVPPRenderCount(0),
+         mMds(NULL) {
     LOGI("construction");
     memset(mInput, 0, VPPBuffer::MAX_VPP_BUFFER_NUMBER * sizeof(VPPBuffer));
     memset(mOutput, 0, VPPBuffer::MAX_VPP_BUFFER_NUMBER * sizeof(VPPBuffer));
@@ -54,7 +55,11 @@ VPPProcessor::~VPPProcessor() {
 
     if (mWorker != NULL) {
         delete mWorker;
-        mWorker == NULL;
+        mWorker = NULL;
+    }
+    if (mMds != NULL) {
+        mMds->deInit();
+        mMds = NULL;
     }
 
     releaseBuffers();
@@ -84,7 +89,7 @@ VPPProcessor* VPPProcessor::getInstance(const sp<ANativeWindow> &native, OMXCode
 
 //static
 bool VPPProcessor::isVppOn() {
-#if defined (TARGET_HAS_MULTIPLE_DISPLAY) && !defined (USE_MDS_LEGACY)
+#if defined TARGET_HAS_MULTIPLE_DISPLAY
     if (!VPPSetting::isVppOn())
         return false;
 
@@ -146,12 +151,53 @@ status_t VPPProcessor::init() {
 
     if (initBuffers() != STATUS_OK)
         return VPP_FAIL;
-
     // init VPPWorker
     if(mWorker->init() != STATUS_OK)
         return VPP_FAIL;
-
     return createThread();
+}
+
+status_t VPPProcessor::configFrc4Hdmi(bool enableFrc4Hdmi) {
+
+    status_t status;
+    LOGI("configFrc4Hdmi %d, VPP FRC Setting: %d", enableFrc4Hdmi,VPPSetting::FRCStatus);
+    if (enableFrc4Hdmi && (VPPSetting::FRCStatus)) {
+        mMds = new VPPMDSListener(this);
+        if (mMds != NULL) {
+            LOGV("MDS init");
+            status = mMds->init();
+            if(status != STATUS_OK) {
+                LOGW("MDS init failed");
+                //mMds is sp, NOT pointer, Set NULL to delete
+                mMds = NULL;
+                return status;
+            }
+
+            status_t status = mWorker->configFrc4Hdmi(enableFrc4Hdmi, &mMds);
+            if (status != STATUS_OK) {
+                LOGE("failed to enable FRC for HDMI");
+                return status;
+            }
+
+            //Recalculate VPP FRC for HDMI
+            bool frcOn;
+            FRC_RATE frcRate;
+            status = mWorker->calculateFrc(&frcOn, &frcRate);
+            /* Apply new FRC to VPP here.
+             * VPP FRC is configured before VPP thread start
+             */
+            if (!mThreadRunning) {
+                mWorker->mFrcOn = frcOn;
+                mWorker->mFrcRate = frcRate;
+            } else {
+                LOGW("Configure VPP FRC for HDMI too late");
+            }
+        } else {
+            LOGE("%s failed to create MDS Listener", __func__);
+        }
+    }
+
+    return status;
 }
 
 bool VPPProcessor::canSetDecoderBufferToVPP() {
@@ -687,8 +733,23 @@ MediaBuffer * VPPProcessor::findMediaBuffer(VPPBuffer &buff) {
     return NULL;
 }
 
-uint32_t VPPProcessor::getVppOutputFps()
-{
+uint32_t VPPProcessor::getVppOutputFps() {
     return mWorker->getVppOutputFps();
 }
+
+void VPPProcessor::setDisplayMode(int32_t mode) {
+    if (mWorker != NULL) {
+        //check if frame rate conversion needed if HDMI connection status changed
+        LOGV("display mode change. Thread  %p", &mProcThread);
+        LOGV("old/new/connect_Bit mode %d %d %d",
+                 mWorker->getDisplayMode(),  mode, MDS_HDMI_CONNECTED);
+        if (((mWorker->getDisplayMode()) & MDS_HDMI_CONNECTED) != (mode & MDS_HDMI_CONNECTED)
+               && (mProcThread != NULL)) {
+            mProcThread->mNeedCheckFrc = true;
+            LOGI("NeedCheckFrc change");
+        }
+        mWorker->setDisplayMode(mode);
+    }
+}
+
 } /* namespace android */
