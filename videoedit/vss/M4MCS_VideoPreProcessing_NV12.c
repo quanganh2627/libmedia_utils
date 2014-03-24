@@ -133,6 +133,8 @@ M4OSA_ERR M4MCS_intApplyVPP_NV12(M4VPP_Context pContext,
                  * Call the resize filter. From the intermediate frame to the encoder
                  * image plane
                  */
+                yuvFrameWidth = pC->pPreResizeFrame[0].u_width;
+                yuvFrameHeight = pC->pPreResizeFrame[0].u_height;
                 err = M4VIFI_ResizeBilinearNV12toNV12(M4OSA_NULL,
                     pC->pPreResizeFrame, pPlaneOut);
                 if (M4NO_ERROR != err)
