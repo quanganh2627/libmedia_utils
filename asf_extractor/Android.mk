@@ -12,7 +12,9 @@ LOCAL_C_INCLUDES := \
     $(LOCAL_PATH) \
     $(TARGET_OUT_HEADERS)/libmix_asfparser \
     $(call include-path-for, libstagefright) \
-    $(call include-path-for, frameworks-native)/media/openmax
+    $(call include-path-for, frameworks-native)/media/openmax \
+    bionic                      \
+    $(call include-path-for, stlport) \
 
 LOCAL_COPY_HEADERS_TO := libmix_asf_extractor
 

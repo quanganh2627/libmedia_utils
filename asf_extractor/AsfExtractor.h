@@ -76,6 +76,7 @@ private:
     bool mHasIndexObject;
     Track *mFirstTrack;
     Track *mLastTrack;
+    bool mProtected; // Playready protected contents
 
     Mutex mReadLock;
     sp<MetaData> mFileMetaData;

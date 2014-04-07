@@ -40,6 +40,8 @@
 #include "AsfStreamParser.h"
 #include "AsfExtractor.h"
 
+#define UUIDSIZE 16
+#define SAMPLEIDSIZE 16
 
 namespace android {
 
@@ -52,6 +54,8 @@ enum WMAAudioFormats {
     WAVE_FORMAT_WMAUDIO_LOSSLESS = 0x163,
     WAVE_FORMAT_WMAVOICE9        = 0x000A,
     WAVE_FORMAT_WMAVOICE10       = 0x000B,
+    WAVE_FORMAT_MPEG_RAW_AAC     = 0x1601,
+    WAVE_FORMAT_AAC              = 0xFF
 };
 
 class ASFSource : public MediaSource  {
@@ -97,6 +101,7 @@ AsfExtractor::AsfExtractor(const sp<DataSource> &source)
       mHasIndexObject(false),
       mFirstTrack(NULL),
       mLastTrack(NULL),
+      mProtected(false),
       mReadLock(),
       mFileMetaData(new MetaData),
       mParser(NULL),
@@ -329,6 +334,49 @@ status_t AsfExtractor::initialize() {
     delete [] headerObjectData;
     headerObjectData = NULL;
 
+    // Get UUID and DRM header from AsfHeader.
+    uint8_t drmUuid[UUIDSIZE];
+    status = mParser->getDrmUuid(drmUuid, UUIDSIZE);
+
+    if (status != ASF_PARSER_SUCCESS) {
+        mProtected = false;
+        ALOGV("Not a playready protected content, Nothing critical");
+    } else {
+        ALOGV("Playready protected content");
+        mProtected = true;
+
+        uint32_t datalen = 0;
+        status = mParser->getDrmHeaderXml(NULL, &datalen);// Get the wmrm header data len first
+        if (status != ASF_PARSER_NULL_POINTER || datalen == 0) {
+            ALOGE("Error parsing DRM header - Incorrect Header Len");
+            return ASF_PARSER_UNEXPECTED_VALUE;
+        }
+
+        uint8_t *psshData = new uint8_t[UUIDSIZE + sizeof(datalen) + datalen];
+        if (psshData == NULL) {
+            ALOGE("Error allocating memory for psshInfo");
+            return ASF_PARSER_NULL_POINTER;
+        }
+
+        // Set meta data in this order (uuid, datalen, hdr_data)
+        memcpy(psshData, drmUuid, UUIDSIZE);
+        memcpy(psshData + UUIDSIZE, &datalen, sizeof(datalen));
+        // Get the wmrm header data now.
+        status = mParser->getDrmHeaderXml(psshData + UUIDSIZE + sizeof(datalen), &datalen);
+
+        if (status != ASF_PARSER_SUCCESS) {
+            ALOGE("Error parsing DRM header");
+            delete psshData;
+            return ASF_PARSER_UNEXPECTED_VALUE;
+        }
+
+        ALOGV("Set Psshinfo");
+        mFileMetaData->setData(kKeyPssh, 'pssh', psshData, UUIDSIZE + sizeof(datalen) + datalen);
+        delete psshData;
+        psshData = NULL;
+
+    }
+
     uint8_t dataObjectHeaderData[ASF_DATA_OBJECT_HEADER_SIZE];
     if (mDataSource->readAt(mHeaderObjectSize, dataObjectHeaderData, ASF_DATA_OBJECT_HEADER_SIZE)
         != ASF_DATA_OBJECT_HEADER_SIZE) {
@@ -470,6 +518,9 @@ static const char* FourCC2MIME(uint32_t fourcc) {
         case FOURCC('3', 'V', 'M', 'W'):
         case FOURCC('1', 'C', 'V', 'W'):
             return MEDIA_MIMETYPE_VIDEO_WMV;
+        case FOURCC('4', '6', '2', 'H'):
+        case FOURCC('1', 'c', 'v', 'a'):
+            return MEDIA_MIMETYPE_VIDEO_AVC;
         default:
             ALOGE("Unknown video format.");
             return "video/unknown-type";
@@ -493,12 +544,17 @@ static const char* CodecID2MIME(uint32_t codecID) {
         case WAVE_FORMAT_WMAVOICE10:
             ALOGW("WMA voice 9/10 is not supported.");
             return "audio/wma-voice";
+        case WAVE_FORMAT_MPEG_RAW_AAC:
+            ALOGI("Audio codec Id 0x1601");
+            return "audio/mp4a-latm";
+        case WAVE_FORMAT_AAC:
+            ALOGI("Audio codec Id 0xFF");
+            return MEDIA_MIMETYPE_AUDIO_AAC;
         default:
-            ALOGE("Unsupported Audio codec ID: %#x", codecID);
+            ALOGE("Unsupported Audio codec ID: %x", codecID);
             return "audio/unknown-type";
     }
 }
-
 
 status_t AsfExtractor::setupTracks() {
     AsfAudioStreamInfo* audioInfo = mParser->getAudioInfo();
@@ -541,6 +597,7 @@ status_t AsfExtractor::setupTracks() {
             track->meta->setInt32(kKeyWmaFormatTag, audioInfo->codecID);
 
             if (audioInfo->codecDataSize) {
+                ALOGV("codec data for Audio = size = %d", audioInfo->codecDataSize);
                 track->meta->setData(
                     kKeyConfigData,
                     kTypeConfigData,
@@ -553,6 +610,11 @@ status_t AsfExtractor::setupTracks() {
             track->meta->setInt32(kKeySuggestedBufferSize, mParser->getDataPacketSize());
             audioInfo = audioInfo->next;
         } else {
+            ALOGV("VIDEO streamNumber = %d\n, encryptedContentFlag= %d\n, "
+                  "fourcc = %d\n,"
+                  "codecDataSize=%d\n",
+                  videoInfo->streamNumber, videoInfo->encryptedContentFlag,
+                  videoInfo->fourCC, videoInfo->codecDataSize);
             track->streamNumber = videoInfo->streamNumber;
             track->encrypted = videoInfo->encryptedContentFlag;
             track->meta->setInt32(kKeyWidth, videoInfo->width);
@@ -750,6 +812,24 @@ status_t AsfExtractor::readPacket() {
             // kKeyTime is in microsecond unit (usecs)
             // presentationTime is in mililsecond unit (ms)
             buffer->meta_data()->setInt64(kKeyTime,(uint64_t) payload->presentationTime * 1000);
+
+            if (mProtected) {// PLAYREADY_CONTENT
+                if (payload->sampleID) {
+                    uint8_t sampleID[SAMPLEIDSIZE];
+                    // In case of a playready content*/
+                    // Sample Id received is 8-byte but cryptoinfo expects a 16-byte
+
+                    // Initialize all bytes to zero in sampleID of each payload
+                    memset(sampleID, 0, SAMPLEIDSIZE);
+                    memcpy(sampleID, payload->sampleID, 8);// First 8 bytes = IV
+
+                    uint8_t* payloadOffset = (uint8_t*)&payload->offsetIntoMediaObject;
+                    memcpy(sampleID + 8 + 4, payloadOffset, 4);// Last 8 Bytes is the byte offset
+                    buffer->meta_data()->setData(kKeyCryptoIV, buffer->meta_data()->TYPE_POINTER, (uint8_t*)sampleID, SAMPLEIDSIZE);
+
+                    buffer->meta_data()->setData(kKeyEncryptedSizes, buffer->meta_data()->TYPE_INT32, &payload->mediaObjectLength, sizeof(payload->mediaObjectLength));
+                }
+            }
 
             if (payload->keyframe) {
                 buffer->meta_data()->setInt32(kKeyIsSyncFrame, 1);
