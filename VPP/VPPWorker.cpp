@@ -380,8 +380,16 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
     mWidth = width;
     mHeight = height;
     mInputFps = fps;
-
     uint32_t area = mWidth * mHeight;
+
+    // limit resolution that VPP supported for **Merifield/Moorefield**: <QCIF or >1080P
+#ifndef TARGET_VPP_USE_GEN
+    if ((mHeight < 144) || (mHeight > 1080) || (area > HD1080P_AREA)) {
+        LOGW("unspported resolution %d x %d, limit (176x144 - 1920x1080)", mWidth, mHeight);
+        return STATUS_NOT_SUPPORT;
+    }
+#endif
+
     if (VPPSetting::VPPStatus) {
         LOGV("vpp is on in settings");
 
@@ -394,10 +402,6 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
 
         return STATUS_OK;
 #endif
-
-        // <QCIF or >1080P
-        if (mHeight < 144 || mHeight > 1080)
-            return STATUS_NOT_SUPPORT;
 
         // QCIF to QVGA
         if (area <= QVGA_AREA) {
@@ -416,6 +420,11 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
             mSharpenOn = true;
         }
     }
+
+#ifdef TARGET_VPP_USE_GEN
+        LOGW("Baytrail shoud not go here!");
+        return STATUS_ERROR;
+#endif
 
     if (slowMotionFactor == 2 || slowMotionFactor == 4) {
         // slow motion mode, only do FRC according to slow motion factor
