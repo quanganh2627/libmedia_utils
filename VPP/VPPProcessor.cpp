@@ -159,7 +159,7 @@ status_t VPPProcessor::init() {
 
 status_t VPPProcessor::configFrc4Hdmi(bool enableFrc4Hdmi) {
 
-    status_t status;
+    status_t status = STATUS_OK;
     LOGI("configFrc4Hdmi %d, VPP FRC Setting: %d", enableFrc4Hdmi,VPPSetting::FRCStatus);
     if (enableFrc4Hdmi && (VPPSetting::FRCStatus)) {
         mMds = new VPPMDSListener(this);
@@ -740,12 +740,10 @@ uint32_t VPPProcessor::getVppOutputFps() {
 void VPPProcessor::setDisplayMode(int32_t mode) {
     if (mWorker != NULL) {
         //check if frame rate conversion needed if HDMI connection status changed
-        LOGV("display mode change. Thread  %p", &mProcThread);
         LOGV("old/new/connect_Bit mode %d %d %d",
                  mWorker->getDisplayMode(),  mode, MDS_HDMI_CONNECTED);
-        if (((mWorker->getDisplayMode()) & MDS_HDMI_CONNECTED) != (mode & MDS_HDMI_CONNECTED)
-               && (mProcThread != NULL)) {
-            mProcThread->mNeedCheckFrc = true;
+        if ((mWorker->getDisplayMode() != mode) && (mProcThread != NULL)) {
+            mProcThread->notifyCheckFrc();
             LOGI("NeedCheckFrc change");
         }
         mWorker->setDisplayMode(mode);

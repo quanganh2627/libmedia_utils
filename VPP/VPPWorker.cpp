@@ -519,7 +519,7 @@ status_t VPPWorker::calcFrcByMatchHdmiCap(bool *FrcOn, FRC_RATE *FrcRate) {
             }
             break;
         defalt:
-            LOGI("VPP FRC output cannot match HDMI capability. VPP FRC is OFF.", mInputFps);
+            LOGI("VPP FRC output cannot match HDMI capability. VPP FRC is OFF.Input %d", mInputFps);
             break;
     }
 

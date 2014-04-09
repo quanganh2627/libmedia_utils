@@ -46,7 +46,8 @@ NuPlayerVPPProcessor::NuPlayerVPPProcessor(
       mInputCount(0),
       mACodec(NULL),
       mEOS(false),
-      mLastInputTimeUs(-1) {
+      mLastInputTimeUs(-1),
+      mMds(NULL) {
 
     mWorker = VPPWorker::getInstance(mNativeWindow->getNativeWindow());
 }
@@ -58,6 +59,10 @@ NuPlayerVPPProcessor::~NuPlayerVPPProcessor() {
     if (mWorker != NULL) {
         delete mWorker;
         mWorker = NULL;
+    }
+    if (mMds != NULL) {
+        mMds->deInit();
+        mMds = NULL;
     }
 
     if (mThreadRunning == false) {
@@ -602,5 +607,62 @@ void NuPlayerVPPProcessor::flushShutdown() {
 
 uint32_t NuPlayerVPPProcessor::getVppOutputFps() {
     return mWorker->getVppOutputFps();
+}
+
+void NuPlayerVPPProcessor::setDisplayMode(int32_t mode) {
+    if (mWorker != NULL) {
+        //check if frame rate conversion needed if HDMI connection status changed
+        LOGV("display mode change. Thread  %p", &mProcThread);
+        LOGI("old/new/connect_Bit mode %d %d %d",
+                 mWorker->getDisplayMode(),  mode, MDS_HDMI_CONNECTED);
+        if ((mWorker->getDisplayMode() != mode) && (mProcThread != NULL)) {
+            mProcThread->notifyCheckFrc();
+            LOGI("NeedCheckFrc change");
+        }
+        mWorker->setDisplayMode(mode);
+    }
+}
+
+status_t NuPlayerVPPProcessor::configFrc4Hdmi(bool enableFrc4Hdmi) {
+
+    status_t status = STATUS_OK;
+    LOGI("configFrc4Hdmi %d, VPP FRC Setting: %d", enableFrc4Hdmi,VPPSetting::FRCStatus);
+    if (enableFrc4Hdmi && (VPPSetting::FRCStatus)) {
+        mMds = new VPPMDSListener(this);
+        if (mMds != NULL) {
+            LOGI("MDS init");
+            status = mMds->init();
+            if(status != STATUS_OK) {
+                LOGW("MDS init failed");
+                //mMds is sp, NOT pointer, Set NULL to delete
+                mMds = NULL;
+                return status;
+            }
+
+            status_t status = mWorker->configFrc4Hdmi(enableFrc4Hdmi, &mMds);
+            if (status != STATUS_OK) {
+                LOGE("failed to enable FRC for HDMI");
+                return status;
+            }
+
+            //Recalculate VPP FRC for HDMI
+            bool frcOn;
+            FRC_RATE frcRate;
+            status = mWorker->calculateFrc(&frcOn, &frcRate);
+            /* Apply new FRC to VPP here.
+             * VPP FRC is configured before VPP thread start
+             */
+            if (!mThreadRunning) {
+                mWorker->mFrcOn = frcOn;
+                mWorker->mFrcRate = frcRate;
+            } else {
+                LOGW("Configure VPP FRC for HDMI too late");
+            }
+        } else {
+            LOGE("%s failed to create MDS Listener", __func__);
+        }
+    }
+
+    return status;
 }
 } //namespace android

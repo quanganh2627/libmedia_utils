@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C) 2012 Intel Corporation.  All rights reserved.
  *
@@ -15,29 +16,18 @@
  *
  */
 
-#ifndef __VPP_SETTING_H
-#define __VPP_SETTING_H
+#ifndef _VPP_PROCESSOR_BASE_H_
+#define _VPP_PROCESSOR_BASE_H_
+
+#include <stdint.h>
 
 namespace android {
 
-class VPPSetting{
+class VPPProcessorBase {
 public:
-    VPPSetting();
-    ~VPPSetting();
-    static bool isVppOn();
-
-private:
-    friend class VPPWorker;
-    friend class VPPProcessor;
-    friend class NuPlayerVPPProcessor;
-    static bool FRCStatus;
-    static bool VPPStatus;
-
-private:
-    VPPSetting(const VPPSetting &);
-    VPPSetting &operator=(const VPPSetting &);
-
+    VPPProcessorBase(){};
+    virtual ~VPPProcessorBase(){};
+    virtual void setDisplayMode(int32_t mode) = 0;
 };
 } /* namespace android */
-
-#endif /* __VPP_SETTING_H */
+#endif

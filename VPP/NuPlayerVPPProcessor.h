@@ -24,12 +24,16 @@
 #include <media/stagefright/NativeWindowWrapper.h>
 #include <media/stagefright/ACodec.h>
 
+#include "VPPMds.h"
+
 namespace android {
 
 struct ABuffer;
 struct ACodec;
+class VPPProcessorBase;
+class VPPMDSListener;
 
-struct NuPlayerVPPProcessor : public AHandler {
+struct NuPlayerVPPProcessor : public AHandler, VPPProcessorBase {
 public:
     static NuPlayerVPPProcessor* getInstance(const sp<AMessage> &notify,
             const sp<NativeWindowWrapper> &nativeWindow = NULL);
@@ -112,6 +116,13 @@ public:
      */
     uint32_t getVppOutputFps();
 
+    /* set display information to VPP
+     */
+    void setDisplayMode(int32_t mode);
+
+    /* config enable/disable VPP frame rate conversion for HDMI
+     */
+    status_t configFrc4Hdmi(bool enable);
 
 public:
     // number of extra input buffer needed by VPP
@@ -157,6 +168,7 @@ private:
     int64_t mLastInputTimeUs;
 
     sp<ACodec> mACodec;
+    sp<VPPMDSListener> mMds;
 
 private:
     NuPlayerVPPProcessor(const sp<AMessage> &notify,

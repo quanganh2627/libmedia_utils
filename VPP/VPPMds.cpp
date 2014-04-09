@@ -14,17 +14,18 @@
  * limitations under the License.
  *
  */
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 
 #define LOG_TAG "VPPMultiDisplay"
 
 #include "VPPMds.h"
 #include <utils/Log.h>
+#include "VPPWorker.h"
 
 namespace android {
 
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
-VPPMDSListener::VPPMDSListener(VPPProcessor* vppprocessor)
+VPPMDSListener::VPPMDSListener(VPPProcessorBase* vppprocessor)
     : BnMultiDisplayListener(), mMode(0), mVppState(false),
       mVpp(vppprocessor), mListenerId(-1), mHdmiClient(NULL), mMds(NULL) {
     LOGI("A new Mds listener is created");
@@ -106,9 +107,11 @@ VPPMDSListener::~VPPMDSListener() {
 status_t VPPMDSListener::onMdsMessage(int msg, void* value, int size) {
     if ((msg & MDS_MSG_MODE_CHANGE) && (size == sizeof(int))) {
         mMode = *(static_cast<int*>(value));
-        LOGI("Display mode is set to %d", mMode);
+        LOGI("Display mode is %d", mMode);
+        //VPP only interested in HDMI connectioin status. Mask other mode
+        int mode = mMode & MDS_HDMI_CONNECTED;
         if (mVpp != NULL)
-            mVpp->setDisplayMode(mMode);
+            mVpp->setDisplayMode(mode);
     }
 
     return NO_ERROR;

@@ -49,6 +49,7 @@ class VPPProcThread : public Thread {
         bool isCurrentThread() const;
 
         bool isReadytoRun();
+        void notifyCheckFrc();
 
     public:
         Mutex mLock;
@@ -61,7 +62,6 @@ class VPPProcThread : public Thread {
         bool mError;
         bool mEOS;
         bool mSeek;
-        bool mNeedCheckFrc;
 
     private:
         VPPProcThread(const VPPProcThread &);
@@ -95,6 +95,7 @@ class VPPProcThread : public Thread {
         uint32_t mOutputFillIdx;
         bool mbFlushPipelineInProcessing;
         bool mFrcChange;
+        bool mNeedCheckFrc;
 };
 
 } /* END namespace android */

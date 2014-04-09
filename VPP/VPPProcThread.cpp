@@ -27,7 +27,6 @@ VPPProcThread::VPPProcThread(bool canCallJava, VPPWorker* vppWorker,
                 VPPBuffer *outputBuffer, const uint32_t outputBufferNum):
     Thread(canCallJava),
     mWait(false), mError(false), mEOS(false), mSeek(false),
-    mNeedCheckFrc(false),
     mThreadId(NULL),
     mVPPWorker(vppWorker),
     mInput(inputBuffer),
@@ -41,7 +40,8 @@ VPPProcThread::VPPProcThread(bool canCallJava, VPPWorker* vppWorker,
     mInputFillIdx(0),
     mOutputFillIdx(0),
     mbFlushPipelineInProcessing(false),
-    mFrcChange(false) {
+    mFrcChange(false),
+    mNeedCheckFrc(false) {
 }
 
 VPPProcThread::~VPPProcThread() {
@@ -263,9 +263,12 @@ bool VPPProcThread::threadLoop() {
         mNeedCheckFrc = false;
         mVPPWorker->calculateFrc(&frcOn, &frcRate);
         if ((frcOn != mVPPWorker->mFrcOn) || (frcRate != mVPPWorker->mFrcRate)) {
+            LOGI("mNumTaskInProcesing %d", mNumTaskInProcesing);
             mFrcChange = true;
             mVPPWorker->mUpdatedFrcRate = frcRate;
             mVPPWorker->mUpdatedFrcOn = frcOn;
+        } else {
+            LOGI("No FRC change needed. Keep current FRC");
         }
     }
 
@@ -358,6 +361,10 @@ bool VPPProcThread::threadLoop() {
 
 bool VPPProcThread::isCurrentThread() const {
     return mThreadId == androidGetThreadId();
+}
+
+void VPPProcThread::notifyCheckFrc() {
+    mNeedCheckFrc = true;
 }
 
 } /* namespace android */

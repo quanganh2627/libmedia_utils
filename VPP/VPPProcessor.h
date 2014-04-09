@@ -17,6 +17,7 @@
 
 #ifndef __VPP_PROCESSOR_H
 #define __VPP_PROCESSOR_H
+#include "VPPProcessorBase.h"
 #include "VPPBuffer.h"
 #include "VPPProcThread.h"
 #include "VPPWorker.h"
@@ -34,11 +35,12 @@ namespace android {
 struct MediaBuffer;
 struct MediaBufferObserver;
 struct OMXCodec;
+class VPPProcessorBase;
 class VPPProcThread;
 class VPPMDSListener;
 class VPPWorker;
 
-class VPPProcessor : public MediaBufferObserver {
+class VPPProcessor : public MediaBufferObserver, VPPProcessorBase {
 public:
     /* Single instance
      * Only create VPPProcessor once and return handle to client that construct it

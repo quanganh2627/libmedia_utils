@@ -18,42 +18,34 @@
 #ifndef _VPP_MDS_H_
 #define _VPP_MDS_H_
 
-
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
 #include <display/MultiDisplayService.h>
 #include <display/IMultiDisplayListener.h>
 #include <display/MultiDisplayType.h>
-#else
-typedef struct {
-    int         width;
-    int         height;
-    int         refresh;    /**< refresh rate */
-    int         interlace;  /**< 1:interlaced 0:progressive */
-    int         ratio;      /**< aspect ratio */
-    int         flags;      /**< expended flag */
-} MDSHdmiTiming;
 #endif
 
+#include <utils/RefBase.h>
+#include <utils/Errors.h>
 #include <VPPSetting.h>
-#include "VPPProcessor.h"
+#include "VPPProcessorBase.h"
 
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
 using namespace android :: intel;
 
 namespace android {
-class VPPProcessor;
+class VPPProcessorBase;
 
 class VPPMDSListener : public BnMultiDisplayListener {
 private:
     int32_t     mMode;
     bool    mVppState;
-    VPPProcessor* mVpp;
+    VPPProcessorBase* mVpp;
     int32_t     mListenerId;
     sp<IMultiDisplayHdmiControl> mHdmiClient;
     sp<IMDService> mMds;
 
 public:
-    VPPMDSListener(VPPProcessor*);
+    VPPMDSListener(VPPProcessorBase*);
     ~VPPMDSListener();
 
     status_t init();
@@ -66,19 +58,28 @@ public:
 };
 };
 #else
+
 /** @brief HDMI timing structure */
 #define MDS_HDMI_CONNECTED (1<<1)
-
+typedef struct {
+    int         width;
+    int         height;
+    int         refresh;    /**< refresh rate */
+    int         interlace;  /**< 1:interlaced 0:progressive */
+    int         ratio;      /**< aspect ratio */
+    int         flags;      /**< expended flag */
+} MDSHdmiTiming;
 
 namespace android {
-class VPPProcessor;
+
+class VPPProcessorBase;
 //namespace intel {
 
 class VPPMDSListener : public RefBase {
 private:
 
 public:
-    VPPMDSListener(VPPProcessor*){};
+    VPPMDSListener(VPPProcessorBase*){};
     ~VPPMDSListener(){};
 
     status_t init(){ return 0; };

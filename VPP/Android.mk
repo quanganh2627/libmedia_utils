@@ -53,7 +53,8 @@ LOCAL_COPY_HEADERS := \
     VPPProcThread.h \
     VPPWorker.h \
     NuPlayerVPPProcessor.h\
-    VPPMds.h
+    VPPMds.h \
+    VPPProcessorBase.h
 
 LOCAL_CFLAGS += -DTARGET_HAS_VPP -Wno-non-virtual-dtor
 ifeq ($(TARGET_VPP_USE_GEN),true)
