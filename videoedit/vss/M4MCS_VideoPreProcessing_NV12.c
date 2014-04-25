@@ -135,6 +135,19 @@ M4OSA_ERR M4MCS_intApplyVPP_NV12(M4VPP_Context pContext,
                  */
                 yuvFrameWidth = pC->pPreResizeFrame[0].u_width;
                 yuvFrameHeight = pC->pPreResizeFrame[0].u_height;
+
+                // Rotate the buffer if the original video has rotation information in MCS process.
+                if (pC->EncodingVideoFormat != M4ENCODER_kNULL
+                    && pC->pReaderVideoStream->videoRotationDegrees != 0) {
+                   err = M4VSS3GPP_intRotateVideo_NV12(pC->pPreResizeFrame,
+                           pC->pReaderVideoStream->videoRotationDegrees);
+                   if (M4NO_ERROR != err)
+                   {
+                       M4OSA_TRACE1_1("M4MCS_intApplyVPP_NV12: M4VSS3GPP_intRotateVideo_NV12 returns 0x%x!", err);
+                       return err;
+                   }
+                }
+
                 err = M4VIFI_ResizeBilinearNV12toNV12(M4OSA_NULL,
                     pC->pPreResizeFrame, pPlaneOut);
                 if (M4NO_ERROR != err)
