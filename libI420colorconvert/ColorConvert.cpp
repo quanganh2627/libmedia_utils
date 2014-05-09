@@ -18,6 +18,8 @@
 #include <OMX_IVCommon.h>
 #include <string.h>
 
+#define OMX_INTEL_COLOR_FormatYUV420PackedSemiPlanar 0x7FA00E00;
+
 static int getDecoderOutputFormat() {
     return OMX_INTEL_COLOR_FormatYUV420PackedSemiPlanar;
 }
