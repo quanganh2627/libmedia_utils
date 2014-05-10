@@ -18,27 +18,20 @@
 #ifndef VPPWorker_H_
 #define VPPWorker_H_
 
+#define ANDROID_DISPLAY_HANDLE 0x18C34078
+#define MAX_GRAPHIC_BUFFER_NUMBER 64 // TODO: use GFX limitation first
+#define Display unsigned int
+#include <stdint.h>
+
+#include <android/native_window.h>
 #include <va/va.h>
 #include <va/va_vpp.h>
 #include <va/va_tpi.h>
-
-#define ANDROID_DISPLAY_HANDLE 0x18C34078
-#define MAX_GRAPHIC_BUFFER_NUMBER 64 // TODO: use GFX limitation first
 #include "va/va_android.h"
-#define Display unsigned int
-#include <stdint.h>
+#include "iVP_api.h"
 #include "VPPMds.h"
 
-#include <android/native_window.h>
-//HDMI max timing is defined drm_hdmi.h
-#define HDMI_TIMING_MAX (128)
-
-#ifdef TARGET_HAS_MULTIPLE_DISPLAY
-using namespace android::intel;
-#endif
-
 namespace android {
-class VPPMDSListener;
 
 typedef enum _FRC_RATE {
     FRC_RATE_1X = 1,
@@ -46,16 +39,6 @@ typedef enum _FRC_RATE {
     FRC_RATE_2_5X,
     FRC_RATE_4X
 }FRC_RATE;
-
-typedef enum _IINPUT_FRAME_RATE {
-    FRAME_RATE_0 = 0,
-    FRAME_RATE_15 = 15,
-    FRAME_RATE_24 = 24,
-    FRAME_RATE_25 = 25,
-    FRAME_RATE_30 = 30,
-    FRAME_RATE_50 = 50,
-    FRAME_RATE_60 = 60
-} IPNPUT_FRAME_RATE;
 
 enum VPPWorkerStatus {
     STATUS_OK = 0,
@@ -72,6 +55,42 @@ struct GraphicBufferConfig {
     uint32_t height;
     uint32_t buffer[MAX_GRAPHIC_BUFFER_NUMBER];
 };
+
+typedef enum _INTEL_SCAN_TYPE
+{
+    INTEL_SCAN_PROGRESSIV      = 0,  /* Progressive*/
+    INTEL_SCAN_TOPFIELD        = 1,  /* Top field */
+    INTEL_SCAN_BOTTOMFIELD     = 2   /* Bottom field */
+} INTEL_SCAN_TYPE;
+
+typedef enum _INTEL_VIDEOSOURCE_TYPE
+{
+    INTEL_VideoSourceUnKnown      = 0,/* unKnown stream */
+    INTEL_VideoSourceCamera       = 1,/* Camera stream */
+    INTEL_VideoSourceVideoEditor  = 2,/* Video Editor stream */
+    INTEL_VideoSourceTranscode    = 3,/* Transcode stream */
+    INTEL_VideoSourceVideoConf    = 4,/* Video Conference stream*/
+    INTEL_VideoSourceMax          = 5 /* Reserve for future use*/
+} INTEL_VIDEOSOURCE_TYPE;
+
+typedef enum _INTEL_FRAME_TYPE
+{
+    INTEL_I_FRAME      = 0,  /* I frame */
+    INTEL_P_FRAME      = 1,  /* P frame */
+    INTEL_B_FRAME      = 2   /* B Frame */
+} INTEL_FRAME_TYPE;
+
+typedef union _INTEL_PRIVATE_VIDEOINFO{
+    struct {
+        unsigned int legacy       : 16;   /*reserved for legacy OMX usage*/
+        INTEL_SCAN_TYPE eScanType : 2;    /*Progressive or interlace*/
+        INTEL_VIDEOSOURCE_TYPE eVideoSource: 3 ; /*Camera,VideoEdtor, etc. */
+        INTEL_FRAME_TYPE  ePictureType : 2; /*I/P/B*/
+        unsigned int      nFrameRate   : 7; /*frame rate*/
+        unsigned int      reserved     : 1; /*reserved for extension*/
+    }videoinfo;
+    unsigned int value;
+}INTEL_PRIVATE_VIDEOINFO;
 
 class VPPWorker {
 
@@ -103,9 +122,8 @@ class VPPWorker {
         bool validateNativeWindow(const sp<ANativeWindow> &nativeWindow);
         // reset index
         status_t reset();
-
-        // set video display mode
-        void setDisplayMode(int32_t mode);
+        // set display mode
+        void setDisplayMode(int mode);
 
         // get video display mode
         int32_t getDisplayMode();
@@ -116,74 +134,30 @@ class VPPWorker {
         /* config enable or disable VPP frame rate conversion for HDMI feature.
          * To enable this feature, MDS listener is MUST
          */
-        status_t configFrc4Hdmi(bool enableFrc4Hdmi, sp<VPPMDSListener>* pmds);
+        status_t configFrc4Hdmi(bool enableFrc4Hdmi, sp<VPPMDSListener>* pmds){return STATUS_OK;};
 
         uint32_t getVppOutputFps();
-        status_t calculateFrc(bool *frcOn, FRC_RATE *rate);
-
+        status_t calculateFrc(bool *frcOn, FRC_RATE *rate){return STATUS_OK;};
         ~VPPWorker();
 
     private:
         VPPWorker(const sp<ANativeWindow> &nativeWindow);
-        // Check if VPP is supported
-        bool isSupport() const;
-
-        // Create VA context
-        status_t setupVA();
-
-        // Destroy VA context
-        status_t terminateVA();
-
-        // Check filter caps and create filter buffers
-        status_t setupFilters();
-
-        // Setup pipeline caps
-        status_t setupPipelineCaps();
-
-        // Map GraphicBuffer to VASurface
-        VASurfaceID mapBuffer(sp<GraphicBuffer> graphicBuffer);
-
-        /* calcualte VPP FRC rate according to input video frame rate.
-         * Here set VPP output target fps as MIPI fresh rate, 60
-         * input are limited to 24, 25, 30, and 60
-         */
-        status_t calcFrcByInputFps(bool *FrcOn, FRC_RATE *FrcRat);
-
-        /* calcualte VPP FRC rate according to hdmi capability
-         * Here set VPP output target fps to match HDMI supported.
-         * If all VPP FRC output fps failed to match HDMI capability, disabled FRC.
-         * input fps are limited to 24, 25, 30, and 60
-         */
-        status_t calcFrcByMatchHdmiCap(bool *FrcOn, FRC_RATE *FrcRate);
-
-        /* read HDMI device capability and current HDMI setting
-         */
-        status_t getHdmiData();
 
         // Get output buffer needed based on input index
         uint32_t getOutputBufCount(uint32_t index);
 
-        //check if the input fps is suportted in array fpsSet.
-        bool isFpsSupport(int32_t fps, int32_t *fpsSet, int32_t fpsSetCnt);
-
-        // Debug only
-        // Dump YUV frame
-        status_t dumpYUVFrameData(VASurfaceID surfaceID);
-        status_t writeNV12(int width, int height, unsigned char *out_buf, int y_pitch, int uv_pitch);
 
         VPPWorker(const VPPWorker &);
         VPPWorker &operator=(const VPPWorker &);
         uint32_t isVppOn();
-
     public:
         uint32_t mNumForwardReferences;
         FRC_RATE mFrcRate;
-        bool mFrcOn;
         //updated FrrRate used in VPP frc for HDMI only
         FRC_RATE mUpdatedFrcRate;
         bool mUpdatedFrcOn;
         bool bNeedCheckFrc;
-
+        bool mFrcOn;
     private:
         // Graphic buffer
         static VPPWorker* mVPPWorker;
@@ -196,23 +170,8 @@ class VPPWorker {
         uint32_t mHeight;
         uint32_t mInputFps;
 
-        // VA common variables
-        bool mVAStarted;
-        VAContextID mVAContext;
-        Display * mDisplay;
-        VADisplay mVADisplay;
-        VAConfigID mVAConfig;
-        uint32_t mNumSurfaces;
-        VASurfaceID *mSurfaces;
-        VASurfaceAttribExternalBuffers *mVAExtBuf;
-
-        // Forward References Surfaces
-        VASurfaceID *mForwardReferences;
-        VASurfaceID mPrevInput;
-
-        // VPP Filters Buffers
-        uint32_t mNumFilterBuffers;
-        VABufferID mFilterBuffers[VAProcFilterCount];
+        iVPCtxID mVPContext;
+        bool mVPStarted;
 
         // VPP filter configuration
         bool mDeblockOn;
@@ -220,25 +179,22 @@ class VPPWorker {
         bool mDeinterlacingOn;
         bool mSharpenOn;
         bool mColorOn;
-        VABufferID mFilterFrc;
+        bool m3POn;
 
         // status
         uint32_t mInputIndex;
         uint32_t mOutputIndex;
-        //MDS Display mode
-        int32_t mDisplayMode;
-        bool mEnableFrc4Hdmi;
 
-        sp<VPPMDSListener> *mMds;
-        MDSHdmiTiming currHdmiTiming;
-        MDSHdmiTiming *hdmiTimingList;
-        int32_t hdmiListCount;
+        //display mode
+        int mDisplayMode;
+        int mPreDisplayMode;
+        bool mVPPSettingUpdated;
+        bool m3PReconfig;
+        bool mVPPOn;
 
-        uint32_t mVPPOn;
+        //debug flag
+        int mDebug;
 
-        // FIXME: not very sure how to check color standard
-        VAProcColorStandardType in_color_standards[VAProcColorStandardCount];
-        VAProcColorStandardType out_color_standards[VAProcColorStandardCount];
 };
 
 }

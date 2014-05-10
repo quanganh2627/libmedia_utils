@@ -20,10 +20,14 @@
 #include "VPPProcessorBase.h"
 #include "VPPBuffer.h"
 #include "VPPProcThread.h"
-#include "VPPWorker.h"
 #include "VPPSetting.h"
 #include "VPPMds.h"
 
+#ifdef USE_IVP
+#include "ivp/VPPWorker.h"
+#else
+#include "VPPWorker.h"
+#endif
 #include <stdint.h>
 
 #include <android/native_window.h>
@@ -57,14 +61,6 @@ public:
      *      VPP_FAIL: fail
      */
     status_t validateVideoInfo(VPPVideoInfo* info, uint32_t slowMotionFactor = 1);
-
-    /*
-     * Get VPP on/off status from VppSettings
-     * @return:
-     *      true: vpp on
-     *      false: vpp off
-     */
-    static bool isVppOn();
 
     /* In this init() function, firstly, bufferInfo will be set as OMXCodec's,
      * and then VPPWorker will be initialized. After both steps succeed,

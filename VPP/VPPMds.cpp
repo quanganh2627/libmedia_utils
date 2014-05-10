@@ -32,7 +32,6 @@ VPPMDSListener::VPPMDSListener(VPPProcessorBase* vppprocessor)
 }
 
 status_t VPPMDSListener::init() {
-
     sp<IServiceManager> sm = defaultServiceManager();
     if (sm == NULL) {
         LOGE("%s: Fail to get service manager", __func__);

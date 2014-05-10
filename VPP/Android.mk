@@ -15,6 +15,8 @@ LOCAL_COPY_HEADERS := \
 
 LOCAL_CFLAGS += -DTARGET_HAS_VPP -Wno-non-virtual-dtor
 
+LOCAL_SHARED_LIBRARIES := libutils libbinder liblog
+
 LOCAL_MODULE:=  libvpp_setting
 LOCAL_MODULE_TAGS := optional
 
@@ -28,9 +30,7 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:= \
         VPPProcessor.cpp \
         VPPProcThread.cpp \
-        VPPWorker.cpp \
-        NuPlayerVPPProcessor.cpp \
-        VPPMds.cpp
+        NuPlayerVPPProcessor.cpp
 
 LOCAL_C_INCLUDES:= \
         $(call include-path-for, frameworks-av) \
@@ -38,12 +38,7 @@ LOCAL_C_INCLUDES:= \
         $(call include-path-for, frameworks-native)/media/openmax \
         $(TARGET_OUT_HEADERS)/libva
 
-LOCAL_SHARED_LIBRARIES := libva libvpp_setting
-
-ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
-LOCAL_CFLAGS += -DTARGET_HAS_MULTIPLE_DISPLAY
-LOCAL_SHARED_LIBRARIES += libmultidisplay
-endif
+LOCAL_SHARED_LIBRARIES := libva
 
 LOCAL_COPY_HEADERS_TO := libmedia_utils_vpp
 
@@ -51,14 +46,36 @@ LOCAL_COPY_HEADERS := \
     VPPProcessor.h \
     VPPBuffer.h \
     VPPProcThread.h \
-    VPPWorker.h \
-    NuPlayerVPPProcessor.h\
-    VPPMds.h \
-    VPPProcessorBase.h
+    VPPProcessorBase.h \
+    NuPlayerVPPProcessor.h
+
+ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
+LOCAL_CFLAGS += -DTARGET_HAS_MULTIPLE_DISPLAY
+LOCAL_SRC_FILES += VPPMds.cpp
+LOCAL_COPY_HEADERS += VPPMds.h
+ifeq ($(USE_MDS_LEGACY),true)
+LOCAL_CFLAGS += -DUSE_MDS_LEGACY
+endif
+LOCAL_SHARED_LIBRARIES += libmultidisplay
+else
+LOCAL_SHARED_LIBRARIES += libvpp_setting
+endif
 
 LOCAL_CFLAGS += -DTARGET_HAS_VPP -Wno-non-virtual-dtor
 ifeq ($(TARGET_VPP_USE_GEN),true)
 	LOCAL_CFLAGS += -DTARGET_VPP_USE_GEN
+endif
+
+ifeq ($(TARGET_VPP_USE_IVP), true)
+LOCAL_SRC_FILES += ivp/VPPWorker.cpp
+LOCAL_COPY_HEADERS += \
+    ivp/iVP_api.h \
+    ivp/VPPWorker.h
+LOCAL_LDFLAGS += -L$(TARGET_OUT_SHARED_LIBRARIES) -livp
+LOCAL_CFLAGS += -DUSE_IVP
+else
+LOCAL_SRC_FILES += VPPWorker.cpp
+LOCAL_COPY_HEADERS += VPPWorker.h
 endif
 
 LOCAL_MODULE:=  libvpp

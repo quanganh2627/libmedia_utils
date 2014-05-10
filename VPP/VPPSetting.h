@@ -20,22 +20,26 @@
 
 namespace android {
 
+typedef enum {
+    VPP_COMMON_ON   = 1,        // VPP is on
+    VPP_FRC_ON      = 1 << 1,   // FRC is on
+} VPP_SETTING_STATUS;
+
 class VPPSetting{
 public:
     VPPSetting();
     ~VPPSetting();
-    static bool isVppOn();
+    static bool isVppOn(unsigned int* status);
 
 private:
     friend class VPPWorker;
     friend class VPPProcessor;
     friend class NuPlayerVPPProcessor;
-    static bool FRCStatus;
-    static bool VPPStatus;
 
 private:
     VPPSetting(const VPPSetting &);
     VPPSetting &operator=(const VPPSetting &);
+    static bool detectUserId(int* id);
 
 };
 } /* namespace android */

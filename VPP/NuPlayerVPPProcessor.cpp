@@ -49,6 +49,9 @@ NuPlayerVPPProcessor::NuPlayerVPPProcessor(
       mLastInputTimeUs(-1),
       mMds(NULL) {
 
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    mMds = new VPPMDSListener(this);
+#endif
     mWorker = VPPWorker::getInstance(mNativeWindow->getNativeWindow());
 }
 
@@ -60,14 +63,15 @@ NuPlayerVPPProcessor::~NuPlayerVPPProcessor() {
         delete mWorker;
         mWorker = NULL;
     }
+    if (mThreadRunning == false) {
+        releaseBuffers();
+    }
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
     if (mMds != NULL) {
         mMds->deInit();
         mMds = NULL;
     }
-
-    if (mThreadRunning == false) {
-        releaseBuffers();
-    }
+#endif
     mNuPlayerVPPProcessor = NULL;
     LOGI("===== VPPInputCount = %d  =====", mInputCount);
 }
@@ -243,9 +247,13 @@ int64_t NuPlayerVPPProcessor::getBufferTimestamp(sp<ABuffer> buffer) {
 }
 
 status_t NuPlayerVPPProcessor::validateVideoInfo(VPPVideoInfo *videoInfo){
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    if (mMds != NULL && mMds->init() != STATUS_OK)
+        return VPP_FAIL;
+#endif
     if (videoInfo == NULL || mWorker == NULL)
         return VPP_FAIL;
-    if (mWorker->configFilters(videoInfo->width, videoInfo->height, videoInfo->fps) != VPP_OK)
+    if (mWorker->configFilters(videoInfo->width, videoInfo->height, videoInfo->fps, 0) != VPP_OK)
         return VPP_FAIL;
     mInputBufferNum = mWorker->mNumForwardReferences + 3;
     /* reserve one buffer in VPPProcThread, on add one more buffer here */
@@ -256,34 +264,6 @@ status_t NuPlayerVPPProcessor::validateVideoInfo(VPPVideoInfo *videoInfo){
         return VPP_FAIL;
     }
     return VPP_OK;
-}
-
-// static
-bool NuPlayerVPPProcessor::isVppOn() {
-#if defined (TARGET_HAS_MULTIPLE_DISPLAY) && !defined (USE_MDS_LEGACY)
-    if (!VPPSetting::isVppOn())
-        return false;
-
-    sp<IServiceManager> sm = defaultServiceManager();
-    if (sm == NULL) {
-        LOGE("%s: Failed to get service manager", __func__);
-        return false;
-    }
-    sp<IMDService> mds = interface_cast<IMDService>(
-            sm->getService(String16(INTEL_MDS_SERVICE_NAME)));
-    if (mds == NULL) {
-        LOGE("%s: Failed to get MDS service", __func__);
-        return false;
-    }
-    sp<IMultiDisplayInfoProvider> mdsInfoProvider = mds->getInfoProvider();
-    if (mdsInfoProvider == NULL) {
-        LOGE("%s: Failed to get info provider", __func__);
-        return false;
-    }
-    return mdsInfoProvider->getVppState();
-#else
-    return VPPSetting::isVppOn();
-#endif
 }
 
 ACodec::BufferInfo * NuPlayerVPPProcessor::findBufferByID(IOMX::buffer_id bufferID) {
@@ -626,42 +606,30 @@ void NuPlayerVPPProcessor::setDisplayMode(int32_t mode) {
 status_t NuPlayerVPPProcessor::configFrc4Hdmi(bool enableFrc4Hdmi) {
 
     status_t status = STATUS_OK;
-    LOGI("configFrc4Hdmi %d, VPP FRC Setting: %d", enableFrc4Hdmi,VPPSetting::FRCStatus);
-    if (enableFrc4Hdmi && (VPPSetting::FRCStatus)) {
-        mMds = new VPPMDSListener(this);
-        if (mMds != NULL) {
-            LOGI("MDS init");
-            status = mMds->init();
-            if(status != STATUS_OK) {
-                LOGW("MDS init failed");
-                //mMds is sp, NOT pointer, Set NULL to delete
-                mMds = NULL;
-                return status;
-            }
+    LOGI("configFrc4Hdmi %d", enableFrc4Hdmi);
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    if (enableFrc4Hdmi) {
+        status_t status = mWorker->configFrc4Hdmi(enableFrc4Hdmi, &mMds);
+        if (status != STATUS_OK) {
+            LOGE("failed to enable FRC for HDMI");
+            return status;
+        }
 
-            status_t status = mWorker->configFrc4Hdmi(enableFrc4Hdmi, &mMds);
-            if (status != STATUS_OK) {
-                LOGE("failed to enable FRC for HDMI");
-                return status;
-            }
-
-            //Recalculate VPP FRC for HDMI
-            bool frcOn;
-            FRC_RATE frcRate;
-            status = mWorker->calculateFrc(&frcOn, &frcRate);
-            /* Apply new FRC to VPP here.
-             * VPP FRC is configured before VPP thread start
-             */
-            if (!mThreadRunning) {
-                mWorker->mFrcOn = frcOn;
-                mWorker->mFrcRate = frcRate;
-            } else {
-                LOGW("Configure VPP FRC for HDMI too late");
-            }
+        //Recalculate VPP FRC for HDMI
+        bool frcOn;
+        FRC_RATE frcRate;
+        status = mWorker->calculateFrc(&frcOn, &frcRate);
+        /* Apply new FRC to VPP here.
+         * VPP FRC is configured before VPP thread start
+         */
+        if (!mThreadRunning) {
+            mWorker->mFrcOn = frcOn;
+            mWorker->mFrcRate = frcRate;
         } else {
-            LOGE("%s failed to create MDS Listener", __func__);
+            LOGW("Configure VPP FRC for HDMI too late");
         }
     }
+#endif
 
     return status;
 }

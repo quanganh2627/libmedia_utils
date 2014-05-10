@@ -20,7 +20,11 @@
 
 #include <media/stagefright/MetaData.h>
 #include "VPPBuffer.h"
+#ifdef USE_IVP
+#include "ivp/VPPWorker.h"
+#else
 #include "VPPWorker.h"
+#endif
 #include "VPPMds.h"
 
 #include <utils/threads.h>

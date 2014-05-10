@@ -23,6 +23,12 @@
 #include <media/stagefright/foundation/AHandler.h>
 #include <media/stagefright/NativeWindowWrapper.h>
 #include <media/stagefright/ACodec.h>
+#include "VPPMds.h"
+#ifdef USE_IVP
+#include "ivp/VPPWorker.h"
+#else
+#include "VPPWorker.h"
+#endif
 
 #include "VPPMds.h"
 
@@ -91,14 +97,6 @@ public:
      * seek and flush buffers
      */
     void seek();
-
-    /*
-     * check vpp status from system settings
-     * @return:
-     *      true: vpp on
-     *      false: vpp off
-     */
-    static bool isVppOn();
 
     /*
      * indicate video stream has reached to end

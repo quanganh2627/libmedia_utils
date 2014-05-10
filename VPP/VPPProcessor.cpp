@@ -46,6 +46,9 @@ VPPProcessor::VPPProcessor(const sp<ANativeWindow> &native, OMXCodec *codec)
     memset(mInput, 0, VPPBuffer::MAX_VPP_BUFFER_NUMBER * sizeof(VPPBuffer));
     memset(mOutput, 0, VPPBuffer::MAX_VPP_BUFFER_NUMBER * sizeof(VPPBuffer));
 
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    mMds = new VPPMDSListener(this);
+#endif
     mWorker = VPPWorker::getInstance(mNativeWindow);
 }
 
@@ -57,11 +60,13 @@ VPPProcessor::~VPPProcessor() {
         delete mWorker;
         mWorker = NULL;
     }
+
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
     if (mMds != NULL) {
         mMds->deInit();
         mMds = NULL;
     }
-
+#endif
     releaseBuffers();
     mVPPProcessor = NULL;
     LOGI("VPPProcessor is deleted");
@@ -85,34 +90,6 @@ VPPProcessor* VPPProcessor::getInstance(const sp<ANativeWindow> &native, OMXCode
         return NULL;
 
     return mVPPProcessor;
-}
-
-//static
-bool VPPProcessor::isVppOn() {
-#if defined TARGET_HAS_MULTIPLE_DISPLAY
-    if (!VPPSetting::isVppOn())
-        return false;
-
-    sp<IServiceManager> sm = defaultServiceManager();
-    if (sm == NULL) {
-        LOGE("%s: Failed to get service manager", __func__);
-        return false;
-    }
-    sp<IMDService> mds = interface_cast<IMDService>(
-            sm->getService(String16(INTEL_MDS_SERVICE_NAME)));
-    if (mds == NULL) {
-        LOGE("%s: Failed to get MDS service", __func__);
-        return false;
-    }
-    sp<IMultiDisplayInfoProvider> mdsInfoProvider = mds->getInfoProvider();
-    if (mdsInfoProvider == NULL) {
-        LOGE("%s: Failed to get info provider", __func__);
-        return false;
-    }
-    return mdsInfoProvider->getVppState();
-#else
-    return VPPSetting::isVppOn();
-#endif
 }
 
 status_t VPPProcessor::init() {
@@ -160,43 +137,30 @@ status_t VPPProcessor::init() {
 status_t VPPProcessor::configFrc4Hdmi(bool enableFrc4Hdmi) {
 
     status_t status = STATUS_OK;
-    LOGI("configFrc4Hdmi %d, VPP FRC Setting: %d", enableFrc4Hdmi,VPPSetting::FRCStatus);
-    if (enableFrc4Hdmi && (VPPSetting::FRCStatus)) {
-        mMds = new VPPMDSListener(this);
-        if (mMds != NULL) {
-            LOGV("MDS init");
-            status = mMds->init();
-            if(status != STATUS_OK) {
-                LOGW("MDS init failed");
-                //mMds is sp, NOT pointer, Set NULL to delete
-                mMds = NULL;
-                return status;
-            }
+    LOGI("configFrc4Hdmi %d", enableFrc4Hdmi);
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    if (enableFrc4Hdmi) {
+        status_t status = mWorker->configFrc4Hdmi(enableFrc4Hdmi, &mMds);
+        if (status != STATUS_OK) {
+            LOGE("failed to enable FRC for HDMI");
+            return status;
+        }
 
-            status_t status = mWorker->configFrc4Hdmi(enableFrc4Hdmi, &mMds);
-            if (status != STATUS_OK) {
-                LOGE("failed to enable FRC for HDMI");
-                return status;
-            }
-
-            //Recalculate VPP FRC for HDMI
-            bool frcOn;
-            FRC_RATE frcRate;
-            status = mWorker->calculateFrc(&frcOn, &frcRate);
-            /* Apply new FRC to VPP here.
-             * VPP FRC is configured before VPP thread start
-             */
-            if (!mThreadRunning) {
-                mWorker->mFrcOn = frcOn;
-                mWorker->mFrcRate = frcRate;
-            } else {
-                LOGW("Configure VPP FRC for HDMI too late");
-            }
+        //Recalculate VPP FRC for HDMI
+        bool frcOn;
+        FRC_RATE frcRate;
+        status = mWorker->calculateFrc(&frcOn, &frcRate);
+        /* Apply new FRC to VPP here.
+         * VPP FRC is configured before VPP thread start
+         */
+        if (!mThreadRunning) {
+            mWorker->mFrcOn = frcOn;
+            mWorker->mFrcRate = frcRate;
         } else {
-            LOGE("%s failed to create MDS Listener", __func__);
+            LOGW("Configure VPP FRC for HDMI too late");
         }
     }
-
+#endif
     return status;
 }
 
@@ -688,9 +652,13 @@ void VPPProcessor::signalBufferReturned(MediaBuffer *buff) {
 
 status_t VPPProcessor::validateVideoInfo(VPPVideoInfo * videoInfo, uint32_t slowMotionFactor)
 {
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    if (mMds != NULL && mMds->init() != STATUS_OK)
+        return VPP_FAIL;
+#endif
     if (videoInfo == NULL || mWorker == NULL)
         return VPP_FAIL;
-    if (mWorker->configFilters(videoInfo->width, videoInfo->height, videoInfo->fps, slowMotionFactor) != VPP_OK)
+    if (mWorker->configFilters(videoInfo->width, videoInfo->height, videoInfo->fps, slowMotionFactor, 0) != VPP_OK)
         return VPP_FAIL;
     mInputBufferNum = mWorker->mNumForwardReferences + 3;
     /* reserve one buffer in VPPProcThread, so add one more buffer here */

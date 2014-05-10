@@ -18,21 +18,83 @@
 #include "VPPSetting.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <utils/Log.h>
+
+#include <binder/Parcel.h>
+#include <binder/IPCThreadState.h>
+#include <binder/ProcessState.h>
+#include <binder/IServiceManager.h>
+#include <binder/IBinder.h>
+
+#include <utils/String16.h>
 
 static const char StatusOn[][5] = {"1frc", "1vpp"};
-static const char VPP_STATUS_STORAGE[] = "/data/data/com.intel.vpp/shared_prefs/vpp_settings.xml";
+
 
 namespace android {
 
 VPPSetting::VPPSetting() {}
 VPPSetting::~VPPSetting() {}
 
-bool VPPSetting::FRCStatus = false;
-bool VPPSetting::VPPStatus = false;
-
-bool VPPSetting::isVppOn()
+bool VPPSetting::detectUserId(int* id)
 {
-    FILE *handle = fopen(VPP_STATUS_STORAGE, "r");
+    sp<IBinder> binder;
+    //get service manager
+    sp<IServiceManager> sm = defaultServiceManager();
+    binder = sm->getService(String16("activity"));
+    if(binder == 0){
+        LOGD("%s: get service failed", __func__);
+        return false;
+    }
+
+    Parcel data, reply;
+    data.writeInterfaceToken(String16("android.app.IActivityManager"));
+
+    status_t ret = binder->transact(IBinder::FIRST_CALL_TRANSACTION + 144, data, &reply);
+
+    if (ret == NO_ERROR ) {
+        int exceptionCode    =  reply.readExceptionCode();
+        if (!exceptionCode) {
+            *id         = reply.readInt32();
+            int retNum =0;
+
+            size_t len;
+            const char16_t* name = reply.readString16Inplace(&len);
+            String8 sAddress(String16(name, len));
+
+            const char16_t* icopath = reply.readString16Inplace(&len);
+            String8 sicopath(String16(icopath, len));
+
+            int flags         = reply.readInt32();
+            int serialNum     = reply.readInt32();
+            long createtime   = reply.readInt64();
+            long lastLoggedTime  = reply.readInt64();
+            int partial   = reply.readInt32();
+
+            return true;
+        } else {
+            // An exception was thrown back; fall through to return failure
+            LOGD("detect user id caught exception %d\n", exceptionCode);
+            return false;
+        }
+    }
+    return false;
+}
+
+bool VPPSetting::isVppOn(unsigned int *status)
+{
+    char path[60];
+    int userId = 0;
+
+    if (!detectUserId(&userId) || userId < 0) {
+        LOGD("%s: detect user Id error userId = %d", __func__, userId);
+        return false;
+    }
+
+    sprintf(path, "/data/user/%d/com.intel.vpp/shared_prefs/vpp_settings.xml", userId);
+    LOGI("%s: %s",__func__, path);
+    FILE *handle = fopen(path, "r");
     if(handle == NULL)
         return false;
 
@@ -40,24 +102,21 @@ bool VPPSetting::isVppOn()
     char buf[MAXLEN] = {0};
     memset(buf, 0 ,MAXLEN);
     if(fread(buf, 1, MAXLEN, handle) <= 0) {
+        LOGE("%s: failed to read vpp config file %d", __func__, userId);
         fclose(handle);
         return false;
     }
     buf[MAXLEN - 1] = '\0';
 
-    if(strstr(buf, StatusOn[0]) != NULL) {
-        FRCStatus = true;
-    } else {
-        FRCStatus = false;
-    }
-    if(strstr(buf, StatusOn[1]) != NULL) {
-        VPPStatus = true;
-    } else {
-        VPPStatus = false;
-    }
+    *status = 0;
+    if(strstr(buf, StatusOn[0]) != NULL)
+        *status |= VPP_FRC_ON;
+
+    if(strstr(buf, StatusOn[1]) != NULL)
+        *status |= VPP_COMMON_ON;
 
     fclose(handle);
-    return (FRCStatus || VPPStatus);
+    return (*status != 0);
 }
 
 } //namespace android

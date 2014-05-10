@@ -65,7 +65,7 @@ VPPWorker::VPPWorker(const sp<ANativeWindow> &nativeWindow)
         mFrcRate(FRC_RATE_1X), mFrcOn(false),
         mUpdatedFrcRate(FRC_RATE_1X), mUpdatedFrcOn(false),
         mInputIndex(0), mOutputIndex(0), mDisplayMode(0),
-        mEnableFrc4Hdmi(false), hdmiTimingList(NULL), hdmiListCount(0) {
+        mEnableFrc4Hdmi(false), hdmiTimingList(NULL), hdmiListCount(0), mVPPOn(0) {
     memset(&mFilterBuffers, 0, VAProcFilterCount * sizeof(VABufferID));
     memset(&mGraphicBufferConfig, 0, sizeof(GraphicBufferConfig));
     memset(&currHdmiTiming, 0, sizeof(MDSHdmiTiming));
@@ -108,6 +108,7 @@ status_t VPPWorker::init() {
         if(ret != STATUS_OK)
             return ret;
     }
+
     return setupPipelineCaps();
 }
 
@@ -376,11 +377,14 @@ status_t VPPWorker::terminateVA() {
     return STATUS_OK;
 }
 
-status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, const uint32_t fps, const uint32_t slowMotionFactor) {
+status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, const uint32_t fps, const uint32_t slowMotionFactor, const uint32_t flags) {
     mWidth = width;
     mHeight = height;
     mInputFps = fps;
     uint32_t area = mWidth * mHeight;
+
+    //initialize vpp status here
+    isVppOn();
 
     // limit resolution that VPP supported for **Merifield/Moorefield**: <QCIF or >1080P
 #ifndef TARGET_VPP_USE_GEN
@@ -389,10 +393,10 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
         return STATUS_NOT_SUPPORT;
     }
 #endif
+    LOGE("mVPPOn = %d, VPP_COMMON_ON = %d, VPP_FRC_ON = %d", mVPPOn, VPP_COMMON_ON, VPP_FRC_ON);
 
-    if (VPPSetting::VPPStatus) {
+    if (mVPPOn & VPP_COMMON_ON) {
         LOGV("vpp is on in settings");
-
 #ifdef TARGET_VPP_USE_GEN
         if (area <= VGA_AREA) {
             mDenoiseOn = true;
@@ -437,7 +441,7 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
             mFrcRate = FRC_RATE_2X;
         }
 
-    } else if (VPPSetting::FRCStatus) {
+    } else if (mVPPOn & VPP_FRC_ON) {
         LOGV("FRC is on in Settings");
         calcFrcByInputFps(&mFrcOn, &mFrcRate);
         LOGV("FRC enable %d, FrcRate %d", mFrcOn, mFrcRate);
@@ -597,7 +601,7 @@ status_t VPPWorker::setupFilters() {
                     char propValueString[PROPERTY_VALUE_MAX];
 
                     // placeholder for vpg driver: can't support denoise factor auto adjust, so leave config to user.
-                    property_get("vpp.filter.denoise.factor", propValueString, "32.0");
+                    property_get("vpp.filter.denoise.factor", propValueString, "64.0");
                     denoise.value = atof(propValueString);
                     denoise.value = (denoise.value < 0.0f) ? 0.0f : denoise.value;
                     denoise.value = (denoise.value > 64.0f) ? 64.0f : denoise.value;
@@ -1133,6 +1137,11 @@ status_t VPPWorker::calculateFrc(bool *pFrcOn, FRC_RATE *pFrcRate) {
         return STATUS_ERROR;
     }
 
+    if (!(mVPPOn & VPP_FRC_ON)) {
+        *pFrcOn = false;
+        return STATUS_OK;
+    }
+
     LOGV("EnableFrc4Hdmi %d  hdmiConnected %d", mEnableFrc4Hdmi, isHdmiConnected());
     if (mEnableFrc4Hdmi && (isHdmiConnected())) {
         status = getHdmiData();
@@ -1192,4 +1201,28 @@ status_t VPPWorker::writeNV12(int width, int height, unsigned char *out_buf, int
     return STATUS_OK;
 }
 
+uint32_t VPPWorker::isVppOn() {
+    LOGE("VPPWorkder::isVppOn");
+    sp<IServiceManager> sm = defaultServiceManager();
+    if (sm == NULL) {
+        ALOGE("%s: Failed to get service manager", __func__);
+        return false;
+    }
+    sp<IMDService> mds = interface_cast<IMDService>(
+            sm->getService(String16(INTEL_MDS_SERVICE_NAME)));
+    if (mds == NULL) {
+        ALOGE("%s: Failed to get MDS service", __func__);
+        return false;
+    }
+    sp<IMultiDisplayInfoProvider> mdsInfoProvider = mds->getInfoProvider();
+    if (mdsInfoProvider == NULL) {
+        ALOGE("%s: Failed to get info provider", __func__);
+        return false;
+    }
+
+    mVPPOn = mdsInfoProvider->getVppState();
+    LOGE("VPPWorkder::isVppOn, mVPPOn = %d", mVPPOn);
+
+    return mVPPOn;
+}
 } //namespace Anroid
