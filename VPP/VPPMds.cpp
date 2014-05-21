@@ -107,10 +107,8 @@ status_t VPPMDSListener::onMdsMessage(int msg, void* value, int size) {
     if ((msg & MDS_MSG_MODE_CHANGE) && (size == sizeof(int))) {
         mMode = *(static_cast<int*>(value));
         LOGI("Display mode is %d", mMode);
-        //VPP only interested in HDMI connectioin status. Mask other mode
-        int mode = mMode & MDS_HDMI_CONNECTED;
         if (mVpp != NULL)
-            mVpp->setDisplayMode(mode);
+            mVpp->setDisplayMode(mMode);
     }
 
     return NO_ERROR;

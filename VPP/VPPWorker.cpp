@@ -386,26 +386,30 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
     //initialize vpp status here
     isVppOn();
 
+    LOGE("mVPPOn = %d, VPP_COMMON_ON = %d, VPP_FRC_ON = %d", mVPPOn, VPP_COMMON_ON, VPP_FRC_ON);
+#ifdef TARGET_VPP_USE_GEN
+    if (mVPPOn & VPP_COMMON_ON) {
+        LOGV("vpp is on in settings");
+        if (area <= VGA_AREA) {
+            mDenoiseOn = true;
+        }
+        //mColorOn = true;
+        mDeinterlacingOn = true;
+
+        return STATUS_OK;
+    } else {
+        LOGW("all the filters are off, do not do VPP");
+        return STATUS_NOT_SUPPORT;
+    }
+#endif
     // limit resolution that VPP supported for **Merifield/Moorefield**: <QCIF or >1080P
-#ifndef TARGET_VPP_USE_GEN
     if ((mHeight < 144) || (mHeight > 1080) || (area > HD1080P_AREA)) {
         LOGW("unspported resolution %d x %d, limit (176x144 - 1920x1080)", mWidth, mHeight);
         return STATUS_NOT_SUPPORT;
     }
-#endif
-    LOGE("mVPPOn = %d, VPP_COMMON_ON = %d, VPP_FRC_ON = %d", mVPPOn, VPP_COMMON_ON, VPP_FRC_ON);
 
     if (mVPPOn & VPP_COMMON_ON) {
         LOGV("vpp is on in settings");
-#ifdef TARGET_VPP_USE_GEN
-        if (area <= VGA_AREA) {
-            mDenoiseOn = true;
-        }
-        mColorOn = true;
-        mDeinterlacingOn = true;
-
-        return STATUS_OK;
-#endif
 
         // QCIF to QVGA
         if (area <= QVGA_AREA) {
@@ -424,11 +428,6 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
             mSharpenOn = true;
         }
     }
-
-#ifdef TARGET_VPP_USE_GEN
-        LOGW("Baytrail shoud not go here!");
-        return STATUS_ERROR;
-#endif
 
     if (slowMotionFactor == 2 || slowMotionFactor == 4) {
         // slow motion mode, only do FRC according to slow motion factor
@@ -1079,7 +1078,7 @@ uint32_t VPPWorker::getVppOutputFps() {
 
 //set display mode
 void VPPWorker::setDisplayMode (int32_t mode) {
-    mDisplayMode = mode;
+    mDisplayMode = mode & MDS_HDMI_CONNECTED;
 }
 
 int32_t VPPWorker::getDisplayMode () {

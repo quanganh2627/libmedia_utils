@@ -707,6 +707,7 @@ uint32_t VPPProcessor::getVppOutputFps() {
 
 void VPPProcessor::setDisplayMode(int32_t mode) {
     if (mWorker != NULL) {
+#ifndef TARGET_VPP_USE_GEN
         //check if frame rate conversion needed if HDMI connection status changed
         LOGV("old/new/connect_Bit mode %d %d %d",
                  mWorker->getDisplayMode(),  mode, MDS_HDMI_CONNECTED);
@@ -714,6 +715,7 @@ void VPPProcessor::setDisplayMode(int32_t mode) {
             mProcThread->notifyCheckFrc();
             LOGI("NeedCheckFrc change");
         }
+#endif
         mWorker->setDisplayMode(mode);
     }
 }

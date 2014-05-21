@@ -1,7 +1,7 @@
 /*===================== begin_copyright_notice ==================================
 
   INTEL CONFIDENTIAL
-  Copyright 2013
+  Copyright 2013-2014
   Intel Corporation All Rights Reserved.
 
   The source code contained or described herein and all documents related to the
@@ -43,16 +43,27 @@ __BEGIN_DECLS
   Advance filter bit masks
   Use these masks to set filter bits in iVP_layer_t.VPfilters
   Ex. to enable DN filter.
- 	iVP_layer_t.VPfilters 		|= FILTER_DENOISE;		// turn on the filter
-  	iVP_layer_t.fDenoiseFactor	 = 1.0;					// set DN parameter
+    iVP_layer_t.VPfilters       |= FILTER_DENOISE;      // turn on the filter
+    iVP_layer_t.fDenoiseFactor   = 1.0;                 // set DN parameter
  */
-#define FILTER_DENOISE		0x0001             // Denoise filter bit mask is 1
-#define FILTER_DEINTERLACE	0x0002             // Deinterlace filter bit masks is 2.
-#define FILTER_SHARPNESS	0x0004             // Sharpness filter bit masks is 4.
-#define FILTER_COLORBALANCE	0x0008             // Colorbalance filter bit masks is 8.
-#define FILTER_3P        	0x0010             // 3P filter bit masks is 16.
+#define FILTER_DENOISE              0x0001             // Denoise filter bit mask is 1
+#define FILTER_DEINTERLACE          0x0002             // Deinterlace filter bit masks is 2.
+#define FILTER_SHARPNESS            0x0004             // Sharpness filter bit masks is 4.
+#define FILTER_AUTOCONTRAST         0x0008             // AutoContrast enchancement bit mask is 8.
+#define FILTER_3P                   0x0010             // 3P filter bit masks is 16.
+#define FILTER_COLORBALANCE         0x0020             // Colorbalance filter bit masks is 32.
+#define FILTER_SKINTONEENHANCEMENT  0x0040             // Skintone enchancement bit mask is 64.
 
-#define FILTER_COLORBALANCE_PARAM_SIZE		4  // Colorbalance filter parameters size is 4.
+#define FILTER_COLORBALANCE_PARAM_SIZE      4  // Colorbalance filter parameters size is 4.
+
+// width and height could be any value, it is just used by VAAPI.
+#define IVP_DEFAULT_WIDTH    1280
+#define IVP_DEFAULT_HEIGHT   720
+
+typedef enum _IVP_CAPABLILITY{
+    IVP_DEFAULT_CAPABLILITY = 0,   // All supported VEBOX feature
+    IVP_3P_CAPABILITY              // 3P + All supported VEBOX feature
+}IVP_CAPABILITY;
 
 //Status Code for iVP
 typedef enum _IVP_STATUS
@@ -63,7 +74,7 @@ typedef enum _IVP_STATUS
     IVP_ERROR_INVALID_CONTEXT,                // invalid context content
     IVP_ERROR_INVALID_OPERATION,              // invalid operation
     IVP_ERROR_INVALID_PARAMETER,              // invalid parameters
-    IVP_ERROR_CAPABILITY_NOT_SUPPORT,         // unsupported CAPABILITY
+    IVP_ERROR_NOT_SUPPORTED,                  // unsupported CAPABILITY
 }iVP_status;
 
 //Avaiable iVP buffer types
@@ -158,6 +169,7 @@ typedef enum
     /// the source alpha is not even implicitly present premultipliying
     /// the source colour.
     IVP_ALPHA_SOURCE_CONSTANT,
+
 } iVP_blend_t;
 
 // Avaiable deinterlace type
@@ -186,8 +198,8 @@ typedef union _ivp_kerneldump_t
 {
     struct
     {
-        unsigned int    perf      :1; /*dump FPS, kernel exec time*/
-        unsigned int    surface :1; /*dump input/output surface */
+        unsigned int    perf    :1;            //dump FPS, kernel exec time
+        unsigned int    surface :1;            //dump input/output surface
     };
     unsigned int value;
 }iVP_kernel_dump_t;
@@ -198,8 +210,8 @@ typedef struct _IVP_3P_INFO_T
     bool                    bEnable3P;                 // enable 3P filter
     iVP_streamtype_t        stStreamType;              // Camera, VideoEditor
     float                   fFrameRate;                // framerate of the stream
-    bool                    bReconfig;                 // reconfig the 3P plug-in
-    iVP_kernel_dump_t       eKernelDumpBitmap;         // enable kernel runtime dump
+    bool                    bReconfig;                 // reconfig 3P plug-in. For debugging only and ignored for production
+    iVP_kernel_dump_t       eKernelDumpBitmap;         // enable kernel runtime dump. For debugging only and ignored for production
 } iVP_3p_info_t;
 
 // layer information pass to iVP
@@ -232,18 +244,20 @@ typedef struct _IVP_LAYER_T
 
     long long int           VPfilters;                 // VP filter
 
-    float                   fDenoiseFactor;            // DN VP filter parameter
+    float                   fDenoiseFactor;               // DN VP filter parameter
 
-    iVP_deinterlace_t       iDeinterlaceMode;          // DI VP filter parameter
+    float                   fSkinToneEnchancementFactor;  // SkinTone VP filter parameter
 
-    float                   fSharpnessFactor;          // sharpness VP filter parameter
+    iVP_deinterlace_t       iDeinterlaceMode;             // DI VP filter parameter
 
-    float                   fColorBalanceHue;          // ColorBalance Hue value
-    float                   fColorBalanceSaturation;   // ColorBalance saturation value
-    float                   fColorBalanceBrightness;   // ColorBalance brightness value
-    float                   fColorBalanceContrast;     // ColorBalance Contrast value
+    float                   fSharpnessFactor;             // sharpness VP filter parameter
 
-    iVP_3p_info_t           st3pInfo;                  // 3P plug-in info
+    float                   fColorBalanceHue;             // ColorBalance Hue value
+    float                   fColorBalanceSaturation;      // ColorBalance saturation value
+    float                   fColorBalanceBrightness;      // ColorBalance brightness value
+    float                   fColorBalanceContrast;        // ColorBalance Contrast value
+
+    iVP_3p_info_t           st3pInfo;                     // 3P plug-in info
 
 }iVP_layer_t;
 
@@ -258,7 +272,7 @@ typedef unsigned int iVPCtxID;                        //Context of the iVP
 //          height    should be any non-zero value
 //
 //*****************************************************************************
-iVP_status iVP_create_context(iVPCtxID *ctx, unsigned int width, unsigned int height, unsigned int load3PFlg);
+iVP_status iVP_create_context(iVPCtxID *ctx, unsigned int width, unsigned int height, unsigned int vpCapabilityFlag);
 
 //*****************************************************************************
 //
