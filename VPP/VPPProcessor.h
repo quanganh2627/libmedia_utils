@@ -178,6 +178,8 @@ private:
     status_t updateRenderList();
     // return MediaBuffer according to VPPBuffer
     MediaBuffer * findMediaBuffer(VPPBuffer &buff);
+
+    int32_t countBuffersWeOwn();
     // debug only
     void printBuffers();
     void printRenderList();

@@ -175,6 +175,10 @@ bool VPPProcessor::canSetDecoderBufferToVPP() {
 
     // release obsolete input buffers
     clearInput();
+
+    if (countBuffersWeOwn() > (mOutputBufferNum + mInputBufferNum)) {
+        return false;
+    }
     // in non-EOS status, if input vectors has free position or
     // we have no frame to render, then set Decoder buffer in
     if (!mEOS && (mRenderList.empty() || mInput[mInputLoadPoint].mStatus == VPP_BUFFER_FREE))
@@ -203,6 +207,21 @@ status_t VPPProcessor::setDecoderBufferToVPP(MediaBuffer *buff) {
         }
     }
     return VPP_FAIL;
+}
+
+int32_t VPPProcessor::countBuffersWeOwn() {
+    int32_t n = 0;
+    List<MediaBuffer*>::iterator it;
+    for (it = mRenderList.begin(); it != mRenderList.end(); it++) {
+        n++;
+    }
+
+    for (uint32_t i = 0; i < mOutputBufferNum; i++) {
+        if (mOutput[i].mGraphicBuffer != NULL)
+           n++;
+    }
+
+    return n;
 }
 
 void VPPProcessor::printBuffers() {
