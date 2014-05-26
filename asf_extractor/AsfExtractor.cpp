@@ -366,13 +366,13 @@ status_t AsfExtractor::initialize() {
 
         if (status != ASF_PARSER_SUCCESS) {
             ALOGE("Error parsing DRM header");
-            delete psshData;
+            delete [] psshData;
             return ASF_PARSER_UNEXPECTED_VALUE;
         }
 
         ALOGV("Set Psshinfo");
         mFileMetaData->setData(kKeyPssh, 'pssh', psshData, UUIDSIZE + sizeof(datalen) + datalen);
-        delete psshData;
+        delete [] psshData;
         psshData = NULL;
 
     }
