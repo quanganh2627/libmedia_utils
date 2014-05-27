@@ -39,8 +39,9 @@ private:
 private:
     VPPSetting(const VPPSetting &);
     VPPSetting &operator=(const VPPSetting &);
+#ifdef TARGET_VPP_USE_GEN
     static bool detectUserId(int* id);
-
+#endif
 };
 } /* namespace android */
 

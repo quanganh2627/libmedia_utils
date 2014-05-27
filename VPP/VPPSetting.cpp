@@ -37,6 +37,7 @@ namespace android {
 VPPSetting::VPPSetting() {}
 VPPSetting::~VPPSetting() {}
 
+#ifdef TARGET_VPP_USE_GEN
 bool VPPSetting::detectUserId(int* id)
 {
     sp<IBinder> binder;
@@ -81,17 +82,18 @@ bool VPPSetting::detectUserId(int* id)
     }
     return false;
 }
+#endif
 
 bool VPPSetting::isVppOn(unsigned int *status)
 {
     char path[60];
     int userId = 0;
-
+#ifdef TARGET_VPP_USE_GEN
     if (!detectUserId(&userId) || userId < 0) {
         LOGD("%s: detect user Id error userId = %d", __func__, userId);
         return false;
     }
-
+#endif
     sprintf(path, "/data/user/%d/com.intel.vpp/shared_prefs/vpp_settings.xml", userId);
     LOGI("%s: %s",__func__, path);
     FILE *handle = fopen(path, "r");

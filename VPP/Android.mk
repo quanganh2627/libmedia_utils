@@ -15,6 +15,10 @@ LOCAL_COPY_HEADERS := \
 
 LOCAL_CFLAGS += -DTARGET_HAS_VPP -Wno-non-virtual-dtor
 
+ifeq ($(TARGET_VPP_USE_GEN),true)
+	LOCAL_CFLAGS += -DTARGET_VPP_USE_GEN
+endif
+
 LOCAL_SHARED_LIBRARIES := libutils libbinder liblog
 
 LOCAL_MODULE:=  libvpp_setting
