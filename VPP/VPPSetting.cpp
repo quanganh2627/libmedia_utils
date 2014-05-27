@@ -86,7 +86,7 @@ bool VPPSetting::detectUserId(int* id)
 
 bool VPPSetting::isVppOn(unsigned int *status)
 {
-    char path[60];
+    char path[80];
     int userId = 0;
 #ifdef TARGET_VPP_USE_GEN
     if (!detectUserId(&userId) || userId < 0) {
@@ -94,7 +94,8 @@ bool VPPSetting::isVppOn(unsigned int *status)
         return false;
     }
 #endif
-    sprintf(path, "/data/user/%d/com.intel.vpp/shared_prefs/vpp_settings.xml", userId);
+
+    snprintf(path, 80, "/data/user/%d/com.intel.vpp/shared_prefs/vpp_settings.xml", userId);
     LOGI("%s: %s",__func__, path);
     FILE *handle = fopen(path, "r");
     if(handle == NULL)
