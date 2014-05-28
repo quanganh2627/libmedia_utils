@@ -236,7 +236,7 @@ status_t VPPWorker::setupVA() {
     if(mVAExtBuf == NULL) {
         return STATUS_ALLOCATION_ERROR;
     }
-    VASurfaceAttrib attribs[2];
+    VASurfaceAttrib attribs[3];
     int supportedMemType = 0;
 
     //check whether it support create surface from external buffer
@@ -310,6 +310,11 @@ status_t VPPWorker::setupVA() {
     attribs[1].value.type = VAGenericValueTypePointer;
     attribs[1].value.value.p = (void *)mVAExtBuf;
 
+    attribs[2].type = (VASurfaceAttribType)VASurfaceAttribUsageHint;
+    attribs[2].flags = VA_SURFACE_ATTRIB_SETTABLE;
+    attribs[2].value.type = VAGenericValueTypeInteger;
+    attribs[2].value.value.i = VA_SURFACE_ATTRIB_USAGE_HINT_VPP_READ;
+
     int width, height;
 #ifdef TARGET_VPP_USE_GEN
     width = mWidth;
@@ -320,7 +325,7 @@ status_t VPPWorker::setupVA() {
 #endif
 
     vaStatus = vaCreateSurfaces(mVADisplay, VA_RT_FORMAT_YUV420, width,
-                                 height, mSurfaces, mNumSurfaces, attribs, 2);
+                                 height, mSurfaces, mNumSurfaces, attribs, 3);
     CHECK_VASTATUS("vaCreateSurfaces");
 
     // Create Context
