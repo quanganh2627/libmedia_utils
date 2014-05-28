@@ -128,9 +128,11 @@ status_t VPPProcessor::init() {
 
     if (initBuffers() != STATUS_OK)
         return VPP_FAIL;
+#ifndef USE_IVP
     // init VPPWorker
     if(mWorker->init() != STATUS_OK)
         return VPP_FAIL;
+#endif
     return createThread();
 }
 
@@ -673,6 +675,11 @@ status_t VPPProcessor::validateVideoInfo(VPPVideoInfo * videoInfo, uint32_t slow
 {
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
     if (mMds != NULL && mMds->init() != STATUS_OK)
+        return VPP_FAIL;
+#endif
+#ifdef USE_IVP
+    // init VPPWorker
+    if(mWorker->init() != STATUS_OK)
         return VPP_FAIL;
 #endif
     if (videoInfo == NULL || mWorker == NULL)

@@ -71,6 +71,9 @@ ifeq ($(TARGET_VPP_USE_GEN),true)
 endif
 
 ifeq ($(TARGET_VPP_USE_IVP), true)
+ifeq ($(TARGET_HAS_3P), true)
+	LOCAL_CFLAGS += -DTARGET_HAS_3P
+endif
 LOCAL_SRC_FILES += ivp/VPPWorker.cpp
 LOCAL_COPY_HEADERS += \
     ivp/iVP_api.h \

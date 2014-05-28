@@ -179,7 +179,11 @@ class VPPWorker {
         bool mDeinterlacingOn;
         bool mSharpenOn;
         bool mColorOn;
+        bool mSkintoneOn;
+#ifdef TARGET_HAS_3P
         bool m3POn;
+        bool m3PReconfig;
+#endif
 
         // status
         uint32_t mInputIndex;
@@ -189,7 +193,6 @@ class VPPWorker {
         int mDisplayMode;
         int mPreDisplayMode;
         bool mVPPSettingUpdated;
-        bool m3PReconfig;
         bool mVPPOn;
 
         //debug flag

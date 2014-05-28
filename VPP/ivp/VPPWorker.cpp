@@ -65,11 +65,14 @@ VPPWorker::VPPWorker(const sp<ANativeWindow> &nativeWindow)
         mWidth(0), mHeight(0), mInputFps(0),
         mVPStarted(false), mNumForwardReferences(3),
         mDeblockOn(false), mDenoiseOn(false), mDeinterlacingOn(false),
-        mSharpenOn(false), mColorOn(false),
-        mFrcOn(false), m3POn(false), mFrcRate(FRC_RATE_1X),
+        mSharpenOn(false), mColorOn(false), mSkintoneOn(false),
+        mFrcOn(false), mFrcRate(FRC_RATE_1X),
         mInputIndex(0), mOutputIndex(0),
         mPreDisplayMode(0), mDisplayMode(0),
-        mVPPSettingUpdated(false), m3PReconfig(false),
+        mVPPSettingUpdated(false),
+#ifdef TARGET_HAS_3P
+        m3POn(false), m3PReconfig(false),
+#endif
         mVPPOn(false), mDebug(0) {
     memset(&mGraphicBufferConfig, 0, sizeof(GraphicBufferConfig));
 }
@@ -99,7 +102,11 @@ bool VPPWorker::validateNativeWindow(const sp<ANativeWindow> &nativeWindow) {
 
 status_t VPPWorker::init() {
     if (!mVPStarted) {
-        iVP_status status = iVP_create_context(&mVPContext, mWidth, mHeight, 1);
+#ifdef TARGET_HAS_3P
+        iVP_status status = iVP_create_context(&mVPContext, IVP_DEFAULT_WIDTH, IVP_DEFAULT_HEIGHT, IVP_3P_CAPABILITY);
+#else
+        iVP_status status = iVP_create_context(&mVPContext, IVP_DEFAULT_WIDTH, IVP_DEFAULT_HEIGHT, IVP_DEFAULT_CAPABLILITY);
+#endif
         if (status == IVP_STATUS_SUCCESS)
             mVPStarted = true;
         else
@@ -107,10 +114,10 @@ status_t VPPWorker::init() {
     }
 
     char propValueString[PROPERTY_VALUE_MAX];
-
+#ifdef TARGET_HAS_3P
     property_get("media.3p.debug", propValueString, "0");
     mDebug = atoi(propValueString);
-
+#endif
     //FIX ME: update VPP status here
     isVppOn();
 
@@ -165,18 +172,23 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
             mSharpenOn = true;
 
         //mColorOn = true;
-
+        mSkintoneOn = true;
+#ifdef TARGET_HAS_3P
         if ((mDisplayMode & MDS_HDMI_CONNECTED) != 0 ||
                 (mDisplayMode & MDS_WIDI_ON) != 0)
             m3POn = false;
         else
             m3POn = true;
+#endif
 
     } else {
         mDenoiseOn = false;
         mSharpenOn = false;
         mColorOn = false;
+        mSkintoneOn = false;
+#ifdef TARGET_HAS_3P
         m3POn = false;
+#endif
     }
 
     if ((flags & OMX_BUFFERFLAG_TFF) != 0 ||
@@ -185,6 +197,13 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
     else
         mDeinterlacingOn = false;
 
+    LOGV("%s: skintone %d, denoise %d, sharpenon %d, deinterlacingon %d, mColorOn %d", __func__, mSkintoneOn, mDenoiseOn, mSharpenOn, mDeinterlacingOn, mColorOn);
+#ifndef TARGET_HAS_3P
+    if (!mDenoiseOn && !mSharpenOn && !mColorOn && !mSkintoneOn && !mDeinterlacingOn) {
+        LOGW("all the filters are off, do not do VPP");
+        return STATUS_NOT_SUPPORT;
+    }
+#endif
     return STATUS_OK;
 }
 
@@ -215,8 +234,10 @@ status_t VPPWorker::process(sp<GraphicBuffer> inputGraphicBuffer,
     //need to update vpp status if VPP settings has been modified.
     if (mVPPSettingUpdated) {
         isVppOn();
+#ifdef TARGET_HAS_3P
         if (mVPPOn)
             m3PReconfig = true;
+#endif
         mVPPSettingUpdated = false;
         LOGI("%s: VPPSetting is modified, read vpp status %d.", __func__, vppStatus);
     }
@@ -268,7 +289,12 @@ status_t VPPWorker::process(sp<GraphicBuffer> inputGraphicBuffer,
         primarySurf.fColorBalanceHue = 0;
         primarySurf.fColorBalanceSaturation = 1;
     }
-
+    // add VP filter to primarySurf : skintone enhancement
+    if (mSkintoneOn) {
+        primarySurf.VPfilters |= FILTER_SKINTONEENHANCEMENT;
+        primarySurf.fSkinToneEnchancementFactor = 8.0;
+    }
+#ifdef TARGET_HAS_3P
     if (m3POn) {
         primarySurf.VPfilters |= FILTER_3P;
         primarySurf.st3pInfo.bEnable3P = true;
@@ -307,7 +333,7 @@ status_t VPPWorker::process(sp<GraphicBuffer> inputGraphicBuffer,
             m3PReconfig = false;
         }
     }
-
+#endif
     iVP_rect_t outSrect;
     outSrect.left  = 0;
     outSrect.top   = 0;
@@ -373,7 +399,11 @@ status_t VPPWorker::reset() {
     if (mVPStarted)
         iVP_destroy_context(&mVPContext);
 
-    iVP_status status = iVP_create_context(&mVPContext, mWidth, mHeight, 1);
+#ifdef TARGET_HAS_3P
+        iVP_status status = iVP_create_context(&mVPContext, IVP_DEFAULT_WIDTH, IVP_DEFAULT_HEIGHT, IVP_3P_CAPABILITY);
+#else
+        iVP_status status = iVP_create_context(&mVPContext, IVP_DEFAULT_WIDTH, IVP_DEFAULT_HEIGHT, IVP_DEFAULT_CAPABLILITY);
+#endif
     if (status != IVP_STATUS_SUCCESS)
         return STATUS_ERROR;
 
@@ -392,6 +422,7 @@ void VPPWorker::setDisplayMode(int mode) {
         return;
     }
 
+#ifdef TARGET_HAS_3P
     //HDMI disconnected
     if ((mDisplayMode & MDS_HDMI_CONNECTED) == 0 &&
             (mPreDisplayMode & MDS_HDMI_CONNECTED) != 0)
@@ -401,7 +432,7 @@ void VPPWorker::setDisplayMode(int mode) {
     if ((mDisplayMode & MDS_WIDI_ON) == 0 &&
             (mPreDisplayMode & MDS_WIDI_ON) != 0)
         m3PReconfig = true;
-
+#endif
     mPreDisplayMode = mDisplayMode;
 
     return;
