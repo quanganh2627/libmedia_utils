@@ -12,6 +12,8 @@ LOCAL_SHARED_LIBRARIES :=       \
 
 LOCAL_MODULE_TAGS := optional
 
+LOCAL_MODULE_OWNER := intel
+
 LOCAL_MODULE := libI420colorconvert
 
 ifeq ($(USE_VIDEOEDITOR_INTEL_NV12_VERSION),true)
