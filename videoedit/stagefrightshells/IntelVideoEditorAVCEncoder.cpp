@@ -128,6 +128,7 @@ status_t IntelVideoEditorAVCEncoder::initCheck(const sp<MetaData>& meta) {
     mEncParamsCommon.rcMode = RATE_CONTROL_VBR;
     mEncParamsCommon.rcParams.bitRate = mVideoBitRate;
     mEncParamsCommon.rcParams.disableFrameSkip = disableFrameSkip;
+    mEncParamsCommon.rcParams.enableCARC = 0;
     mEncParamsCommon.rawFormat =  RAW_FORMAT_NV12;
 
     mEncParamsCommon.rcParams.minQP  = 0;
