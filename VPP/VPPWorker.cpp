@@ -473,6 +473,8 @@ status_t VPPWorker::calcFrcByInputFps(bool *FrcOn, FRC_RATE *FrcRate) {
         *FrcOn = true;
         *FrcRate = FRC_RATE_2_5X;
     } else {
+        *FrcOn = false;
+        *FrcRate = FRC_RATE_1X;
         LOGI("Unsupported input frame rate %d. VPP FRC is OFF.", mInputFps);
     }
 
