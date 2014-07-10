@@ -149,16 +149,17 @@ status_t VPPProcessor::configFrc4Hdmi(bool enableFrc4Hdmi) {
         }
 
         //Recalculate VPP FRC for HDMI
-        bool frcOn;
-        FRC_RATE frcRate;
+        bool frcOn = false;
+        FRC_RATE frcRate = FRC_RATE_1X;
         status = mWorker->calculateFrc(&frcOn, &frcRate);
         /* Apply new FRC to VPP here.
          * VPP FRC is configured before VPP thread start
          */
-        if (!mThreadRunning) {
+        bool newFrcSet = (frcOn != false) || (frcRate != FRC_RATE_1X);
+        if (newFrcSet && !mThreadRunning) {
             mWorker->mFrcOn = frcOn;
             mWorker->mFrcRate = frcRate;
-        } else {
+        } else if (mThreadRunning) {
             LOGW("Configure VPP FRC for HDMI too late");
         }
     }
