@@ -1,4 +1,4 @@
-ifeq ($(TARGET_HAS_VPP),true)
+ifeq ($(TARGET_HAS_ISV),true)
 
 LOCAL_PATH := $(call my-dir)
 
@@ -25,8 +25,9 @@ LOCAL_MODULE:=  libvpp_setting
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
+endif
 
-
+ifeq ($(TARGET_HAS_VPP),true)
 #### second ####
 
 include $(CLEAR_VARS)
