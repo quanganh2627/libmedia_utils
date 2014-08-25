@@ -5,6 +5,7 @@ LOCAL_SRC_FILES := \
     ColorConvert.cpp
 
 LOCAL_C_INCLUDES:= \
+        $(TARGET_OUT_HEADERS)/khronos/openmax \
         $(call include-path-for, frameworks-native)/media/openmax \
         $(call include-path-for, frameworks-native)/media/editor
 

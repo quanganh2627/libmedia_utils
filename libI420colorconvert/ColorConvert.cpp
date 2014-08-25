@@ -16,6 +16,7 @@
 
 #include <II420ColorConverter.h>
 #include <OMX_IVCommon.h>
+#include <OMX_IntelColorFormatExt.h>
 #include <string.h>
 
 static int getDecoderOutputFormat() {
