@@ -50,7 +50,7 @@ ISVComponent::ISVComponent(
         mThreadRunning(false),
         mProcThreadObserver(NULL),
         mISVProfile(NULL),
-        mNumISVBuffers(MIN_OUTPUT_NUM),
+        mNumISVBuffers(MIN_ISV_BUFFER_NUM),
         mNumDecoderBuffers(0),
         mNumDecoderBuffersBak(0),
         mWidth(0),
@@ -259,7 +259,6 @@ OMX_ERRORTYPE ISVComponent::ISV_GetParameter(
         if (nParamIndex == OMX_IndexParamPortDefinition
                 && def->nPortIndex == kPortIndexOutput) {
             LOGD_IF(ISV_COMPONENT_DEBUG, "%s: orignal bufferCountActual %d, bufferCountMin %d",  __func__, def->nBufferCountActual, def->nBufferCountMin);
-            //FIXME: decode may need extra buffer > min
             def->nBufferCountActual += mNumISVBuffers;
             def->nBufferCountMin += mNumISVBuffers;
         }
@@ -303,7 +302,7 @@ OMX_ERRORTYPE ISVComponent::ISV_SetParameter(
 
             if (def->nPortIndex == kPortIndexOutput) {
                 //set the buffer count we should fill to decoder before feed buffer to VPP
-                mNumDecoderBuffersBak = mNumDecoderBuffers = def->nBufferCountActual - mNumISVBuffers;
+                mNumDecoderBuffersBak = mNumDecoderBuffers = def->nBufferCountActual - mNumISVBuffers + EXTRA_INPUT_NUM;
                 OMX_VIDEO_PORTDEFINITIONTYPE *video_def = &def->format.video;
                 //FIXME: we don't support scaling yet, so set src region equal to dst region
                 mFilterParam.srcWidth = mFilterParam.dstWidth = video_def->nFrameWidth;
