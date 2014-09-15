@@ -277,7 +277,7 @@ void AsfExtractor::establishAvgFrameRate(Track *dstTrack, int32_t *avgFrameRate)
                 if (lastTimeStamp != timestamp) {
                     timeArray.push_back(timestamp);
                     lastTimeStamp = timestamp;
-                    LOGV("Add timestamp = %lld", lastTimeStamp);
+                    ALOGV("Add timestamp = %lld", lastTimeStamp);
                 }
             }
             payload = payload->next;
@@ -447,7 +447,7 @@ status_t AsfExtractor::initialize() {
         mFileMetaData->setCString(kKeyMIMEType, MEDIA_MIMETYPE_CONTAINER_ASF);
     } else if (mParser->hasAudio() && mParser->getAudioInfo()->codecID >= WAVE_FORMAT_MSAUDIO1 &&
                mParser->getAudioInfo()->codecID <= WAVE_FORMAT_WMAUDIO_LOSSLESS) {
-        LOGV("MEDIA_MIMETYPE_AUDIO_WMA", mParser->getAudioInfo()->codecID);
+        ALOGV("MEDIA_MIMETYPE_AUDIO_WMA", mParser->getAudioInfo()->codecID);
         mFileMetaData->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_WMA);
     } else {
         ALOGE("Content does not have neither audio nor video.");
