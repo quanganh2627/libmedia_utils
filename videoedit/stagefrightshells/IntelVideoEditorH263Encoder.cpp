@@ -44,18 +44,18 @@ IntelVideoEditorH263Encoder::IntelVideoEditorH263Encoder(
       mOutBufGroup(NULL),
       mLastInputBuffer(NULL) {
 
-    LOGV("Construct IntelVideoEditorH263Encoder");
+    ALOGV("Construct IntelVideoEditorH263Encoder");
 }
 
 IntelVideoEditorH263Encoder::~IntelVideoEditorH263Encoder() {
-    LOGV("Destruct IntelVideoEditorH263Encoder");
+    ALOGV("Destruct IntelVideoEditorH263Encoder");
     if (mStarted) {
         stop();
     }
 }
 
 status_t IntelVideoEditorH263Encoder::initCheck(const sp<MetaData>& meta) {
-    LOGV("initCheck");
+    ALOGV("initCheck");
 
     Encode_Status   encStatus;
 
@@ -67,10 +67,10 @@ status_t IntelVideoEditorH263Encoder::initCheck(const sp<MetaData>& meta) {
     CHECK(sourceFormat->findInt32(kKeyColorFormat, &mVideoColorFormat));
 
     CHECK(sourceFormat->findInt32(kKeyBitRate, &mVideoBitRate));
-    LOGV("mVideoWidth = %d, mVideoHeight = %d, mVideoFrameRate = %d, mVideoColorFormat = %d, mVideoBitRate = %d",
+    ALOGV("mVideoWidth = %d, mVideoHeight = %d, mVideoFrameRate = %d, mVideoColorFormat = %d, mVideoBitRate = %d",
         mVideoWidth, mVideoHeight, mVideoFrameRate, mVideoColorFormat, mVideoBitRate);
     if (mVideoColorFormat != OMX_COLOR_FormatYUV420SemiPlanar) {
-        LOGE("Color format %d is not supported", mVideoColorFormat);
+        ALOGE("Color format %d is not supported", mVideoColorFormat);
         return BAD_VALUE;
     }
     mFrameSize = mVideoHeight* mVideoWidth* 1.5;
@@ -80,7 +80,7 @@ status_t IntelVideoEditorH263Encoder::initCheck(const sp<MetaData>& meta) {
 
     encStatus = mVAEncoder->getParameters(&mEncParamsCommon);
     CHECK(encStatus == ENCODE_SUCCESS);
-    LOGV("got encoder params");
+    ALOGV("got encoder params");
 
     mEncParamsCommon.resolution.width = mVideoWidth;
     mEncParamsCommon.resolution.height= mVideoHeight;
@@ -109,19 +109,19 @@ status_t IntelVideoEditorH263Encoder::initCheck(const sp<MetaData>& meta) {
 
     encStatus = mVAEncoder->setParameters(&mEncParamsCommon);
     CHECK(encStatus == ENCODE_SUCCESS);
-    LOGV("new encoder params set");
+    ALOGV("new encoder params set");
 
     VideoParamsHRD hrdParam;
     encStatus = mVAEncoder->getParameters(&hrdParam);
     CHECK(encStatus == ENCODE_SUCCESS);
-    LOGV("got encoder hrd params ");
+    ALOGV("got encoder hrd params ");
 
     hrdParam.bufferSize = mVideoBitRate;
     hrdParam.initBufferFullness = hrdParam.bufferSize * INIT_BUF_FULLNESS_RATIO;
 
     encStatus = mVAEncoder->setParameters(&hrdParam);
     CHECK(encStatus == ENCODE_SUCCESS);
-    LOGV("new  encoder hard params set");
+    ALOGV("new  encoder hard params set");
 
     mOutBufGroup = new MediaBufferGroup();
     CHECK(mOutBufGroup != NULL);
@@ -130,11 +130,11 @@ status_t IntelVideoEditorH263Encoder::initCheck(const sp<MetaData>& meta) {
 }
 
 status_t IntelVideoEditorH263Encoder::start(MetaData *params) {
-    LOGV("start");
+    ALOGV("start");
     status_t ret = OK;
 
     if (mStarted) {
-        LOGW("Call start() when encoder already started");
+        ALOGW("Call start() when encoder already started");
         return OK;
     }
 
@@ -143,7 +143,7 @@ status_t IntelVideoEditorH263Encoder::start(MetaData *params) {
     mVAEncoder = createVideoEncoder("video/h263");
 
     if (mVAEncoder == NULL) {
-        LOGE("Fail to create video encoder");
+        ALOGE("Fail to create video encoder");
         return NO_MEMORY;
     }
     mInitCheck = initCheck(mMeta);
@@ -155,33 +155,33 @@ status_t IntelVideoEditorH263Encoder::start(MetaData *params) {
     uint32_t maxSize;
     mVAEncoder->getMaxOutSize(&maxSize);
 
-    LOGV("allocating output buffers of size %d",maxSize);
+    ALOGV("allocating output buffers of size %d",maxSize);
     for (int i = 0; i < OUTPUT_BUFFERS; i++ ) {
         mOutBufGroup->add_buffer(new MediaBuffer(maxSize));
     }
 
     if (OK != getSharedBuffers()) {
-        LOGE("Failed to get the shared buffers from encoder ");
+        ALOGE("Failed to get the shared buffers from encoder ");
         return UNKNOWN_ERROR;
     }
 
     Encode_Status err;
     err = mVAEncoder->start();
     if (err!= ENCODE_SUCCESS) {
-        LOGE("Failed to initialize the encoder: %d", err);
+        ALOGE("Failed to initialize the encoder: %d", err);
 
         /* We should exit the sharedbuffer mode, when failing to
         create the HW video encoder.
         */
 
         androidCreateThread(SBShutdownFunc,this);
-        LOGI("Successfull create thread to exit shared buffer mode!");
+        ALOGI("Successfull create thread to exit shared buffer mode!");
 
         mSource->stop();
 
         sp<BufferShareRegistry> r = BufferShareRegistry::getInstance();
         err = r->encoderRequestToDisableSharingMode();
-        LOGV("encoderRequestToDisableSharingMode returned %d\n", err);
+        ALOGV("encoderRequestToDisableSharingMode returned %d\n", err);
 
         /* libsharedbuffer wants the source to call this after the encoder calls
          * encoderRequestToDisableSharingMode. Instead of doing complicated
@@ -190,7 +190,7 @@ status_t IntelVideoEditorH263Encoder::start(MetaData *params) {
          */
 
         err = r->sourceRequestToDisableSharingMode();
-        LOGV("sourceRequestToDisableSharingMode returned %d\n", err);
+        ALOGV("sourceRequestToDisableSharingMode returned %d\n", err);
 
         releaseVideoEncoder(mVAEncoder);
         mVAEncoder = NULL;
@@ -199,28 +199,28 @@ status_t IntelVideoEditorH263Encoder::start(MetaData *params) {
     }
 
     if (OK != setSharedBuffers()) {
-        LOGE("Failed to setup the shared buffers");
+        ALOGE("Failed to setup the shared buffers");
         return UNKNOWN_ERROR;
     }
 
     mStarted = true;
-    LOGV("start- DONE");
+    ALOGV("start- DONE");
     return OK;
 }
 
 int IntelVideoEditorH263Encoder::SBShutdownFunc(void* arg)
 {
-    LOGV("IntelVideoEditorAVCEncoder::SBShutdownFunc begin()");
+    ALOGV("IntelVideoEditorAVCEncoder::SBShutdownFunc begin()");
     sp<BufferShareRegistry> r = BufferShareRegistry::getInstance();
     int error = r->sourceExitSharingMode();
-    LOGV("sourceExitSharingMode returns %d",error);
+    ALOGV("sourceExitSharingMode returns %d",error);
     return 0;
 }
 
 status_t IntelVideoEditorH263Encoder::stop() {
-    LOGV("stop");
+    ALOGV("stop");
     if (!mStarted) {
-        LOGW("Call stop() when encoder has not started");
+        ALOGW("Call stop() when encoder has not started");
         return OK;
     }
 
@@ -237,36 +237,36 @@ status_t IntelVideoEditorH263Encoder::stop() {
         can do its end of shared buffer shutdown */
 
     androidCreateThread(SBShutdownFunc,this);
-    LOGV("Successfull create thread!");
+    ALOGV("Successfull create thread!");
 
     /* do encoder's buffer sharing shutdown */
     sp<BufferShareRegistry> r = BufferShareRegistry::getInstance();
     int err = r->encoderExitSharingMode();
-    LOGV("encoderExitSharingMode returned %d\n", err);
+    ALOGV("encoderExitSharingMode returned %d\n", err);
 
     mSource->stop();
 
     err = r->encoderRequestToDisableSharingMode();
-    LOGV("encoderRequestToDisableSharingMode returned %d\n", err);
+    ALOGV("encoderRequestToDisableSharingMode returned %d\n", err);
 
     /* libsharedbuffer wants the source to call this after the encoder calls
      * encoderRequestToDisableSharingMode. Instead of doing complicated
      * synchronization, let's just call this ourselves on the source's
      * behalf. */
     err = r->sourceRequestToDisableSharingMode();
-    LOGV("sourceRequestToDisableSharingMode returned %d\n", err);
+    ALOGV("sourceRequestToDisableSharingMode returned %d\n", err);
 
     releaseVideoEncoder(mVAEncoder);
     mVAEncoder = NULL;
 
     mStarted = false;
-    LOGV("stop - DONE");
+    ALOGV("stop - DONE");
 
     return OK;
 }
 
 sp<MetaData> IntelVideoEditorH263Encoder::getFormat() {
-    LOGV("getFormat");
+    ALOGV("getFormat");
 
     sp<MetaData> format = new MetaData;
     format->setInt32(kKeyWidth, mVideoWidth);
@@ -289,7 +289,7 @@ status_t IntelVideoEditorH263Encoder::read(MediaBuffer **out, const ReadOptions 
     mReadOptions = options;
     *out = NULL;
 
-    LOGV("IntelVideoEditorAVCEncoder::read start");
+    ALOGV("IntelVideoEditorAVCEncoder::read start");
 
     do {
         err = mSource->read(&tmpIn, NULL);
@@ -303,7 +303,7 @@ status_t IntelVideoEditorH263Encoder::read(MediaBuffer **out, const ReadOptions 
         return err;
     }
     else if (err != OK) {
-        LOGE("Failed to read input video frame: %d", err);
+        ALOGE("Failed to read input video frame: %d", err);
         return err;
     }
 
@@ -315,11 +315,11 @@ status_t IntelVideoEditorH263Encoder::read(MediaBuffer **out, const ReadOptions 
     vaInBuf.size = tmpIn->size();
 
     tmpIn->meta_data()->findInt64(kKeyTime, (int64_t *)&(vaInBuf.timeStamp));
-    LOGV("Encoding: buffer %p, size = %d, ts= %llu",vaInBuf.data, vaInBuf.size, vaInBuf.timeStamp);
+    ALOGV("Encoding: buffer %p, size = %d, ts= %llu",vaInBuf.data, vaInBuf.size, vaInBuf.timeStamp);
 
     encRet = mVAEncoder->encode(&vaInBuf);
     if (encRet != ENCODE_SUCCESS) {
-        LOGE("Failed to encode input video frame: %d", encRet);
+        ALOGE("Failed to encode input video frame: %d", encRet);
         tmpIn->release();
         return UNKNOWN_ERROR;
     }
@@ -330,11 +330,11 @@ status_t IntelVideoEditorH263Encoder::read(MediaBuffer **out, const ReadOptions 
     }
     mLastInputBuffer = tmpIn;
 
-    LOGV("Encoding Done, getting output buffer 	");
+    ALOGV("Encoding Done, getting output buffer 	");
     MediaBuffer *outputBuffer;
 
     CHECK(mOutBufGroup->acquire_buffer(&outputBuffer) == OK);
-    LOGV("Waiting for outputbuffer");
+    ALOGV("Waiting for outputbuffer");
     VideoEncOutputBuffer vaOutBuf;
     vaOutBuf.bufferSize = outputBuffer->size();
     vaOutBuf.dataSize = 0;
@@ -344,7 +344,7 @@ status_t IntelVideoEditorH263Encoder::read(MediaBuffer **out, const ReadOptions 
     vaOutBuf.format = OUTPUT_EVERYTHING;
     encRet = mVAEncoder->getOutput(&vaOutBuf);
     if (encRet != ENCODE_SUCCESS) {
-        LOGE("Failed to retrieve encoded video frame: %d", encRet);
+        ALOGE("Failed to retrieve encoded video frame: %d", encRet);
         outputBuffer->release();
         return UNKNOWN_ERROR;
     }
@@ -354,28 +354,28 @@ status_t IntelVideoEditorH263Encoder::read(MediaBuffer **out, const ReadOptions 
 
     timestamp = vaInBuf.timeStamp;
 
-    LOGV("Got it! data= %p, ts=%llu size =%d", vaOutBuf.data, timestamp, vaOutBuf.dataSize);
+    ALOGV("Got it! data= %p, ts=%llu size =%d", vaOutBuf.data, timestamp, vaOutBuf.dataSize);
 
     outputBuffer->set_range(0, vaOutBuf.dataSize);
     outputBuffer->meta_data()->setInt64(kKeyTime,timestamp);
     *out = outputBuffer;
-    LOGV("IntelVideoEditorAVCEncoder::read end");
+    ALOGV("IntelVideoEditorAVCEncoder::read end");
     return OK;
 }
 
 status_t IntelVideoEditorH263Encoder::getSharedBuffers() {
 
-    LOGV("getSharedBuffers begin");
+    ALOGV("getSharedBuffers begin");
     Encode_Status encRet;
     status_t ret = OK;
 
     sp<BufferShareRegistry> r = BufferShareRegistry::getInstance();
 
     if (r->encoderRequestToEnableSharingMode() == BS_SUCCESS) {
-        LOGI("Shared buffer mode available\n");
+        ALOGI("Shared buffer mode available\n");
     }
     else {
-        LOGE("Request to enable sharing failed \n");
+        ALOGE("Request to enable sharing failed \n");
         return UNKNOWN_ERROR;
     }
 
@@ -393,10 +393,10 @@ status_t IntelVideoEditorH263Encoder::getSharedBuffers() {
             paramsUsrptrBuffer.expectedSize = paramsUsrptrBuffer.width * paramsUsrptrBuffer.height * 1.5;
         }
 #endif
-        LOGV("Share buffer request=");
+        ALOGV("Share buffer request=");
         encRet = mVAEncoder->getParameters(&paramsUsrptrBuffer);
         if (encRet != ENCODE_SUCCESS  ) {
-            LOGE("could not allocate input surface from the encoder %d", encRet);
+            ALOGE("could not allocate input surface from the encoder %d", encRet);
             ret = NO_MEMORY;
             break;
         }
@@ -406,22 +406,22 @@ status_t IntelVideoEditorH263Encoder::getSharedBuffers() {
         mSharedBufs[i].pointer = paramsUsrptrBuffer.usrPtr;
         mSharedBufs[i].stride = paramsUsrptrBuffer.stride;
     }
-    LOGV("getSharedBuffers end");
+    ALOGV("getSharedBuffers end");
     return ret;
 }
 
 status_t IntelVideoEditorH263Encoder::setSharedBuffers() {
 
-    LOGV("setSharedBuffers");
+    ALOGV("setSharedBuffers");
     sp<BufferShareRegistry> r = BufferShareRegistry::getInstance();
 
     if (r->encoderSetSharedBuffer(mSharedBufs,INPUT_SHARED_BUFFERS) != BS_SUCCESS) {
-        LOGE("encoderSetSharedBuffer failed \n");
+        ALOGE("encoderSetSharedBuffer failed \n");
         return UNKNOWN_ERROR;
     }
 
     if (r->encoderEnterSharingMode() != BS_SUCCESS) {
-        LOGE("sourceEnterSharingMode failed\n");
+        ALOGE("sourceEnterSharingMode failed\n");
         return UNKNOWN_ERROR;
     }
     return OK;

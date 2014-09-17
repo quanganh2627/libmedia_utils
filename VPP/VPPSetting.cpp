@@ -45,7 +45,7 @@ bool VPPSetting::detectUserId(int* id)
     sp<IServiceManager> sm = defaultServiceManager();
     binder = sm->getService(String16("activity"));
     if(binder == 0){
-        LOGD("%s: get service failed", __func__);
+        ALOGD("%s: get service failed", __func__);
         return false;
     }
 
@@ -76,7 +76,7 @@ bool VPPSetting::detectUserId(int* id)
             return true;
         } else {
             // An exception was thrown back; fall through to return failure
-            LOGD("detect user id caught exception %d\n", exceptionCode);
+            ALOGD("detect user id caught exception %d\n", exceptionCode);
             return false;
         }
     }
@@ -90,13 +90,13 @@ bool VPPSetting::isVppOn(unsigned int *status)
     int userId = 0;
 #ifdef TARGET_VPP_USE_GEN
     if (!detectUserId(&userId) || userId < 0) {
-        LOGD("%s: detect user Id error userId = %d", __func__, userId);
+        ALOGD("%s: detect user Id error userId = %d", __func__, userId);
         return false;
     }
 #endif
 
     snprintf(path, 80, "/data/user/%d/com.intel.vpp/shared_prefs/vpp_settings.xml", userId);
-    LOGI("%s: %s",__func__, path);
+    ALOGI("%s: %s",__func__, path);
     FILE *handle = fopen(path, "r");
     if(handle == NULL)
         return false;
@@ -105,7 +105,7 @@ bool VPPSetting::isVppOn(unsigned int *status)
     char buf[MAXLEN] = {0};
     memset(buf, 0 ,MAXLEN);
     if(fread(buf, 1, MAXLEN, handle) <= 0) {
-        LOGE("%s: failed to read vpp config file %d", __func__, userId);
+        ALOGE("%s: failed to read vpp config file %d", __func__, userId);
         fclose(handle);
         return false;
     }

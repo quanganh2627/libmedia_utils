@@ -27,7 +27,7 @@
 #define CHECK_VASTATUS(str) \
     do { \
         if (vaStatus != VA_STATUS_SUCCESS) { \
-                LOGE("%s failed\n", str); \
+                ALOGE("%s failed\n", str); \
                 return STATUS_ERROR;}   \
         }while(0);
 
@@ -72,7 +72,7 @@ status_t VPPWorker::init(uint32_t width, uint32_t height) {
 
     if (!mVAStarted) {
         if (STATUS_OK != setupVA(width, height)) {
-            LOGE("%s: failed to setupVA", __func__);
+            ALOGE("%s: failed to setupVA", __func__);
             return ret;
         }
         mVAStarted = true;
@@ -87,14 +87,14 @@ bool VPPWorker::isSupport() const {
     int num_entrypoints = vaMaxNumEntrypoints(mVADisplay);
     VAEntrypoint * entrypoints = (VAEntrypoint *)malloc(num_entrypoints * sizeof(VAEntrypoint));
     if (entrypoints == NULL) {
-        LOGE("failed to malloc entrypoints array\n");
+        ALOGE("failed to malloc entrypoints array\n");
         return false;
     }
 
     // check if it contains VPP entry point VAEntrypointVideoProc
     VAStatus vaStatus = vaQueryConfigEntrypoints(mVADisplay, VAProfileNone, entrypoints, &num_entrypoints);
     if (vaStatus != VA_STATUS_SUCCESS) {
-        LOGE("vaQueryConfigEntrypoints failed");
+        ALOGE("vaQueryConfigEntrypoints failed");
         return false;
     }
     for (int i = 0; !support && i < num_entrypoints; i++) {
@@ -111,7 +111,7 @@ status_t VPPWorker::setBufferCount(int32_t size)
     Mutex::Autolock autoLock(mBufferLock);
 #if 0
     if (!mBuffers.isEmpty()) {
-        LOGE("%s: the buffer queue should be empty before we set its size", __func__);
+        ALOGE("%s: the buffer queue should be empty before we set its size", __func__);
         return STATUS_ERROR;
     }
 #endif
@@ -133,7 +133,7 @@ status_t VPPWorker::freeBuffer(buffer_handle_t handle)
         }
     }
 
-    LOGW("%s: can't find buffer %u", __func__, handle);
+    ALOGW("%s: can't find buffer %u", __func__, handle);
     return STATUS_ERROR;
 }
 
@@ -161,7 +161,7 @@ status_t VPPWorker::allocSurface(VPPBuffer *pBuffer)
         }
         vaStatus = vaQuerySurfaceAttributes(mVADisplay, mVAConfig, outAttribs, &num);
         if (vaStatus != VA_STATUS_SUCCESS) {
-            LOGE("vaQuerySurfaceAttributs fail!");
+            ALOGE("vaQuerySurfaceAttributs fail!");
             delete []outAttribs;
             return STATUS_ERROR;
         }
@@ -197,7 +197,7 @@ status_t VPPWorker::allocSurface(VPPBuffer *pBuffer)
 
     if (0 != err)
     {
-        LOGE("%s: can't get graphic buffer info", __func__);
+        ALOGE("%s: can't get graphic buffer info", __func__);
         return STATUS_ERROR;
     }
     width = info.width;
@@ -205,7 +205,7 @@ status_t VPPWorker::allocSurface(VPPBuffer *pBuffer)
     stride = info.pitch;
 #else
     if (pBuffer->colorFormat == OMX_INTEL_COLOR_FormatYUV420PackedSemiPlanar_Tiled) {
-        LOGV("set TILING flag");
+        ALOGV("set TILING flag");
         mVAExtBuf.flags |= VA_SURFACE_EXTBUF_DESC_ENABLE_TILING;
     }
     width = pBuffer->width;
@@ -244,7 +244,7 @@ status_t VPPWorker::allocSurface(VPPBuffer *pBuffer)
     attribs[2].value.type = VAGenericValueTypeInteger;
     attribs[2].value.value.i = VA_SURFACE_ATTRIB_USAGE_HINT_VPP_READ;
 
-    LOGV("%s: Ext buffer: width %d, height %d, data_size %d, pitch %d", __func__,
+    ALOGV("%s: Ext buffer: width %d, height %d, data_size %d, pitch %d", __func__,
             mVAExtBuf.width, mVAExtBuf.height, mVAExtBuf.data_size, mVAExtBuf.pitches[0]);
     VAStatus vaStatus = vaCreateSurfaces(mVADisplay, VA_RT_FORMAT_YUV420, mVAExtBuf.width,
                                  mVAExtBuf.height, &pBuffer->surface, 1, attribs, 3);
@@ -319,9 +319,9 @@ uint32_t VPPWorker::getOutputBufCount(uint32_t index) {
 
 
 status_t VPPWorker::setupVA(uint32_t width, uint32_t height) {
-    LOGV("setupVA");
+    ALOGV("setupVA");
     if (mDisplay != NULL) {
-        LOGE("VA is particially started");
+        ALOGE("VA is particially started");
         return STATUS_ERROR;
     }
     mDisplay = new Display;
@@ -329,7 +329,7 @@ status_t VPPWorker::setupVA(uint32_t width, uint32_t height) {
 
     mVADisplay = vaGetDisplay(mDisplay);
     if (mVADisplay == NULL) {
-        LOGE("vaGetDisplay failed");
+        ALOGE("vaGetDisplay failed");
         return STATUS_ERROR;
     }
 
@@ -339,7 +339,7 @@ status_t VPPWorker::setupVA(uint32_t width, uint32_t height) {
 
     // Check if VPP entry point is supported
     if (!isSupport()) {
-        LOGE("VPP is not supported on current platform");
+        ALOGE("VPP is not supported on current platform");
         return STATUS_NOT_SUPPORT;
     }
 
@@ -350,24 +350,24 @@ status_t VPPWorker::setupVA(uint32_t width, uint32_t height) {
     CHECK_VASTATUS("vaGetConfigAttributes");
 
     if ((attrib.value & VA_RT_FORMAT_YUV420) == 0) {
-        LOGE("attribute is %x vs wanted %x", attrib.value, VA_RT_FORMAT_YUV420);
+        ALOGE("attribute is %x vs wanted %x", attrib.value, VA_RT_FORMAT_YUV420);
         return STATUS_NOT_SUPPORT;
     }
 
-    LOGV("ready to create config");
+    ALOGV("ready to create config");
     // Create the configuration
     vaStatus = vaCreateConfig(mVADisplay, VAProfileNone, VAEntrypointVideoProc, &attrib, 1, &mVAConfig);
     CHECK_VASTATUS("vaCreateConfig");
 
 
     // Create Context
-    LOGV("ready to create context");
+    ALOGV("ready to create context");
     mWidth = width;
     mHeight = height;
     vaStatus = vaCreateContext(mVADisplay, mVAConfig, mWidth, mHeight, 0, NULL, 0, &mVAContext);
     CHECK_VASTATUS("vaCreateContext");
 
-    LOGV("VA has been successfully started");
+    ALOGV("VA has been successfully started");
     return STATUS_OK;
 }
 
@@ -416,7 +416,7 @@ status_t VPPWorker::configFilters(uint32_t filters,
 
     if (mFilters != filters) {
         mFilters = filters;
-        LOGI("%s: mFilters 0x%x, fps %d, frc rate %d", __func__, mFilters, mFilterParam.frameRate, mFilterParam.frcRate);
+        ALOGI("%s: mFilters 0x%x, fps %d, frc rate %d", __func__, mFilters, mFilterParam.frameRate, mFilterParam.frcRate);
         ret = setupFilters();
     }
 
@@ -436,7 +436,7 @@ bool VPPWorker::isFpsSupport(int32_t fps, int32_t *fpsSet, int32_t fpsSetCnt) {
 }
 
 status_t VPPWorker::setupFilters() {
-    LOGV("setupFilters");
+    ALOGV("setupFilters");
     VAProcFilterParameterBuffer deblock, denoise, sharpen;
     VAProcFilterParameterBufferDeinterlacing deint;
     VAProcFilterParameterBufferColorBalance color[COLOR_NUM];
@@ -453,7 +453,7 @@ status_t VPPWorker::setupFilters() {
     if (mNumFilterBuffers != 0) {
         for (uint32_t i = 0; i < mNumFilterBuffers; i++) {
             if (VA_STATUS_SUCCESS != vaDestroyBuffer(mVADisplay, mFilterBuffers[i]))
-                LOGW("%s: failed to destroy va buffer %d", __func__, mFilterBuffers[i]);
+                ALOGW("%s: failed to destroy va buffer %d", __func__, mFilterBuffers[i]);
                 //return STATUS_ERROR;
         }
         memset(&mFilterBuffers, VA_INVALID_ID, VAProcFilterCount * sizeof(VABufferID));
@@ -665,7 +665,7 @@ status_t VPPWorker::setupFilters() {
                 }
                 break;
             default:
-                LOGE("Not supported filter\n");
+                ALOGE("Not supported filter\n");
                 break;
         }
     }
@@ -674,7 +674,7 @@ status_t VPPWorker::setupFilters() {
 }
 
 status_t VPPWorker::setupPipelineCaps() {
-    LOGV("setupPipelineCaps");
+    ALOGV("setupPipelineCaps");
     //TODO color standards
     VAProcPipelineCaps pipelineCaps;
     VAStatus vaStatus;
@@ -707,7 +707,7 @@ status_t VPPWorker::setupPipelineCaps() {
 status_t VPPWorker::process(buffer_handle_t inputGraphicBuffer,
                              Vector<buffer_handle_t> outputGraphicBuffer,
                              uint32_t outputCount, bool isEOS, uint32_t flags) {
-    LOGV("process: outputCount=%d, mInputIndex=%d", outputCount, mInputIndex);
+    ALOGV("process: outputCount=%d, mInputIndex=%d", outputCount, mInputIndex);
     VASurfaceID input;
     VASurfaceID output[MAX_FRC_OUTPUT];
     VABufferID pipelineId;
@@ -717,25 +717,25 @@ status_t VPPWorker::process(buffer_handle_t inputGraphicBuffer,
     uint32_t i;
 
     if (mFilters == 0) {
-        LOGE("%s: filters have not been initialized.", __func__);
+        ALOGE("%s: filters have not been initialized.", __func__);
         return STATUS_ERROR;
     }
 
     if (outputCount < 1) {
-       LOGE("invalid outputCount");
+       ALOGE("invalid outputCount");
        return STATUS_ERROR;
     }
     // map GraphicBuffer to VASurface
     input = mapBuffer(inputGraphicBuffer);
 
     if (input == VA_INVALID_SURFACE && !isEOS) {
-        LOGE("invalid input buffer");
+        ALOGE("invalid input buffer");
         return STATUS_ERROR;
     }
     for (i = 0; i < outputCount; i++) {
         output[i] = mapBuffer(outputGraphicBuffer[i]);
         if (output[i] == VA_INVALID_SURFACE) {
-            LOGE("invalid output buffer");
+            ALOGE("invalid output buffer");
             return STATUS_ERROR;
         }
     }
@@ -763,7 +763,7 @@ status_t VPPWorker::process(buffer_handle_t inputGraphicBuffer,
             &pipelineId);
     CHECK_VASTATUS("vaCreateBuffer for VAProcPipelineParameterBufferType");
 
-    LOGV("before vaBeginPicture");
+    ALOGV("before vaBeginPicture");
     vaStatus = vaBeginPicture(mVADisplay, mVAContext, output[0]);
     CHECK_VASTATUS("vaBeginPicture");
 
@@ -840,12 +840,12 @@ status_t VPPWorker::process(buffer_handle_t inputGraphicBuffer,
     vaStatus = vaUnmapBuffer(mVADisplay, pipelineId);
     CHECK_VASTATUS("vaUnmapBuffer for pipeline parameter buffer");
 
-    LOGV("before vaRenderPicture");
+    ALOGV("before vaRenderPicture");
     // Send parameter to driver
     vaStatus = vaRenderPicture(mVADisplay, mVAContext, &pipelineId, 1);
     CHECK_VASTATUS("vaRenderPicture");
 
-    LOGV("before vaEndPicture");
+    ALOGV("before vaEndPicture");
     vaStatus = vaEndPicture(mVADisplay, mVAContext);
     CHECK_VASTATUS("vaEndPicture");
     
@@ -853,7 +853,7 @@ status_t VPPWorker::process(buffer_handle_t inputGraphicBuffer,
         vaStatus = vaSyncSurface(mVADisplay, mPrevOutput);
         CHECK_VASTATUS("vaSyncSurface");
         if (VA_STATUS_SUCCESS != vaDestroyBuffer(mVADisplay, pipelineId)) {
-            LOGE("%s: failed to destroy va buffer %d", __func__, pipelineId);
+            ALOGE("%s: failed to destroy va buffer %d", __func__, pipelineId);
             return STATUS_ERROR;
         }
         return STATUS_OK;
@@ -865,12 +865,12 @@ status_t VPPWorker::process(buffer_handle_t inputGraphicBuffer,
     Mutex::Autolock autoLock(mPipelineBufferLock);
     mPipelineBuffers.push_back(pipelineId);
 
-    LOGV("process, exit");
+    ALOGV("process, exit");
     return STATUS_OK;
 }
 
 status_t VPPWorker::fill(Vector<buffer_handle_t> outputGraphicBuffer, uint32_t outputCount) {
-    LOGV("fill, outputCount=%d, mOutputIndex=%d",outputCount, mOutputIndex);
+    ALOGV("fill, outputCount=%d, mOutputIndex=%d",outputCount, mOutputIndex);
     // get output surface
     VASurfaceID output[MAX_FRC_OUTPUT];
     VAStatus vaStatus;
@@ -883,7 +883,7 @@ status_t VPPWorker::fill(Vector<buffer_handle_t> outputGraphicBuffer, uint32_t o
 
         output[i] = mapBuffer(outputGraphicBuffer[i]);
         if (output[i] == VA_INVALID_SURFACE) {
-            LOGE("invalid output buffer");
+            ALOGE("invalid output buffer");
             return STATUS_ERROR;
         }
         //FIXME: only enable sync mode
@@ -891,21 +891,21 @@ status_t VPPWorker::fill(Vector<buffer_handle_t> outputGraphicBuffer, uint32_t o
         vaStatus = vaQuerySurfaceStatus(mVADisplay, output[i],&surStatus);
         CHECK_VASTATUS("vaQuerySurfaceStatus");
         if (surStatus == VASurfaceRendering) {
-            LOGV("Rendering %d", i);
+            ALOGV("Rendering %d", i);
             /* The behavior of driver is: all output of one process task are return in one interruption.
                The whole outputs of one FRC task are all ready or none of them is ready.
                If the behavior changed, it hurts the performance.
             */
             if (0 != i) {
-                LOGW("*****Driver behavior changed. The performance is hurt.");
-                LOGW("Please check driver behavior: all output of one task return in one interruption.");
+                ALOGW("*****Driver behavior changed. The performance is hurt.");
+                ALOGW("Please check driver behavior: all output of one task return in one interruption.");
             }
             vaStatus = STATUS_DATA_RENDERING;
             break;
         }
 
         if ((surStatus != VASurfaceRendering) && (surStatus != VASurfaceReady)) {
-            LOGE("surface statu Error %d", surStatus);
+            ALOGE("surface statu Error %d", surStatus);
             vaStatus = STATUS_ERROR;
         }
 #endif
@@ -921,7 +921,7 @@ status_t VPPWorker::fill(Vector<buffer_handle_t> outputGraphicBuffer, uint32_t o
         if (vaStatus == STATUS_OK) {
             VABufferID pipelineBuffer = mPipelineBuffers.itemAt(0);
             if (VA_STATUS_SUCCESS != vaDestroyBuffer(mVADisplay, pipelineBuffer)) {
-                LOGE("%s: failed to destroy va buffer %d", __func__, pipelineBuffer);
+                ALOGE("%s: failed to destroy va buffer %d", __func__, pipelineBuffer);
                 return STATUS_ERROR;
             }
             mPipelineBuffers.removeAt(0);
@@ -929,7 +929,7 @@ status_t VPPWorker::fill(Vector<buffer_handle_t> outputGraphicBuffer, uint32_t o
         }
     }
 
-    LOGV("fill, exit");
+    ALOGV("fill, exit");
     return vaStatus;
 }
 
@@ -937,7 +937,7 @@ VPPWorker::~VPPWorker() {
     if (mNumFilterBuffers != 0) {
         for (uint32_t i = 0; i < mNumFilterBuffers; i++) {
             if(VA_STATUS_SUCCESS != vaDestroyBuffer(mVADisplay, mFilterBuffers[i]))
-                LOGW("%s: failed to destroy va buffer id %d", __func__, mFilterBuffers[i]);
+                ALOGW("%s: failed to destroy va buffer id %d", __func__, mFilterBuffers[i]);
         }
         mNumFilterBuffers = 0;
         memset(&mFilterBuffers, VA_INVALID_ID, VAProcFilterCount * sizeof(VABufferID));
@@ -949,7 +949,7 @@ VPPWorker::~VPPWorker() {
         while (!mPipelineBuffers.isEmpty()) {
             VABufferID pipelineBuffer = mPipelineBuffers.itemAt(0);
             if (VA_STATUS_SUCCESS != vaDestroyBuffer(mVADisplay, pipelineBuffer))
-                LOGW("%s: failed to destroy va buffer id %d", __func__, pipelineBuffer);
+                ALOGW("%s: failed to destroy va buffer id %d", __func__, pipelineBuffer);
             mPipelineBuffers.removeAt(0);
         }
     }
@@ -1001,8 +1001,8 @@ status_t VPPWorker::dumpYUVFrameData(VASurfaceID surfaceID) {
 
 status_t VPPWorker::reset() {
     status_t ret;
-    LOGI("reset");
-    LOGI("======mVPPInputCount=%d, mVPPRenderCount=%d======",
+    ALOGI("reset");
+    ALOGI("======mVPPInputCount=%d, mVPPRenderCount=%d======",
             mInputIndex, mOutputCount);
     mInputIndex = 0;
     mOutputIndex = 0;
@@ -1013,7 +1013,7 @@ status_t VPPWorker::reset() {
         while (!mPipelineBuffers.isEmpty()) {
             VABufferID pipelineBuffer = mPipelineBuffers.itemAt(0);
             if (VA_STATUS_SUCCESS != vaDestroyBuffer(mVADisplay, pipelineBuffer)) {
-                LOGE("%s: failed to destroy va buffer %d", __func__, pipelineBuffer);
+                ALOGE("%s: failed to destroy va buffer %d", __func__, pipelineBuffer);
                 return STATUS_ERROR;
             }
             mPipelineBuffers.removeAt(0);
@@ -1023,7 +1023,7 @@ status_t VPPWorker::reset() {
     if (mNumFilterBuffers != 0) {
         for (uint32_t i = 0; i < mNumFilterBuffers; i++) {
             if (VA_STATUS_SUCCESS != vaDestroyBuffer(mVADisplay, mFilterBuffers[i]))
-                LOGW("%s: failed to destroy va buffer %d", __func__, mFilterBuffers[i]);
+                ALOGW("%s: failed to destroy va buffer %d", __func__, mFilterBuffers[i]);
                 //return STATUS_ERROR;
         }
         mNumFilterBuffers = 0;
@@ -1057,7 +1057,7 @@ uint32_t VPPWorker::getVppOutputFps() {
         outputFps = mFilterParam.frameRate * mFilterParam.frcRate;
     }
 
-    LOGV("vpp is on in settings %d %d %d", outputFps,  mFilterParam.frameRate, mFilterParam.frcRate);
+    ALOGV("vpp is on in settings %d %d %d", outputFps,  mFilterParam.frameRate, mFilterParam.frcRate);
     return outputFps;
 }
 

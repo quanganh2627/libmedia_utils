@@ -88,12 +88,12 @@ ISVComponent::ISVComponent(
     g_isv_components.push_back(static_cast<ISVComponent*>(this));
 
     mVPPOn = ISVProfile::isFRCOn() || ISVProfile::isVPPOn();
-    LOGI("%s: mVPPOn %d", __func__, mVPPOn);
+    ALOGI("%s: mVPPOn %d", __func__, mVPPOn);
 }
 
 ISVComponent::~ISVComponent()
 {
-    LOGI("%s", __func__);
+    ALOGI("%s", __func__);
     if (mpISVCallBacks) {
         free(mpISVCallBacks);
         mpISVCallBacks = NULL;
@@ -122,7 +122,7 @@ status_t ISVComponent::init(int32_t width, int32_t height)
     if (mVPP == NULL) {
         mVPP = new VPPWorker();
         if (STATUS_OK != mVPP->init(width, height)) {
-            LOGE("%s: mVPP init failed, set mVPPEnabled -->false", __func__);
+            ALOGE("%s: mVPP init failed, set mVPPEnabled -->false", __func__);
             mVPPEnabled = false;
             return STATUS_ERROR;
         }
@@ -165,7 +165,7 @@ OMX_CALLBACKTYPE* ISVComponent::getCallBacks(OMX_CALLBACKTYPE* pCallBacks)
 
     mpISVCallBacks = (OMX_CALLBACKTYPE *)calloc(1, sizeof(OMX_CALLBACKTYPE));
     if (!mpISVCallBacks) {
-        LOGE("%s: failed to alloc isv callbacks", __func__);
+        ALOGE("%s: failed to alloc isv callbacks", __func__);
         return NULL;
     }
     mpISVCallBacks->EventHandler = EventHandler;
@@ -190,13 +190,13 @@ OMX_ERRORTYPE ISVComponent::ISV_SendCommand(
     OMX_IN  OMX_U32 nParam1,
     OMX_IN  OMX_PTR pCmdData)
 {
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s: Cmd index 0x%08x, nParam1 %d", __func__, Cmd, nParam1);
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: Cmd index 0x%08x, nParam1 %d", __func__, Cmd, nParam1);
 
     if (mVPPEnabled && mVPPOn) {
         if ((Cmd == OMX_CommandFlush && (nParam1 == kPortIndexOutput || nParam1 == OMX_ALL))
                 || (Cmd == OMX_CommandStateSet && nParam1 == OMX_StateIdle)
                 || (Cmd == OMX_CommandPortDisable && nParam1 == 1)) {
-            LOGD_IF(ISV_COMPONENT_DEBUG, "%s: receive flush command, notify vpp thread to flush(Seek begin)", __func__);
+            ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: receive flush command, notify vpp thread to flush(Seek begin)", __func__);
             mVPPFlushing = true;
             mProcThread->notifyFlush();
         }
@@ -219,7 +219,7 @@ OMX_ERRORTYPE ISVComponent::ISV_GetParameter(
     OMX_IN  OMX_INDEXTYPE nParamIndex,
     OMX_INOUT OMX_PTR pComponentParameterStructure)
 {
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s: nIndex 0x%08x", __func__, nParamIndex);
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: nIndex 0x%08x", __func__, nParamIndex);
 
     OMX_ERRORTYPE err = OMX_GetParameter(mComponent, nParamIndex, pComponentParameterStructure);
 
@@ -229,7 +229,7 @@ OMX_ERRORTYPE ISVComponent::ISV_GetParameter(
 
         if (nParamIndex == OMX_IndexParamPortDefinition
                 && def->nPortIndex == kPortIndexOutput) {
-            LOGD_IF(ISV_COMPONENT_DEBUG, "%s: orignal bufferCountActual %d, bufferCountMin %d",  __func__, def->nBufferCountActual, def->nBufferCountMin);
+            ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: orignal bufferCountActual %d, bufferCountMin %d",  __func__, def->nBufferCountActual, def->nBufferCountMin);
             def->nBufferCountActual += mNumISVBuffers;
             def->nBufferCountMin += mNumISVBuffers;
         }
@@ -252,14 +252,14 @@ OMX_ERRORTYPE ISVComponent::ISV_SetParameter(
     OMX_IN  OMX_INDEXTYPE nIndex,
     OMX_IN  OMX_PTR pComponentParameterStructure)
 {
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s: nIndex 0x%08x", __func__, nIndex);
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: nIndex 0x%08x", __func__, nIndex);
 
     if (nIndex == static_cast<OMX_INDEXTYPE>(OMX_IndexExtSetISVMode)) {
         ISV_MODE* def = static_cast<ISV_MODE*>(pComponentParameterStructure);
 
         if (*def == ISV_AUTO) {
             mVPPEnabled = true;
-            LOGD_IF(ISV_COMPONENT_DEBUG, "%s: mVPPEnabled -->true", __func__);
+            ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: mVPPEnabled -->true", __func__);
         } else if (*def == ISV_DISABLE)
             mVPPEnabled = false;
         return OMX_ErrorNone;
@@ -285,13 +285,13 @@ OMX_ERRORTYPE ISVComponent::ISV_SetParameter(
                         mHeight = video_def->nFrameHeight;
                     }
                 }
-                LOGD_IF(ISV_COMPONENT_DEBUG, "%s: def->nBufferCountActual %d, mNumDecoderBuffersBak %d", __func__,
+                ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: def->nBufferCountActual %d, mNumDecoderBuffersBak %d", __func__,
                         def->nBufferCountActual, mNumDecoderBuffersBak);
                 if (mVPP && STATUS_OK != mVPP->setBufferCount(def->nBufferCountActual)) {
-                    LOGE("%s: failed to set ISV buffer count, set VPPEnabled -->false", __func__);
+                    ALOGE("%s: failed to set ISV buffer count, set VPPEnabled -->false", __func__);
                     mVPPEnabled = false;
                 }
-                LOGD_IF(ISV_COMPONENT_DEBUG, "%s: video frame width %d, height %d",  __func__, 
+                ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: video frame width %d, height %d",  __func__, 
                         video_def->nFrameWidth, video_def->nFrameHeight);
             }
 #if 0
@@ -302,7 +302,7 @@ OMX_ERRORTYPE ISVComponent::ISV_SetParameter(
                 if (mISVProfile != NULL && mFilterParam.frameRate != 0) {
                     mFilterParam.frcRate = mISVProfile->getFRCRate(mFilterParam.frameRate);
                 }
-                LOGD_IF(ISV_COMPONENT_DEBUG, "%s: frame rate is set to %d",  __func__, mFilterParam.frameRate);
+                ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: frame rate is set to %d",  __func__, mFilterParam.frameRate);
             }
 #endif
         }
@@ -314,7 +314,7 @@ OMX_ERRORTYPE ISVComponent::ISV_SetParameter(
 
             if (mVPP) {
                 if (STATUS_OK != mVPP->useBuffer(def->nativeBuffer)) {
-                    LOGE("%s: failed to register graphic buffers to ISV, set mVPPEnabled -->false", __func__);
+                    ALOGE("%s: failed to register graphic buffers to ISV, set mVPPEnabled -->false", __func__);
                     mVPPEnabled = false;
                 }
             }
@@ -337,7 +337,7 @@ OMX_ERRORTYPE ISVComponent::ISV_GetConfig(
     OMX_IN  OMX_INDEXTYPE nIndex,
     OMX_INOUT OMX_PTR pComponentConfigStructure)
 {
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s: nIndex 0x%08x", __func__, nIndex);
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: nIndex 0x%08x", __func__, nIndex);
 
     return OMX_GetConfig(mComponent, nIndex, pComponentConfigStructure);
 }
@@ -356,7 +356,7 @@ OMX_ERRORTYPE ISVComponent::ISV_SetConfig(
     OMX_IN  OMX_INDEXTYPE nIndex,
     OMX_IN  OMX_PTR pComponentConfigStructure)
 {
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s: nIndex 0x%08x", __func__, nIndex);
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: nIndex 0x%08x", __func__, nIndex);
 
     return OMX_SetConfig(mComponent, nIndex, pComponentConfigStructure);
 }
@@ -375,7 +375,7 @@ OMX_ERRORTYPE ISVComponent::ISV_GetExtensionIndex(
     OMX_IN  OMX_STRING cParameterName,
     OMX_OUT OMX_INDEXTYPE* pIndexType)
 {
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s: cParameterName %s", __func__, cParameterName);
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: cParameterName %s", __func__, cParameterName);
     if(!strncmp(cParameterName, "OMX.intel.index.SetISVMode", strlen(cParameterName))) {
         *pIndexType = static_cast<OMX_INDEXTYPE>(OMX_IndexExtSetISVMode);
         return OMX_ErrorNone;
@@ -392,7 +392,7 @@ OMX_ERRORTYPE ISVComponent::ISV_GetExtensionIndex(
         mUseAndroidNativeBuffer = true;
         mUseAndroidNativeBufferIndex = static_cast<uint32_t>(*pIndexType);
     }
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s: cParameterName %s, nIndex 0x%08x", __func__,
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: cParameterName %s, nIndex 0x%08x", __func__,
             cParameterName, *pIndexType);
     return err;
 }
@@ -409,7 +409,7 @@ OMX_ERRORTYPE ISVComponent::GetState(
 OMX_ERRORTYPE ISVComponent::ISV_GetState(
     OMX_OUT OMX_STATETYPE* pState)
 {
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s", __func__);
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s", __func__);
 
     return OMX_GetState(mComponent, pState);
 }
@@ -435,7 +435,7 @@ OMX_ERRORTYPE ISVComponent::ISV_UseBuffer(
     OMX_IN OMX_U32 nSizeBytes,
     OMX_IN OMX_U8 *pBuffer)
 {
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s", __func__);
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s", __func__);
 
     OMX_ERRORTYPE err = OMX_UseBuffer(mComponent, ppBufferHdr, nPortIndex,
             pAppPrivate, nSizeBytes, pBuffer);
@@ -446,10 +446,10 @@ OMX_ERRORTYPE ISVComponent::ISV_UseBuffer(
             && mUseAndroidNativeBuffer2) {
         if (mVPP) {
             if (STATUS_OK != mVPP->useBuffer(reinterpret_cast<buffer_handle_t>(pBuffer))) {
-                LOGE("%s: failed to register graphic buffers to ISV, set mVPPEnabled -->false", __func__);
+                ALOGE("%s: failed to register graphic buffers to ISV, set mVPPEnabled -->false", __func__);
                 mVPPEnabled = false;
             } else
-                LOGD_IF(ISV_COMPONENT_DEBUG, "%s: mVPP useBuffer success. buffer handle %u", __func__, pBuffer);
+                ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: mVPP useBuffer success. buffer handle %u", __func__, pBuffer);
         }
     }
 #endif
@@ -475,7 +475,7 @@ OMX_ERRORTYPE ISVComponent::ISV_AllocateBuffer(
     OMX_IN OMX_PTR pAppPrivate,
     OMX_IN OMX_U32 nSizeBytes)
 {
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s", __func__);
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s", __func__);
 
     return OMX_AllocateBuffer(mComponent, ppBuffer, nPortIndex,
                                       pAppPrivate, nSizeBytes);
@@ -495,13 +495,13 @@ OMX_ERRORTYPE ISVComponent::ISV_FreeBuffer(
     OMX_IN  OMX_U32 nPortIndex,
     OMX_IN  OMX_BUFFERHEADERTYPE *pBuffer)
 {
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s: pBuffer %u", __func__, pBuffer);
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: pBuffer %u", __func__, pBuffer);
 
     OMX_ERRORTYPE err = OMX_FreeBuffer(mComponent, nPortIndex, pBuffer);
     if(err == OMX_ErrorNone && mVPPEnabled && mVPPOn) {
         if (mVPP) {
             if (STATUS_OK != mVPP->freeBuffer(reinterpret_cast<buffer_handle_t>(pBuffer->pBuffer)))
-                LOGW("%s: buffer handle %u has not been registered into ISV", __func__);
+                ALOGW("%s: buffer handle %u has not been registered into ISV", __func__);
         }
     }
     return err;
@@ -519,7 +519,7 @@ OMX_ERRORTYPE ISVComponent::EmptyThisBuffer(
 OMX_ERRORTYPE ISVComponent::ISV_EmptyThisBuffer(
     OMX_IN  OMX_BUFFERHEADERTYPE* pBuffer)
 {
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s: pBuffer %p", __func__, pBuffer);
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: pBuffer %p", __func__, pBuffer);
 
     return OMX_EmptyThisBuffer(mComponent, pBuffer);
 }
@@ -528,7 +528,7 @@ OMX_ERRORTYPE ISVComponent::FillThisBuffer(
     OMX_IN  OMX_HANDLETYPE hComponent,
     OMX_IN  OMX_BUFFERHEADERTYPE *pBuffer)
 {
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s: API entry.", __func__);
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: API entry.", __func__);
     GET_ISVOMX_COMPONENT(hComponent);
 
     return pComp->ISV_FillThisBuffer(pBuffer);
@@ -542,7 +542,7 @@ OMX_ERRORTYPE ISVComponent::ISV_FillThisBuffer(
 
     if (mNumDecoderBuffers > 0) {
         mNumDecoderBuffers--;
-        LOGD_IF(ISV_COMPONENT_DEBUG, "%s: fill pBuffer %u to the decoder, decoder still need extra %d buffers", __func__,
+        ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: fill pBuffer %u to the decoder, decoder still need extra %d buffers", __func__,
                 pBuffer, mNumDecoderBuffers);
         return OMX_FillThisBuffer(mComponent, pBuffer);
     }
@@ -556,7 +556,7 @@ OMX_ERRORTYPE ISVComponent::FillBufferDone(
         OMX_OUT OMX_PTR pAppData,
         OMX_OUT OMX_BUFFERHEADERTYPE* pBuffer)
 {
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s: API entry. ISV component num %d, component handle %p on index 0", __func__,
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: API entry. ISV component num %d, component handle %p on index 0", __func__,
             g_isv_components.size(),
             g_isv_components.itemAt(0));
     for (OMX_U32 i = 0; i < g_isv_components.size(); i++) {
@@ -571,10 +571,10 @@ OMX_ERRORTYPE ISVComponent::ISV_FillBufferDone(
         OMX_OUT OMX_PTR pAppData,
         OMX_OUT OMX_BUFFERHEADERTYPE* pBuffer)
 {
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s: %p <== buffer_handle_t %p. mVPPEnabled %d, mVPPOn %d", __func__,
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: %p <== buffer_handle_t %p. mVPPEnabled %d, mVPPOn %d", __func__,
             pBuffer, pBuffer->pBuffer, mVPPEnabled, mVPPOn);
     if (!mpCallBacks) {
-        LOGE("%s: no call back functions were registered.", __func__);
+        ALOGE("%s: no call back functions were registered.", __func__);
         return OMX_ErrorUndefined;
     }
 
@@ -594,7 +594,7 @@ OMX_ERRORTYPE ISVComponent::EventHandler(
         OMX_IN OMX_U32 nData2,
         OMX_IN OMX_PTR pEventData)
 {
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s: API entry. ISV component num %d, component handle %p on index 0", __func__,
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: API entry. ISV component num %d, component handle %p on index 0", __func__,
             g_isv_components.size(),
             g_isv_components.itemAt(0));
     for (OMX_U32 i = 0; i < g_isv_components.size(); i++) {
@@ -613,7 +613,7 @@ OMX_ERRORTYPE ISVComponent::ISV_EventHandler(
         OMX_IN OMX_PTR pEventData)
 {
     if (!mpCallBacks) {
-        LOGE("%s: no call back functions were registered.", __func__);
+        ALOGE("%s: no call back functions were registered.", __func__);
         return OMX_ErrorUndefined;
     }
 
@@ -623,7 +623,7 @@ OMX_ERRORTYPE ISVComponent::ISV_EventHandler(
     switch (eEvent) {
         case OMX_EventCmdComplete:
         {
-            LOGD_IF(ISV_COMPONENT_DEBUG, "%s: OMX_EventCmdComplete Cmd type 0x%08x, data2 %d", __func__,
+            ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: OMX_EventCmdComplete Cmd type 0x%08x, data2 %d", __func__,
                     nData1, nData2);
             if (((OMX_COMMANDTYPE)nData1 == OMX_CommandFlush && (nData2 == kPortIndexOutput || nData2 == OMX_ALL))
                 || ((OMX_COMMANDTYPE)nData1 == OMX_CommandStateSet && nData2 == OMX_StateIdle)
@@ -638,7 +638,7 @@ OMX_ERRORTYPE ISVComponent::ISV_EventHandler(
         case OMX_EventError:
         {
             //do we need do anything here?
-            LOGE("%s: ERROR(0x%08x, %d)", __func__, nData1, nData2);
+            ALOGE("%s: ERROR(0x%08x, %d)", __func__, nData1, nData2);
             //mProcThread->flush();
             break;
         }
@@ -652,7 +652,7 @@ OMX_ERRORTYPE ISVComponent::ISV_EventHandler(
 
         default:
         {
-            LOGD_IF(ISV_COMPONENT_DEBUG, "%s: EVENT(%d, %ld, %ld)", __func__, eEvent, nData1, nData2);
+            ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: EVENT(%d, %ld, %ld)", __func__, eEvent, nData1, nData2);
             break;
         }
     }
@@ -673,13 +673,13 @@ OMX_ERRORTYPE ISVComponent::ISV_SetCallbacks(
     OMX_IN  OMX_CALLBACKTYPE* pCallbacks,
     OMX_IN  OMX_PTR pAppData)
 {
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s", __func__);
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s", __func__);
 
     if (mVPPEnabled && mVPPOn) {
         if (mpISVCallBacks == NULL) {
             mpISVCallBacks = (OMX_CALLBACKTYPE *)calloc(1, sizeof(OMX_CALLBACKTYPE));
             if (!mpISVCallBacks) {
-                LOGE("%s: failed to alloc isv callbacks", __func__);
+                ALOGE("%s: failed to alloc isv callbacks", __func__);
                 return OMX_ErrorUndefined;
             }
         }
@@ -706,7 +706,7 @@ OMX_ERRORTYPE ISVComponent::ISV_ComponentRoleEnum(
     OMX_OUT OMX_U8 *cRole,
     OMX_IN OMX_U32 nIndex)
 {
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s", __func__);
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s", __func__);
 
     return mComponent->ComponentRoleEnum(mComponent, cRole, nIndex);
 }
@@ -757,7 +757,7 @@ OMX_ERRORTYPE ISVProcThreadObserver::releaseBuffer(PORT_INDEX index, OMX_BUFFERH
         pBuffer->nFilledLen = 0;
         pBuffer->nOffset = 0;
         OMX_ERRORTYPE err = mpCallBacks->FillBufferDone(mBaseComponent, mBaseComponent->pApplicationPrivate, pBuffer);
-        LOGD_IF(ISV_COMPONENT_DEBUG, "%s: flush pBuffer %u", __func__, pBuffer);
+        ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: flush pBuffer %u", __func__, pBuffer);
         return err;
     }
 
@@ -766,10 +766,10 @@ OMX_ERRORTYPE ISVProcThreadObserver::releaseBuffer(PORT_INDEX index, OMX_BUFFERH
         pBuffer->nOffset = 0;
         pBuffer->nFlags = 0;
         err = OMX_FillThisBuffer(mComponent, pBuffer);
-        LOGD_IF(ISV_COMPONENT_DEBUG, "%s: FillBuffer pBuffer %u", __func__, pBuffer);
+        ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: FillBuffer pBuffer %u", __func__, pBuffer);
     } else {
         err = mpCallBacks->FillBufferDone(mBaseComponent, mBaseComponent->pApplicationPrivate, pBuffer);
-        LOGD_IF(ISV_COMPONENT_DEBUG, "%s: FillBufferDone pBuffer %u, timeStamp %.2f ms", __func__, pBuffer, pBuffer->nTimeStamp/1E3);
+        ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: FillBufferDone pBuffer %u, timeStamp %.2f ms", __func__, pBuffer, pBuffer->nTimeStamp/1E3);
     }
 
     return err;

@@ -906,18 +906,18 @@ M4VIFI_UInt8 M4VIFI_ResizeBilinearNV12toNV12(void *pUserData,
     M4VIFI_UInt8    u8Hflag = 0;
     M4VIFI_UInt32   loop = 0;
 
-    LOGV("M4VIFI_ResizeBilinearNV12toNV12 begin");
+    ALOGV("M4VIFI_ResizeBilinearNV12toNV12 begin");
     /*
      If input width is equal to output width and input height equal to
      output height then M4VIFI_NV12toNV12 is called.
     */
 
-    LOGV("pPlaneIn[0].u_height = %d, pPlaneIn[0].u_width = %d,\
+    ALOGV("pPlaneIn[0].u_height = %d, pPlaneIn[0].u_width = %d,\
          pPlaneOut[0].u_height = %d, pPlaneOut[0].u_width = %d",
         pPlaneIn[0].u_height, pPlaneIn[0].u_width,
         pPlaneOut[0].u_height, pPlaneOut[0].u_width
     );
-    LOGV("pPlaneIn[1].u_height = %d, pPlaneIn[1].u_width = %d,\
+    ALOGV("pPlaneIn[1].u_height = %d, pPlaneIn[1].u_width = %d,\
          pPlaneOut[1].u_height = %d, pPlaneOut[1].u_width = %d",
         pPlaneIn[1].u_height, pPlaneIn[1].u_width,
         pPlaneOut[1].u_height, pPlaneOut[1].u_width
@@ -1191,7 +1191,7 @@ M4VIFI_UInt8 M4VIFI_ResizeBilinearNV12toNV12(void *pUserData,
             }
         }
     }
-    LOGV("M4VIFI_ResizeBilinearNV12toNV12 end");
+    ALOGV("M4VIFI_ResizeBilinearNV12toNV12 end");
     return M4VIFI_OK;
 }
 
@@ -1472,7 +1472,7 @@ M4VIFI_UInt8 M4VIFI_ResizeBilinearNV12toYUV420(void *pUserData,
     M4VIFI_ImagePlane *pPlaneIn, M4VIFI_ImagePlane *pPlaneOut)
 {
 
-    LOGV("M4VIFI_ResizeBilinearNV12toYUV420 begin");
+    ALOGV("M4VIFI_ResizeBilinearNV12toYUV420 begin");
 
     M4VIFI_ImagePlane pPlaneTmp[3];
     M4OSA_UInt32 mVideoWidth, mVideoHeight;
@@ -1490,7 +1490,7 @@ M4VIFI_UInt8 M4VIFI_ResizeBilinearNV12toYUV420(void *pUserData,
 
     if (NULL == pData)
     {
-        LOGE("Error: Fail to allocate tempBuffer!");
+        ALOGE("Error: Fail to allocate tempBuffer!");
         return M4VIFI_ALLOC_FAILURE;
     }
 
@@ -1517,7 +1517,7 @@ M4VIFI_UInt8 M4VIFI_ResizeBilinearNV12toYUV420(void *pUserData,
 
     if(err != M4VIFI_OK)
     {
-        LOGE("Error: M4VIFI_SemiplanarYUV420toYUV420 fails!");
+        ALOGE("Error: M4VIFI_SemiplanarYUV420toYUV420 fails!");
         free(pData);
         return err;
     }
@@ -1525,7 +1525,7 @@ M4VIFI_UInt8 M4VIFI_ResizeBilinearNV12toYUV420(void *pUserData,
     err = M4VIFI_ResizeBilinearYUV420toYUV420_X86(pUserData,&pPlaneTmp[0],pPlaneOut);
 
     free(pData);
-    LOGV("M4VIFI_ResizeBilinearNV12toYUV420 end");
+    ALOGV("M4VIFI_ResizeBilinearNV12toYUV420 end");
     return err;
 
 }
@@ -1533,7 +1533,7 @@ M4VIFI_UInt8 M4VIFI_ResizeBilinearNV12toYUV420(void *pUserData,
 M4VIFI_UInt8 M4VIFI_ResizeBilinearNV12toBGR565(void *pUserData,
     M4VIFI_ImagePlane *pPlaneIn, M4VIFI_ImagePlane *pPlaneOut)
 {
-    LOGV("M4VIFI_ResizeBilinearNV12toBGR565 begin");
+    ALOGV("M4VIFI_ResizeBilinearNV12toBGR565 begin");
 
     M4VIFI_ImagePlane pPlaneTmp[3];
     M4OSA_UInt32 mVideoWidth, mVideoHeight;
@@ -1550,7 +1550,7 @@ M4VIFI_UInt8 M4VIFI_ResizeBilinearNV12toBGR565(void *pUserData,
                          );
     if (NULL == pData)
     {
-        LOGE("Error: Fail to allocate tempBuffer!");
+        ALOGE("Error: Fail to allocate tempBuffer!");
         return M4VIFI_ALLOC_FAILURE;
     }
     pPlaneTmp[0].pac_data   = pData;
@@ -1576,7 +1576,7 @@ M4VIFI_UInt8 M4VIFI_ResizeBilinearNV12toBGR565(void *pUserData,
 
     if(err != M4VIFI_OK)
     {
-        LOGE("Error: M4VIFI_SemiplanarYUV420toYUV420 fails!");
+        ALOGE("Error: M4VIFI_SemiplanarYUV420toYUV420 fails!");
         free(pData);
         return err;
     }
@@ -1584,7 +1584,7 @@ M4VIFI_UInt8 M4VIFI_ResizeBilinearNV12toBGR565(void *pUserData,
     err = M4VIFI_ResizeBilinearYUV420toBGR565_X86(pUserData,&pPlaneTmp[0],pPlaneOut);
     free(pData);
 
-    LOGV("M4VIFI_ResizeBilinearNV12toBGR565 end");
+    ALOGV("M4VIFI_ResizeBilinearNV12toBGR565 end");
     return err;
 }
 

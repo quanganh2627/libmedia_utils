@@ -150,7 +150,7 @@ uint32_t ISVProfile::getResolution(const char * name)
 
     str = (char*)malloc(lenth+1);
     if (NULL == str) {
-        LOGE("%s: failed to malloc buffer", __func__);
+        ALOGE("%s: failed to malloc buffer", __func__);
         return 0;
     }
     strncpy(str, name, lenth);
@@ -179,17 +179,17 @@ void ISVProfile::getConfigData(const char *name, const char **atts)
     } else if (strcmp(name, "Filter") == 0) {
         if (strcmp(atts[attIndex], "name") == 0) {
             if (getFilterID(atts[attIndex + 1]) == 0) {
-                LOGE("Couldn't parase the filter %s\n", atts[attIndex+1]);
+                ALOGE("Couldn't parase the filter %s\n", atts[attIndex+1]);
             }
         } else {
-            LOGE("couldn't handle \"%s\" element for Filter\n", name);
+            ALOGE("couldn't handle \"%s\" element for Filter\n", name);
         }
     } else if (strcmp(name, "enabled") == 0) {
         if (mCurrentFilter) {
             if (!strcmp(atts[attIndex], "value") && !strcmp(atts[attIndex + 1], "true"))
                 mConfigs[mCurrentFilter].enabled = true;
         } else {
-            LOGE("Skip this element(%s) becaue this filter couldn't be supported\n", name);
+            ALOGE("Skip this element(%s) becaue this filter couldn't be supported\n", name);
         }
     } else if (strcmp(name, "minResolution") == 0) {
         if (mCurrentFilter && !strcmp(atts[attIndex], "value")) {
@@ -200,7 +200,7 @@ void ISVProfile::getConfigData(const char *name, const char **atts)
             else
                 mConfigs[mCurrentFilter].minResolution = getResolution(atts[attIndex + 1]);
         } else {
-            LOGE("Skip this element(%s) becaue this filter couldn't be supported\n", name);
+            ALOGE("Skip this element(%s) becaue this filter couldn't be supported\n", name);
         }
     } else if (strcmp(name, "maxResolution") == 0) {
         if (mCurrentFilter && !strcmp(atts[attIndex], "value")) {
@@ -211,7 +211,7 @@ void ISVProfile::getConfigData(const char *name, const char **atts)
             else
                 mConfigs[mCurrentFilter].maxResolution = getResolution(atts[attIndex + 1]);
         } else {
-            LOGE("Skip this element(%s) becaue this filter couldn't be supported\n", name);
+            ALOGE("Skip this element(%s) becaue this filter couldn't be supported\n", name);
         }
     } else if (strcmp(name, "FRCRate") == 0) {
         if (mCurrentFilter == ProcFilterFrameRateConversion) {
@@ -231,12 +231,12 @@ void ISVProfile::getConfigData(const char *name, const char **atts)
                     mCurrentFrcTab++;
             }
         } else {
-            LOGE("\"FRCRate\" element is only for ProcFilterFrameRateConversion\n");
+            ALOGE("\"FRCRate\" element is only for ProcFilterFrameRateConversion\n");
         }
     } else if (strcmp(name, "parameter") == 0) {
         handleFilterParameter(name, atts);
     } else
-        LOGE("Couldn't handle this element %s!\n", name);
+        ALOGE("Couldn't handle this element %s!\n", name);
 }
 
 void ISVProfile::handleFilterParameter(const char *name, const char **atts)
@@ -244,12 +244,12 @@ void ISVProfile::handleFilterParameter(const char *name, const char **atts)
     int attIndex = 0;
 
     if (!mCurrentFilter) {
-        LOGE("\"%s\" must be in Filter element\n");
+        ALOGE("\"%s\" must be in Filter element\n");
         return;
     }
 
     if (strcmp(atts[attIndex], "name") || strcmp(atts[attIndex + 2], "value")) {
-        LOGE("\"%s\" or \"%s\" couldn't match the %s format\n", atts[attIndex], atts[attIndex + 2], name);
+        ALOGE("\"%s\" or \"%s\" couldn't match the %s format\n", atts[attIndex], atts[attIndex + 2], name);
         return;
     }
 
@@ -280,13 +280,13 @@ void ISVProfile::getDataFromXmlFile()
 
     fp = ::fopen(defaultXmlFile, "r");
     if (NULL == fp) {
-        LOGE("@%s, line:%d, couldn't open profile %s", __func__, __LINE__, defaultXmlFile);
+        ALOGE("@%s, line:%d, couldn't open profile %s", __func__, __LINE__, defaultXmlFile);
         return;
     }
 
     XML_Parser parser = ::XML_ParserCreate(NULL);
     if (NULL == parser) {
-        LOGE("@%s, line:%d, parser is NULL", __func__, __LINE__);
+        ALOGE("@%s, line:%d, parser is NULL", __func__, __LINE__);
         goto exit;
     }
     ::XML_SetUserData(parser, this);
@@ -294,7 +294,7 @@ void ISVProfile::getDataFromXmlFile()
 
     pBuf = malloc(mBufSize);
     if (NULL == pBuf) {
-        LOGE("@%s, line:%d, failed to malloc buffer", __func__, __LINE__);
+        ALOGE("@%s, line:%d, failed to malloc buffer", __func__, __LINE__);
         goto exit;
     }
 
@@ -308,7 +308,7 @@ void ISVProfile::getDataFromXmlFile()
         }
         done = len < mBufSize;
         if (XML_Parse(parser, (const char *)pBuf, len, done) == XML_STATUS_ERROR) {
-            LOGE("@%s, line:%d, XML_Parse error", __func__, __LINE__);
+            ALOGE("@%s, line:%d, XML_Parse error", __func__, __LINE__);
             goto exit;
         }
     } while (!done);
@@ -329,10 +329,10 @@ int32_t ISVProfile::getGlobalStatus()
     int32_t status = 0;
 
     snprintf(path, 80, "/data/user/%d/com.intel.vpp/shared_prefs/vpp_settings.xml", userId);
-    LOGI("%s: %s",__func__, path);
+    ALOGI("%s: %s",__func__, path);
     FILE *handle = fopen(path, "r");
     if(handle == NULL) {
-        LOGE("%s: failed to open file %s\n", __func__, path);
+        ALOGE("%s: failed to open file %s\n", __func__, path);
         return -1;
     }
 
@@ -340,7 +340,7 @@ int32_t ISVProfile::getGlobalStatus()
     char buf[MAXLEN] = {0};
     memset(buf, 0 ,MAXLEN);
     if(fread(buf, 1, MAXLEN, handle) <= 0) {
-        LOGE("%s: failed to read vpp config file %d", __func__, userId);
+        ALOGE("%s: failed to read vpp config file %d", __func__, userId);
         fclose(handle);
         return -1;
     }
@@ -380,26 +380,26 @@ void ISVProfile::dumpConfigData()
         "FRC_RATE_4X",
     };
 
-    LOGE("========== VPP filter configs:==========\n");
+    ALOGE("========== VPP filter configs:==========\n");
     for (i = 1; i < ProcFilterCount; i++) {
-        LOGE("name=%s, enabled=%s, minResolution=%d, maxResolution=%d, isOn=%s\n",
+        ALOGE("name=%s, enabled=%s, minResolution=%d, maxResolution=%d, isOn=%s\n",
             filterNames[i],
             (mConfigs[i].enabled == true) ? "true" : "false",
             mConfigs[i].minResolution,
             mConfigs[i].maxResolution,
             ((mStatus & (1 << i)) == 0) ? "false" : "true");
         if (mConfigs[i].paraSize) {
-            LOGE("\t\t parameters: ");
+            ALOGE("\t\t parameters: ");
             for(j = 0; j < mConfigs[i].paraSize; j++)
-                LOGE("%s=%f,", mConfigs[i].paraTables[j].name, mConfigs[i].paraTables[j].value);
-            LOGE("\n");
+                ALOGE("%s=%f,", mConfigs[i].paraTables[j].name, mConfigs[i].paraTables[j].value);
+            ALOGE("\n");
         }
     }
 
-    LOGE("========== FRC rate configs:===========\n");
+    ALOGE("========== FRC rate configs:===========\n");
     for (i = 0; i < MAX_TAB_SIZE; i++) {
         if (mFrcRates[i].input_fps == 0)
             break;
-        LOGE("input_fps=%d, rate=%s\n", mFrcRates[i].input_fps, rateNames[mFrcRates[i].rate]);
+        ALOGE("input_fps=%d, rate=%s\n", mFrcRates[i].input_fps, rateNames[mFrcRates[i].rate]);
     }
 }

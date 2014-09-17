@@ -49,7 +49,7 @@ VAVideoDecoder::VAVideoDecoder(const sp<MediaSource> &source)
     CHECK(source->getFormat()->findCString(kKeyMIMEType, &mime));
     mDecoder = createVideoDecoder(mime);
     if (mDecoder == NULL) {
-        LOGE("Failed to create video decoder for %s", mime);
+        ALOGE("Failed to create video decoder for %s", mime);
     }
 
     mFormat = new MetaData;
@@ -82,7 +82,7 @@ status_t VAVideoDecoder::start(MetaData *params) {
     CHECK(!mStarted);
 
     if (mDecoder == NULL) {
-        LOGE("Decoder is not created.");
+        ALOGE("Decoder is not created.");
         return UNKNOWN_ERROR;
     }
 
@@ -99,7 +99,7 @@ status_t VAVideoDecoder::start(MetaData *params) {
         configBuffer.data = (uint8_t*)data;
         configBuffer.size = size;
     } else {
-        LOGW("No configuration data found!");
+        ALOGW("No configuration data found!");
     }
 
     // A threshold is used here to avoid mediaserver allocate too big
@@ -108,7 +108,7 @@ status_t VAVideoDecoder::start(MetaData *params) {
     int32_t max_size;
     if (meta->findInt32(kKeyMaxInputSize, &max_size)) {
         if (max_size > MAXINPUTSIZE || max_size < 0) {
-            LOGE("Invalid kKeyMaxInputSize!");
+            ALOGE("Invalid kKeyMaxInputSize!");
             return ERROR_MALFORMED;
         }
     }
@@ -116,14 +116,14 @@ status_t VAVideoDecoder::start(MetaData *params) {
     mFormat->setInt32(kKeyColorFormat, OMX_COLOR_FormatYUV420SemiPlanar);
     mFormat->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_RAW);
     mRawOutput = true;
-    LOGW("Decoder will output raw data.");
+    ALOGW("Decoder will output raw data.");
 
     mFormat->findInt32(kKeyWidth, &configBuffer.width);
     mFormat->findInt32(kKeyHeight, &configBuffer.height);
 
     Decode_Status res = mDecoder->start(&configBuffer);
     if (res != DECODE_SUCCESS) {
-        LOGE("Failed to start decoder. Error = %d", res);
+        ALOGE("Failed to start decoder. Error = %d", res);
         return UNKNOWN_ERROR;
     }
 
@@ -194,10 +194,10 @@ MediaBuffer *VAVideoDecoder::getOutputBuffer(bool bDraining) {
         if (buffer->timeStamp < mTargetTimeUs) {
             // We're still waiting for the frame with the matching
             // timestamp and we won't return the current one.
-            LOGV("skipping frame at %lld us", buffer->timeStamp);
+            ALOGV("skipping frame at %lld us", buffer->timeStamp);
             return NULL;
         } else {
-            LOGV("found target frame at %lld us", buffer->timeStamp);
+            ALOGV("found target frame at %lld us", buffer->timeStamp);
             mTargetTimeUs = -1;
         }
     }
@@ -226,7 +226,7 @@ MediaBuffer *VAVideoDecoder::getOutputBuffer(bool bDraining) {
 status_t VAVideoDecoder::read(MediaBuffer **out, const ReadOptions *options)  {
     *out = NULL;
     if (mDecoder == NULL) {
-        LOGE("Decoder is not created.");
+        ALOGE("Decoder is not created.");
         return UNKNOWN_ERROR;
     }
 
@@ -236,10 +236,10 @@ status_t VAVideoDecoder::read(MediaBuffer **out, const ReadOptions *options)  {
     bool seeking = false;
 
     if (options && options->getSeekTo(&seekTimeUs, &mode)) {
-        LOGV("seek requested to %lld us (%.2f secs)", seekTimeUs, seekTimeUs / 1E6);
+        ALOGV("seek requested to %lld us (%.2f secs)", seekTimeUs, seekTimeUs / 1E6);
 
         if (seekTimeUs < 0) {
-            LOGE("Invalid seek time : %ld", (long int32_t)seekTimeUs);
+            ALOGE("Invalid seek time : %ld", (long int32_t)seekTimeUs);
             seekTimeUs = 0;
             //return ERROR_END_OF_STREAM;
         }
@@ -255,7 +255,7 @@ status_t VAVideoDecoder::read(MediaBuffer **out, const ReadOptions *options)  {
         seekOptions.clearSeekTo();
 
         if (err != OK) {
-            LOGE("Failed to read buffer from source extractor.");
+            ALOGE("Failed to read buffer from source extractor.");
             // drain the output buffer when end of stream
             *out = getOutputBuffer(true);
             return (*out == NULL)  ? err : (status_t)OK;
@@ -271,7 +271,7 @@ status_t VAVideoDecoder::read(MediaBuffer **out, const ReadOptions *options)  {
     }
 
     if (mInputBuffer == NULL) {
-        LOGE("Unexpected NULL input buffer.");
+        ALOGE("Unexpected NULL input buffer.");
         return ERROR_END_OF_STREAM;
     }
 
@@ -305,7 +305,7 @@ status_t VAVideoDecoder::read(MediaBuffer **out, const ReadOptions *options)  {
     }
 
     if (res == DECODE_FORMAT_CHANGE) {
-        LOGW("Format changed.");
+        ALOGW("Format changed.");
         // drain all the frames.
         MediaBuffer *mbuf = NULL;
         while ((mbuf = getOutputBuffer(true)) != NULL) {
@@ -332,7 +332,7 @@ status_t VAVideoDecoder::read(MediaBuffer **out, const ReadOptions *options)  {
         err = OK;
         if (mDecodeMore) {
             *out = new MediaBuffer(0);
-             LOGW("Current decoder buffer only contains one field!");
+             ALOGW("Current decoder buffer only contains one field!");
         } else {
             MediaBuffer *mbuf = getOutputBuffer(true);
             if (mbuf == NULL) {
@@ -343,7 +343,7 @@ status_t VAVideoDecoder::read(MediaBuffer **out, const ReadOptions *options)  {
         }
     } else {
         mErrorCount++;
-        LOGE("Failed to decode buffer (#%d). Error = %d", mErrorCount, res);
+        ALOGE("Failed to decode buffer (#%d). Error = %d", mErrorCount, res);
         if (checkFatalDecoderError(res)) {
             err = UNKNOWN_ERROR;
         } else {

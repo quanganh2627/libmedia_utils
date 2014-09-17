@@ -54,18 +54,18 @@ IntelVideoEditorAVCEncoder::IntelVideoEditorAVCEncoder(
       mLastInputBuffer(NULL),
       mCallEncode(0) {
 
-    LOGV("Construct IntelVideoEditorAVCEncoder");
+    ALOGV("Construct IntelVideoEditorAVCEncoder");
 }
 
 IntelVideoEditorAVCEncoder::~IntelVideoEditorAVCEncoder() {
-    LOGV("Destruct IntelVideoEditorAVCEncoder");
+    ALOGV("Destruct IntelVideoEditorAVCEncoder");
     if (mStarted) {
         stop();
     }
 }
 
 status_t IntelVideoEditorAVCEncoder::initCheck(const sp<MetaData>& meta) {
-    LOGV("initCheck");
+    ALOGV("initCheck");
 
     Encode_Status   encStatus;
     uint32_t        disableFrameSkip = 0;
@@ -98,17 +98,17 @@ status_t IntelVideoEditorAVCEncoder::initCheck(const sp<MetaData>& meta) {
         }
     }
 
-    LOGI("mVideoWidth = %d, mVideoHeight = %d, mVideoFrameRate = %d, mVideoColorFormat = %d, mVideoBitRate = %d",
+    ALOGI("mVideoWidth = %d, mVideoHeight = %d, mVideoFrameRate = %d, mVideoColorFormat = %d, mVideoBitRate = %d",
         mVideoWidth, mVideoHeight, mVideoFrameRate, mVideoColorFormat, mVideoBitRate);
 
     // disable frame skip for low bitrate clips
     if (mVideoBitRate < BITRATE_2M) {
-        LOGI("Frameskip is disabled for low bitrate clips");
+        ALOGI("Frameskip is disabled for low bitrate clips");
         disableFrameSkip = 1;
     }
 
     if (mVideoColorFormat != OMX_COLOR_FormatYUV420SemiPlanar) {
-        LOGE("Color format %d is not supported", mVideoColorFormat);
+        ALOGE("Color format %d is not supported", mVideoColorFormat);
         return BAD_VALUE;
     }
 
@@ -119,7 +119,7 @@ status_t IntelVideoEditorAVCEncoder::initCheck(const sp<MetaData>& meta) {
      * */
     encStatus = mVAEncoder->getParameters(&mEncParamsCommon);
     CHECK(encStatus == ENCODE_SUCCESS);
-    LOGV("got encoder params");
+    ALOGV("got encoder params");
     mEncParamsCommon.profile = VAProfileH264Baseline;
     mEncParamsCommon.resolution.width = mVideoWidth;
     mEncParamsCommon.resolution.height= mVideoHeight;
@@ -159,11 +159,11 @@ status_t IntelVideoEditorAVCEncoder::initCheck(const sp<MetaData>& meta) {
 
     encStatus = mVAEncoder->setParameters(&mEncParamsCommon);
     CHECK(encStatus == ENCODE_SUCCESS);
-    LOGV("new encoder params set");
+    ALOGV("new encoder params set");
 
     encStatus = mVAEncoder->getParameters(&mEncParamsH264);
     CHECK(encStatus == ENCODE_SUCCESS);
-    LOGV("got H264 encoder params ");
+    ALOGV("got H264 encoder params ");
 
     mEncParamsH264.ipPeriod = 1;
     mEncParamsH264.idrInterval = 1;
@@ -179,18 +179,18 @@ status_t IntelVideoEditorAVCEncoder::initCheck(const sp<MetaData>& meta) {
 
     encStatus = mVAEncoder->setParameters(&mEncParamsH264);
     CHECK(encStatus == ENCODE_SUCCESS);
-    LOGV("new  H264 encoder params set");
+    ALOGV("new  H264 encoder params set");
 
     if (disableFrameSkip) {
         VideoConfigBitRate configBitrate;
         encStatus = mVAEncoder->getConfig(&configBitrate);
         CHECK(encStatus == ENCODE_SUCCESS);
-        LOGV("got encoder config set");
+        ALOGV("got encoder config set");
 
         configBitrate.rcParams.disableFrameSkip = 1;
         encStatus = mVAEncoder->setConfig(&configBitrate);
         CHECK(encStatus == ENCODE_SUCCESS);
-        LOGV("got encoder frame skip/bits stuffing set");
+        ALOGV("got encoder frame skip/bits stuffing set");
     }
 
     // Only CBR support HRD feature
@@ -198,14 +198,14 @@ status_t IntelVideoEditorAVCEncoder::initCheck(const sp<MetaData>& meta) {
         VideoParamsHRD hrdParam;
         encStatus = mVAEncoder->getParameters(&hrdParam);
         CHECK(encStatus == ENCODE_SUCCESS);
-        LOGV("got encoder hrd params ");
+        ALOGV("got encoder hrd params ");
 
         hrdParam.bufferSize = mVideoBitRate;
         hrdParam.initBufferFullness = hrdParam.bufferSize * INIT_BUF_FULLNESS_RATIO;
 
         encStatus = mVAEncoder->setParameters(&hrdParam);
         CHECK(encStatus == ENCODE_SUCCESS);
-        LOGV("new  encoder hrd params set");
+        ALOGV("new  encoder hrd params set");
     }
 
     mOutBufGroup = new MediaBufferGroup();
@@ -215,11 +215,11 @@ status_t IntelVideoEditorAVCEncoder::initCheck(const sp<MetaData>& meta) {
 }
 
 status_t IntelVideoEditorAVCEncoder::start(MetaData *params) {
-    LOGV("start");
+    ALOGV("start");
     status_t ret = OK;
 
     if (mStarted) {
-        LOGW("Call start() when encoder already started");
+        ALOGW("Call start() when encoder already started");
         return OK;
     }
 
@@ -228,7 +228,7 @@ status_t IntelVideoEditorAVCEncoder::start(MetaData *params) {
     mVAEncoder = createVideoEncoder(MEDIA_MIMETYPE_VIDEO_AVC);
 
     if (mVAEncoder == NULL) {
-        LOGE("Fail to create video encoder");
+        ALOGE("Fail to create video encoder");
         return NO_MEMORY;
     }
     mInitCheck = initCheck(mMeta);
@@ -240,40 +240,40 @@ status_t IntelVideoEditorAVCEncoder::start(MetaData *params) {
     uint32_t maxSize;
     mVAEncoder->getMaxOutSize(&maxSize);
 
-    LOGV("allocating output buffers of size %d",maxSize);
+    ALOGV("allocating output buffers of size %d",maxSize);
     for (int i = 0; i < OUTPUT_BUFFERS; i++ ) {
         mOutBufGroup->add_buffer(new MediaBuffer(maxSize));
     }
 
     if (OK != getSharedBuffers()) {
-        LOGE("Failed to get the shared buffers from encoder ");
+        ALOGE("Failed to get the shared buffers from encoder ");
         return UNKNOWN_ERROR;
     }
 
     Encode_Status err;
     err = mVAEncoder->start();
     if (err!= ENCODE_SUCCESS) {
-        LOGE("Failed to initialize the encoder: %d", err);
+        ALOGE("Failed to initialize the encoder: %d", err);
 
        /* We should exit the sharedbuffer mode, when failing to
         create the HW video encoder.
        */
 
         androidCreateThread(SBShutdownFunc,this);
-        LOGI("Successfull create thread to exit shared buffer mode!");
+        ALOGI("Successfull create thread to exit shared buffer mode!");
 
         mSource->stop();
 
         sp<BufferShareRegistry> r = BufferShareRegistry::getInstance();
         err = r->encoderRequestToDisableSharingMode();
-        LOGV("encoderRequestToDisableSharingMode returned %d\n", err);
+        ALOGV("encoderRequestToDisableSharingMode returned %d\n", err);
 
         /* libsharedbuffer wants the source to call this after the encoder calls
          * encoderRequestToDisableSharingMode. Instead of doing complicated
          * synchronization, let's just call this ourselves on the source's
          * behalf. */
         err = r->sourceRequestToDisableSharingMode();
-        LOGV("sourceRequestToDisableSharingMode returned %d\n", err);
+        ALOGV("sourceRequestToDisableSharingMode returned %d\n", err);
 
         releaseVideoEncoder(mVAEncoder);
         mVAEncoder = NULL;
@@ -282,28 +282,28 @@ status_t IntelVideoEditorAVCEncoder::start(MetaData *params) {
     }
 
     if (OK != setSharedBuffers()) {
-        LOGE("Failed to setup the shared buffers");
+        ALOGE("Failed to setup the shared buffers");
         return UNKNOWN_ERROR;
     }
 
     mStarted = true;
-    LOGV("start- DONE");
+    ALOGV("start- DONE");
     return OK;
 }
 
 int IntelVideoEditorAVCEncoder::SBShutdownFunc(void* arg)
 {
-    LOGV("IntelVideoEditorAVCEncoder::SBShutdownFunc begin()");
+    ALOGV("IntelVideoEditorAVCEncoder::SBShutdownFunc begin()");
     sp<BufferShareRegistry> r = BufferShareRegistry::getInstance();
     int error = r->sourceExitSharingMode();
-    LOGV("sourceExitSharingMode returns %d",error);
+    ALOGV("sourceExitSharingMode returns %d",error);
     return 0;
 }
 
 status_t IntelVideoEditorAVCEncoder::stop() {
-    LOGV("stop");
+    ALOGV("stop");
     if (!mStarted) {
-        LOGW("Call stop() when encoder has not started");
+        ALOGW("Call stop() when encoder has not started");
         return OK;
     }
 
@@ -320,30 +320,30 @@ status_t IntelVideoEditorAVCEncoder::stop() {
         can do its end of shared buffer shutdown */
 
     androidCreateThread(SBShutdownFunc,this);
-    LOGV("Successfull create thread!");
+    ALOGV("Successfull create thread!");
 
     /* do encoder's buffer sharing shutdown */
     sp<BufferShareRegistry> r = BufferShareRegistry::getInstance();
     int err = r->encoderExitSharingMode();
-    LOGV("encoderExitSharingMode returned %d\n", err);
+    ALOGV("encoderExitSharingMode returned %d\n", err);
 
     mSource->stop();
 
     err = r->encoderRequestToDisableSharingMode();
-    LOGV("encoderRequestToDisableSharingMode returned %d\n", err);
+    ALOGV("encoderRequestToDisableSharingMode returned %d\n", err);
 
     /* libsharedbuffer wants the source to call this after the encoder calls
      * encoderRequestToDisableSharingMode. Instead of doing complicated
      * synchronization, let's just call this ourselves on the source's
      * behalf. */
     err = r->sourceRequestToDisableSharingMode();
-    LOGV("sourceRequestToDisableSharingMode returned %d\n", err);
+    ALOGV("sourceRequestToDisableSharingMode returned %d\n", err);
 
     releaseVideoEncoder(mVAEncoder);
     mVAEncoder = NULL;
 
     mStarted = false;
-    LOGV("stop - DONE");
+    ALOGV("stop - DONE");
 
     return OK;
 }
@@ -372,7 +372,7 @@ status_t IntelVideoEditorAVCEncoder::read(MediaBuffer **out, const ReadOptions *
     MediaBuffer *outputBuffer;
     VideoEncOutputBuffer vaOutBuf;
 
-    LOGV("IntelVideoEditorAVCEncoder::read start");
+    ALOGV("IntelVideoEditorAVCEncoder::read start");
 
     do {
         err = mSource->read(&tmpIn, NULL);
@@ -384,7 +384,7 @@ status_t IntelVideoEditorAVCEncoder::read(MediaBuffer **out, const ReadOptions *
 
     if (err == ERROR_END_OF_STREAM) {
         if (mCallEncode > 0) {
-            LOGV("Get the last encoded frame");
+            ALOGV("Get the last encoded frame");
             CHECK(mOutBufGroup->acquire_buffer(&outputBuffer) == OK);
             vaOutBuf.bufferSize = outputBuffer->size();
             vaOutBuf.dataSize = 0;
@@ -393,7 +393,7 @@ status_t IntelVideoEditorAVCEncoder::read(MediaBuffer **out, const ReadOptions *
 
             encRet = mVAEncoder->getOutput(&vaOutBuf);
             if (encRet != ENCODE_SUCCESS) {
-                LOGE("Failed to retrieve encoded video frame: %d", encRet);
+                ALOGE("Failed to retrieve encoded video frame: %d", encRet);
                 outputBuffer->release();
                 return UNKNOWN_ERROR;
             }
@@ -415,7 +415,7 @@ status_t IntelVideoEditorAVCEncoder::read(MediaBuffer **out, const ReadOptions *
         return err;
     }
     else if (err != OK) {
-        LOGE("Failed to read input video frame: %d", err);
+        ALOGE("Failed to read input video frame: %d", err);
         return err;
     }
 
@@ -434,7 +434,7 @@ status_t IntelVideoEditorAVCEncoder::read(MediaBuffer **out, const ReadOptions *
                 return err;
         }
         else if (err != OK) {
-            LOGE("Failed to read input video frame: %d", err);
+            ALOGE("Failed to read input video frame: %d", err);
             return err;
         }
     }
@@ -447,11 +447,11 @@ status_t IntelVideoEditorAVCEncoder::read(MediaBuffer **out, const ReadOptions *
     vaInBuf.size = tmpIn->size();
 
     tmpIn->meta_data()->findInt64(kKeyTime, (int64_t *)&(vaInBuf.timeStamp));
-    LOGV("Encoding: buffer %p, size = %d, ts= %llu",vaInBuf.data, vaInBuf.size, vaInBuf.timeStamp);
+    ALOGV("Encoding: buffer %p, size = %d, ts= %llu",vaInBuf.data, vaInBuf.size, vaInBuf.timeStamp);
 
     encRet = mVAEncoder->encode(&vaInBuf);
     if (encRet != ENCODE_SUCCESS) {
-        LOGE("Failed to encode input video frame: %d", encRet);
+        ALOGE("Failed to encode input video frame: %d", encRet);
         tmpIn->release();
         return UNKNOWN_ERROR;
     }
@@ -465,21 +465,21 @@ status_t IntelVideoEditorAVCEncoder::read(MediaBuffer **out, const ReadOptions *
         vaInBuf2.size = tmpIn2->size();
 
         tmpIn2->meta_data()->findInt64(kKeyTime, (int64_t *)&(vaInBuf2.timeStamp));
-        LOGV("For async mode encoding: buffer %p, size = %d, ts= %llu",vaInBuf2.data, vaInBuf2.size, vaInBuf2.timeStamp);
+        ALOGV("For async mode encoding: buffer %p, size = %d, ts= %llu",vaInBuf2.data, vaInBuf2.size, vaInBuf2.timeStamp);
 
         encRet = mVAEncoder->encode(&vaInBuf2);
         if (encRet != ENCODE_SUCCESS) {
-            LOGE("Failed to encode input video frame: %d", encRet);
+            ALOGE("Failed to encode input video frame: %d", encRet);
             tmpIn2->release();
             return UNKNOWN_ERROR;
         }
         mCallEncode++;
     }
 
-    LOGV("Encoding Done, getting output buffer 	");
+    ALOGV("Encoding Done, getting output buffer 	");
 
     CHECK(mOutBufGroup->acquire_buffer(&outputBuffer) == OK);
-    LOGV("Waiting for outputbuffer");
+    ALOGV("Waiting for outputbuffer");
 
     vaOutBuf.bufferSize = outputBuffer->size();
     vaOutBuf.dataSize = 0;
@@ -487,10 +487,10 @@ status_t IntelVideoEditorAVCEncoder::read(MediaBuffer **out, const ReadOptions *
     vaOutBuf.format = OUTPUT_EVERYTHING;
 
     if (mFirstFrame) {
-        LOGV("mFirstFrame\n");
+        ALOGV("mFirstFrame\n");
         encRet = mVAEncoder->getOutput(&vaOutBuf);
         if (encRet != ENCODE_SUCCESS) {
-            LOGE("Failed to retrieve encoded video frame: %d", encRet);
+            ALOGE("Failed to retrieve encoded video frame: %d", encRet);
             outputBuffer->release();
             return UNKNOWN_ERROR;
         }
@@ -506,7 +506,7 @@ status_t IntelVideoEditorAVCEncoder::read(MediaBuffer **out, const ReadOptions *
         vaOutBuf.format = OUTPUT_EVERYTHING;
         encRet = mVAEncoder->getOutput(&vaOutBuf);
         if (encRet != ENCODE_SUCCESS) {
-            LOGE("Failed to retrieve encoded video frame: %d", encRet);
+            ALOGE("Failed to retrieve encoded video frame: %d", encRet);
             outputBuffer->release();
             return UNKNOWN_ERROR;
         }
@@ -525,30 +525,30 @@ status_t IntelVideoEditorAVCEncoder::read(MediaBuffer **out, const ReadOptions *
         tmpIn2 = NULL;
     }
 
-    LOGV("Got it! data= %p, ts=%llu size =%d", vaOutBuf.data, vaOutBuf.timeStamp, vaOutBuf.dataSize);
+    ALOGV("Got it! data= %p, ts=%llu size =%d", vaOutBuf.data, vaOutBuf.timeStamp, vaOutBuf.dataSize);
 
     mCallEncode--;
     outputBuffer->set_range(0, vaOutBuf.dataSize);
     outputBuffer->meta_data()->setInt64(kKeyTime,vaOutBuf.timeStamp);
     *out = outputBuffer;
 
-    LOGV("IntelVideoEditorAVCEncoder::read end");
+    ALOGV("IntelVideoEditorAVCEncoder::read end");
     return OK;
 }
 
 status_t IntelVideoEditorAVCEncoder::getSharedBuffers() {
 
-    LOGV("getSharedBuffers begin");
+    ALOGV("getSharedBuffers begin");
     Encode_Status encRet;
     status_t ret = OK;
 
     sp<BufferShareRegistry> r = BufferShareRegistry::getInstance();
 
     if (r->encoderRequestToEnableSharingMode() == BS_SUCCESS) {
-        LOGV("Shared buffer mode available\n");
+        ALOGV("Shared buffer mode available\n");
     }
     else {
-        LOGE("Request to enable sharing failed \n");
+        ALOGE("Request to enable sharing failed \n");
         return UNKNOWN_ERROR;
     }
 
@@ -566,10 +566,10 @@ status_t IntelVideoEditorAVCEncoder::getSharedBuffers() {
             paramsUsrptrBuffer.expectedSize = paramsUsrptrBuffer.width * paramsUsrptrBuffer.height * 1.5;
         }
 #endif
-        LOGV("Share buffer request=");
+        ALOGV("Share buffer request=");
         encRet = mVAEncoder->getParameters(&paramsUsrptrBuffer);
         if (encRet != ENCODE_SUCCESS  ) {
-            LOGE("could not allocate input surface from the encoder %d", encRet);
+            ALOGE("could not allocate input surface from the encoder %d", encRet);
             ret = NO_MEMORY;
             break;
         }
@@ -579,21 +579,21 @@ status_t IntelVideoEditorAVCEncoder::getSharedBuffers() {
         mSharedBufs[i].pointer = paramsUsrptrBuffer.usrPtr;
         mSharedBufs[i].stride = paramsUsrptrBuffer.stride;
     }
-    LOGV("getSharedBuffers end");
+    ALOGV("getSharedBuffers end");
     return ret;
 }
 
 status_t IntelVideoEditorAVCEncoder::setSharedBuffers() {
-    LOGV("setSharedBuffers");
+    ALOGV("setSharedBuffers");
     sp<BufferShareRegistry> r = BufferShareRegistry::getInstance();
 
     if (r->encoderSetSharedBuffer(mSharedBufs,INPUT_SHARED_BUFFERS) != BS_SUCCESS) {
-        LOGE("encoderSetSharedBuffer failed \n");
+        ALOGE("encoderSetSharedBuffer failed \n");
         return UNKNOWN_ERROR;
     }
 
     if (r->encoderEnterSharingMode() != BS_SUCCESS) {
-        LOGE("sourceEnterSharingMode failed\n");
+        ALOGE("sourceEnterSharingMode failed\n");
         return UNKNOWN_ERROR;
     }
     return OK;

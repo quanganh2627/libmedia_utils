@@ -28,26 +28,26 @@ namespace android {
 VPPMDSListener::VPPMDSListener(VPPProcessorBase* vppprocessor)
     : BnMultiDisplayListener(), mMode(0), mVppState(false),
       mVpp(vppprocessor), mListenerId(-1), mHdmiClient(NULL), mMds(NULL) {
-    LOGI("A new Mds listener is created");
+    ALOGI("A new Mds listener is created");
 }
 
 status_t VPPMDSListener::init() {
     sp<IServiceManager> sm = defaultServiceManager();
     if (sm == NULL) {
-        LOGE("%s: Fail to get service manager", __func__);
+        ALOGE("%s: Fail to get service manager", __func__);
         return STATUS_ERROR;
     }
 
     mMds = interface_cast<IMDService>(sm->getService(String16(INTEL_MDS_SERVICE_NAME)));
     if (mMds == NULL) {
-        LOGE("%s: Failed to get MDS service", __func__);
+        ALOGE("%s: Failed to get MDS service", __func__);
         return STATUS_ERROR;
     }
 
     // Get HDMI interfaces to query HDMI device capability
     mHdmiClient = mMds->getHdmiControl();
     if (mHdmiClient == NULL) {
-        LOGE("%s: Failed to get MdsHdmiController service", __func__);
+        ALOGE("%s: Failed to get MdsHdmiController service", __func__);
         return STATUS_ERROR;
     }
 
@@ -57,15 +57,15 @@ status_t VPPMDSListener::init() {
 
     mListenerId = sinkRegistrar->registerListener(this,
             "VPPSetting", MDS_MSG_MODE_CHANGE);
-    LOGV("MDS listener ID %d", mListenerId);
+    ALOGV("MDS listener ID %d", mListenerId);
 
     sp<IMultiDisplayInfoProvider> mdsInfoProvider = mMds->getInfoProvider();
     if (mdsInfoProvider == NULL) {
-        LOGE("%s: Failed to get info provider", __func__);
+        ALOGE("%s: Failed to get info provider", __func__);
         return STATUS_ERROR;
     }
     mMode = mdsInfoProvider->getDisplayMode(false);
-    LOGI("%s: The initial display mode is set to %d", __func__, mMode);
+    ALOGI("%s: The initial display mode is set to %d", __func__, mMode);
 
     if (mVpp != NULL)
         mVpp->setDisplayMode(mMode);
@@ -82,14 +82,14 @@ void VPPMDSListener::deInit() {
         }
 
         sinkRegistrar->unregisterListener(mListenerId);
-        LOGI("A Mds listener Id %d is distroyed", mListenerId);
+        ALOGI("A Mds listener Id %d is distroyed", mListenerId);
         mListenerId = -1;
     }
 
 }
 
 VPPMDSListener::~VPPMDSListener() {
-    LOGI("A Mds listener %p is distroyed", this);
+    ALOGI("A Mds listener %p is distroyed", this);
     mMode = MDS_MODE_NONE;
     mVppState = false;
     mVpp = NULL;
@@ -97,7 +97,7 @@ VPPMDSListener::~VPPMDSListener() {
     mMds = NULL;
 
     if (mListenerId != -1) {
-        LOGW("%s: register a MDS listener function but not unregiser", __func__);
+        ALOGW("%s: register a MDS listener function but not unregiser", __func__);
     }
 
     return;
@@ -106,7 +106,7 @@ VPPMDSListener::~VPPMDSListener() {
 status_t VPPMDSListener::onMdsMessage(int msg, void* value, int size) {
     if ((msg & MDS_MSG_MODE_CHANGE) && (size == sizeof(int))) {
         mMode = *(static_cast<int*>(value));
-        LOGI("Display mode is %d", mMode);
+        ALOGI("Display mode is %d", mMode);
         if (mVpp != NULL)
             mVpp->setDisplayMode(mMode);
     }
@@ -115,12 +115,12 @@ status_t VPPMDSListener::onMdsMessage(int msg, void* value, int size) {
 }
 
 int32_t VPPMDSListener::getMode() {
-    //LOGV("Mds mode 0x%x", mMode);
+    //ALOGV("Mds mode 0x%x", mMode);
     return mMode;
 }
 
 bool VPPMDSListener::getVppState() {
-    LOGV("MDS Vpp state %d", mVppState);
+    ALOGV("MDS Vpp state %d", mVppState);
     return mVppState;
 }
 
@@ -137,7 +137,7 @@ status_t VPPMDSListener::getHdmiMetaData(MDSHdmiTiming *curHdmiTiming,
     *frameRateLstCount = -1;
 
     if (!(mMode & MDS_HDMI_CONNECTED)) {
-        LOGE("Hdmi is NOT connected. Failed to get HDMI data.");
+        ALOGE("Hdmi is NOT connected. Failed to get HDMI data.");
         return STATUS_ERROR;
     }
 
@@ -174,7 +174,7 @@ status_t VPPMDSListener::getHdmiMetaData(MDSHdmiTiming *curHdmiTiming,
             }
         } //end if (dispayTimingCount > 0)
     } else {
-        LOGE("Hdmi service handle is NOT set.");
+        ALOGE("Hdmi service handle is NOT set.");
         return STATUS_ERROR;
     }
 

@@ -368,7 +368,7 @@ M4OSA_ERR VideoEditorVideoEncoder_getDSI(M4ENCODER_Context pContext,
     VIDEOEDITOR_CHECK(M4OSA_NULL == pEncoderContext->mHeader.pBuf, M4ERR_STATE);
     if ( M4ENCODER_kH264 == pEncoderContext->mFormat ) {
         // For H264, format the DSI
-        LOGV("outputBuffer->range_offset() = %d, outputBuffer->range_length() = %d",
+        ALOGV("outputBuffer->range_offset() = %d, outputBuffer->range_length() = %d",
             outputBuffer->range_offset(), outputBuffer->range_length());
         result = buildAVCCodecSpecificData(
             (uint8_t**)(&(pEncoderContext->mHeader.pBuf)),
@@ -824,7 +824,7 @@ M4OSA_ERR VideoEditorVideoEncoder_processOutputBuffer(
     int32_t i32Tmp = 0;
     int64_t i64Tmp = 0;
     status_t result = OK;
-    LOGV("VideoEditorVideoEncoder_processOutputBuffer begin");
+    ALOGV("VideoEditorVideoEncoder_processOutputBuffer begin");
     // Input parameters check
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
     VIDEOEDITOR_CHECK(M4OSA_NULL != buffer,   M4ERR_PARAMETER);
@@ -834,7 +834,7 @@ M4OSA_ERR VideoEditorVideoEncoder_processOutputBuffer(
     // Process the returned AU
     if ( 0 == buffer->range_length() ) {
         // Encoder has no data yet, nothing unusual
-        LOGV("VideoEditorVideoEncoder_processOutputBuffer : buffer is empty");
+        ALOGV("VideoEditorVideoEncoder_processOutputBuffer : buffer is empty");
         goto cleanUp;
     }
     VIDEOEDITOR_CHECK(0 == ((M4OSA_UInt32)buffer->data())%4, M4ERR_PARAMETER);
@@ -843,7 +843,7 @@ M4OSA_ERR VideoEditorVideoEncoder_processOutputBuffer(
     // Don't remove AVC codec data for the first IDR frame to align the encode behavior
     // in Merrifield platform
     if ( buffer->meta_data()->findInt32(kKeyIsCodecConfig, &i32Tmp) && i32Tmp ){
-        LOGV("VideoEditorVideoEncoder_processOutputBuffer DSI %d",buffer->range_length());
+        ALOGV("VideoEditorVideoEncoder_processOutputBuffer DSI %d",buffer->range_length());
         removeAVCCodecSpecificData(&data,&length,(const uint8_t*) buffer->data(),buffer->range_length(),NULL);
         buffer->set_range(buffer->range_offset() + length, buffer->range_length() - length);
     }
@@ -859,16 +859,16 @@ M4OSA_ERR VideoEditorVideoEncoder_processOutputBuffer(
     pEncoderContext->mLastOutputCts = i64Tmp;
 
     Cts = (M4OSA_Int32)(i64Tmp/1000);
-    LOGV("[TS_CHECK] VI/ENC WRITE frame %d @ %lld -> %d (last %d)",
+    ALOGV("[TS_CHECK] VI/ENC WRITE frame %d @ %lld -> %d (last %d)",
         pEncoderContext->mNbOutputFrames, i64Tmp, Cts,
         pEncoderContext->mLastCTS);
     if ( Cts < pEncoderContext->mLastCTS || Cts < pEncoderContext->mAccessUnit->CTS ) {
-        LOGV("VideoEncoder_processOutputBuffer WARNING : Cts is going "
+        ALOGV("VideoEncoder_processOutputBuffer WARNING : Cts is going "
         "backwards %d < %d(or %lld)", Cts, pEncoderContext->mLastCTS,
         pEncoderContext->mAccessUnit->CTS);
         goto cleanUp;
     }
-    LOGV("VideoEditorVideoEncoder_processOutputBuffer : %d %d",
+    ALOGV("VideoEditorVideoEncoder_processOutputBuffer : %d %d",
         Cts, pEncoderContext->mLastCTS);
 
     // Retrieve the AU container
@@ -921,7 +921,7 @@ M4OSA_ERR VideoEditorVideoEncoder_processOutputBuffer(
     pEncoderContext->mAccessUnit->CTS = Cts;
     pEncoderContext->mAccessUnit->DTS = Cts;
 
-    LOGV("VideoEditorVideoEncoder_processOutputBuffer: AU @ 0x%X 0x%X %d %d",
+    ALOGV("VideoEditorVideoEncoder_processOutputBuffer: AU @ 0x%X 0x%X %d %d",
         pEncoderContext->mAccessUnit->dataAddress,
         *pEncoderContext->mAccessUnit->dataAddress,
         pEncoderContext->mAccessUnit->size,
@@ -936,15 +936,15 @@ M4OSA_ERR VideoEditorVideoEncoder_processOutputBuffer(
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorVideoEncoder_processOutputBuffer no error");
+        ALOGV("VideoEditorVideoEncoder_processOutputBuffer no error");
     } else {
         if (pEncoderContext != NULL) {
             SAFE_FREE(pEncoderContext->mHeader.pBuf);
             pEncoderContext->mHeader.Size = 0;
         }
-        LOGV("VideoEditorVideoEncoder_processOutputBuffer ERROR 0x%X", err);
+        ALOGV("VideoEditorVideoEncoder_processOutputBuffer ERROR 0x%X", err);
     }
-    LOGV("VideoEditorVideoEncoder_processOutputBuffer end");
+    ALOGV("VideoEditorVideoEncoder_processOutputBuffer end");
     return err;
 }
 
@@ -1255,21 +1255,21 @@ extern "C" {
 
 M4OSA_ERR VideoEditorVideoEncoder_getInterface_H263(M4ENCODER_Format* pFormat,
         M4ENCODER_GlobalInterface** pEncoderInterface, M4ENCODER_OpenMode mode){
-    LOGI("VideoEditorVideoEncoder_getInterface_H263: Intel Version");
+    ALOGI("VideoEditorVideoEncoder_getInterface_H263: Intel Version");
     return VideoEditorVideoEncoder_getInterface(M4ENCODER_kH263, pFormat,
             pEncoderInterface, mode);
 }
 
 M4OSA_ERR VideoEditorVideoEncoder_getInterface_MPEG4(M4ENCODER_Format* pFormat,
         M4ENCODER_GlobalInterface** pEncoderInterface, M4ENCODER_OpenMode mode){
-    LOGI("VideoEditorVideoEncoder_getInterface_MPEG4: Intel Version");
+    ALOGI("VideoEditorVideoEncoder_getInterface_MPEG4: Intel Version");
     return VideoEditorVideoEncoder_getInterface(M4ENCODER_kMPEG4, pFormat,
            pEncoderInterface, mode);
 }
 
 M4OSA_ERR VideoEditorVideoEncoder_getInterface_H264(M4ENCODER_Format* pFormat,
         M4ENCODER_GlobalInterface** pEncoderInterface, M4ENCODER_OpenMode mode){
-    LOGI("VideoEditorVideoEncoder_getInterface_H264: Intel Version");
+    ALOGI("VideoEditorVideoEncoder_getInterface_H264: Intel Version");
     return VideoEditorVideoEncoder_getInterface(M4ENCODER_kH264, pFormat,
            pEncoderInterface, mode);
 

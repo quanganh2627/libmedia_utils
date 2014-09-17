@@ -29,7 +29,7 @@ using namespace android::intel;
 #define CHECK_VASTATUS(str) \
     do { \
         if (vaStatus != VA_STATUS_SUCCESS) { \
-                LOGE("%s failed\n", str); \
+                ALOGE("%s failed\n", str); \
                 return STATUS_ERROR;}   \
         }while(0);
 
@@ -69,7 +69,7 @@ enum STRENGTH {
 VPPWorker::VPPWorker()
     :   mVPStarted(false),
         mFilters(0) {
-    LOGI("%s", __func__);
+    ALOGI("%s", __func__);
     memset(&mFilterParam, 0, sizeof(mFilterParam));
 }
 
@@ -237,7 +237,7 @@ status_t VPPWorker::process(buffer_handle_t inputBuffer,
         primarySurf.fColorBalanceContrast = 2.0;
         primarySurf.fColorBalanceHue = 179.0;
         primarySurf.fColorBalanceSaturation = 2.0;
-        LOGD("%s: bright %f, contrast %f, hue %f, saturation %f", __func__, 
+        ALOGD("%s: bright %f, contrast %f, hue %f, saturation %f", __func__, 
                 primarySurf.fColorBalanceBrightness,
                 primarySurf.fColorBalanceContrast,
                 primarySurf.fColorBalanceHue,
@@ -261,7 +261,7 @@ status_t VPPWorker::process(buffer_handle_t inputBuffer,
         outSurf[i].destRect		= &outDrect;
         outSurf[i].bufferType		= IVP_GRALLOC_HANDLE; //TODO: it only support buffer_handle_t now
         outSurf[i].gralloc_handle   = outputBuffer;
-        LOGD("%s: src width %d, height %d; dst width %d, dst height %d", __func__,
+        ALOGD("%s: src width %d, height %d; dst width %d, dst height %d", __func__,
                 mFilterParam.srcWidth, mFilterParam.srcHeight,
                 mFilterParam.dstWidth, mFilterParam.dstHeight); 
 
@@ -273,7 +273,7 @@ status_t VPPWorker::process(buffer_handle_t inputBuffer,
             primarySurf.sample_type = IVP_SAMPLETYPE_PROGRESSIVE;
 
         if(IVP_STATUS_SUCCESS != iVP_exec(&mVPContext, &primarySurf, NULL, 0, &outSurf[i], true)) {
-            LOGE("%s: iVP_exec failed!", __func__);
+            ALOGE("%s: iVP_exec failed!", __func__);
             return STATUS_ERROR;
         }
     }
@@ -283,7 +283,7 @@ status_t VPPWorker::process(buffer_handle_t inputBuffer,
 }
 
 VPPWorker::~VPPWorker() {
-    LOGI("%s", __func__);
+    ALOGI("%s", __func__);
     if (mVPStarted) {
         iVP_destroy_context(&mVPContext);
         mVPStarted = false;

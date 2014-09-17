@@ -73,7 +73,7 @@ NuPlayerVPPProcessor::~NuPlayerVPPProcessor() {
     }
 #endif
     mNuPlayerVPPProcessor = NULL;
-    LOGI("===== VPPInputCount = %d  =====", mInputCount);
+    ALOGI("===== VPPInputCount = %d  =====", mInputCount);
 }
 
 //static
@@ -183,7 +183,7 @@ void NuPlayerVPPProcessor::getBufferFromVPP() {
         vppNotify->setBuffer("buffer", info->mData);
         vppNotify->post();
 
-        LOGV("vpp output buffer index = %d, buffer = %p, timeUs = %lld",
+        ALOGV("vpp output buffer index = %d, buffer = %p, timeUs = %lld",
                 mOutputLoadPoint, mOutput[mOutputLoadPoint].mGraphicBuffer.get(), mOutput[mOutputLoadPoint].mTimeUs);
 
         mOutput[mOutputLoadPoint].mStatus = VPP_BUFFER_RENDERING;
@@ -224,7 +224,7 @@ void NuPlayerVPPProcessor::onFreeBuffer(const sp<AMessage> &msg) {
     if (!mThreadRunning) {
         ACodec::BufferInfo * info = findBufferByGraphicBuffer(mOutput[index].mGraphicBuffer);
         if (info != NULL) {
-            LOGV("cancel buffer after thread quit ; graphicBuffer = %p", mOutput[index].mGraphicBuffer.get());
+            ALOGV("cancel buffer after thread quit ; graphicBuffer = %p", mOutput[index].mGraphicBuffer.get());
             cancelBufferToNativeWindow(info);
             mOutput[index].resetBuffer(NULL);
         }
@@ -260,7 +260,7 @@ status_t NuPlayerVPPProcessor::validateVideoInfo(VPPVideoInfo *videoInfo){
     mOutputBufferNum = 1 + (mWorker->mNumForwardReferences + 2) * mWorker->mFrcRate;
     if (mInputBufferNum > VPPBuffer::MAX_VPP_BUFFER_NUMBER
             || mOutputBufferNum > VPPBuffer::MAX_VPP_BUFFER_NUMBER) {
-        LOGE("buffer number needed are exceeded limitation");
+        ALOGE("buffer number needed are exceeded limitation");
         return VPP_FAIL;
     }
     return VPP_OK;
@@ -297,7 +297,7 @@ ACodec::BufferInfo * NuPlayerVPPProcessor::findBufferByGraphicBuffer(sp<GraphicB
 }
 
 status_t NuPlayerVPPProcessor::init(sp<ACodec> &codec) {
-    LOGI("init");
+    ALOGI("init");
     if (codec == NULL || mWorker == NULL)
         return VPP_FAIL;
 
@@ -313,7 +313,7 @@ status_t NuPlayerVPPProcessor::init(sp<ACodec> &codec) {
                 || size <= mInputBufferNum + mOutputBufferNum
                 || mInputBufferNum > VPPBuffer::MAX_VPP_BUFFER_NUMBER
                 || mOutputBufferNum > VPPBuffer::MAX_VPP_BUFFER_NUMBER) {
-            LOGE("input or output buffer number is invalid");
+            ALOGE("input or output buffer number is invalid");
             return VPP_FAIL;
         }
         for (uint32_t i = 0; i < size; i++) {
@@ -323,7 +323,7 @@ status_t NuPlayerVPPProcessor::init(sp<ACodec> &codec) {
             if(mWorker->setGraphicBufferConfig(graphicBuffer) == STATUS_OK)
                 continue;
             else {
-                LOGE("set graphic buffer config to VPPWorker failed");
+                ALOGE("set graphic buffer config to VPPWorker failed");
                 return VPP_FAIL;
             }
         }
@@ -369,7 +369,7 @@ status_t NuPlayerVPPProcessor::initBuffers() {
 ACodec::BufferInfo * NuPlayerVPPProcessor::dequeueBufferFromNativeWindow() {
     ANativeWindowBuffer *buf;
     if (native_window_dequeue_buffer_and_wait(mNativeWindow->getNativeWindow().get(), &buf) != 0) {
-        LOGE("dequeueBuffer failed.");
+        ALOGE("dequeueBuffer failed.");
         return NULL;
     }
 
@@ -381,7 +381,7 @@ ACodec::BufferInfo * NuPlayerVPPProcessor::dequeueBufferFromNativeWindow() {
                      (int)ACodec::BufferInfo::OWNED_BY_NATIVE_WINDOW);
 
             info->mStatus = ACodec::BufferInfo::OWNED_BY_VPP;
-            LOGV("dequeueBufferFromNativeWindow graphicBuffer = %p", info->mGraphicBuffer.get());
+            ALOGV("dequeueBufferFromNativeWindow graphicBuffer = %p", info->mGraphicBuffer.get());
 
             return info;
         }
@@ -391,7 +391,7 @@ ACodec::BufferInfo * NuPlayerVPPProcessor::dequeueBufferFromNativeWindow() {
 }
 
 void NuPlayerVPPProcessor::releaseBuffers() {
-    LOGI("releaseBuffers");
+    ALOGI("releaseBuffers");
     for (uint32_t i = 0; i < mInputBufferNum; i++) {
         mInput[i].resetBuffer(NULL);
     }
@@ -414,7 +414,7 @@ status_t NuPlayerVPPProcessor::cancelBufferToNativeWindow(ACodec::BufferInfo *in
             || (info->mStatus == ACodec::BufferInfo::OWNED_BY_NATIVE_WINDOW));
 
     if (info->mStatus == ACodec::BufferInfo::OWNED_BY_VPP) {
-        LOGV("cancelBuffer on buffer %p", info->mGraphicBuffer.get());
+        ALOGV("cancelBuffer on buffer %p", info->mGraphicBuffer.get());
 
         int err = mNativeWindow->getNativeWindow()->cancelBuffer(
                 mNativeWindow->getNativeWindow().get(), info->mGraphicBuffer.get(), -1);
@@ -428,10 +428,10 @@ status_t NuPlayerVPPProcessor::cancelBufferToNativeWindow(ACodec::BufferInfo *in
 
 void NuPlayerVPPProcessor::printBuffers() {
     for (uint32_t i = 0; i < mInputBufferNum; i++) {
-        LOGI("input %d.   graphicBuffer = %p,  status = %d, time = %lld", i, mInput[i].mGraphicBuffer.get(), mInput[i].mStatus, mInput[i].mTimeUs);
+        ALOGI("input %d.   graphicBuffer = %p,  status = %d, time = %lld", i, mInput[i].mGraphicBuffer.get(), mInput[i].mStatus, mInput[i].mTimeUs);
     }
     for (uint32_t i = 0; i < mOutputBufferNum; i++) {
-        LOGI("output %d.   graphicBuffer = %p,  status = %d, time = %lld", i, mOutput[i].mGraphicBuffer.get(), mOutput[i].mStatus, mOutput[i].mTimeUs);
+        ALOGI("output %d.   graphicBuffer = %p,  status = %d, time = %lld", i, mOutput[i].mGraphicBuffer.get(), mOutput[i].mStatus, mOutput[i].mTimeUs);
     }
 
 }
@@ -450,7 +450,7 @@ void NuPlayerVPPProcessor::postAndResetInput(uint32_t index) {
 }
 
 void NuPlayerVPPProcessor::quitThread() {
-    LOGI("quitThread");
+    ALOGI("quitThread");
     if (mThreadRunning) {
         mProcThread->requestExit();
         {
@@ -467,34 +467,34 @@ void NuPlayerVPPProcessor::quitThread() {
 
 void NuPlayerVPPProcessor::seek() {
 
-    LOGI("seek");
+    ALOGI("seek");
     /* invoke thread if it is waiting */
     if (mThreadRunning) {
         {
             Mutex::Autolock procLock(mProcThread->mLock);
-            LOGV("got proc lock");
+            ALOGV("got proc lock");
             if (!hasProcessingBuffer()) {
-                LOGI("seek done");
+                ALOGI("seek done");
                 return;
             }
             mProcThread->mSeek = true;
-            LOGV("set proc seek ");
+            ALOGV("set proc seek ");
             mProcThread->mRunCond.signal();
-            LOGV("wake up proc thread");
+            ALOGV("wake up proc thread");
         }
         Mutex::Autolock endLock(mProcThread->mEndLock);
-        LOGI("waiting proc thread mEnd lock");
+        ALOGI("waiting proc thread mEnd lock");
         mProcThread->mEndCond.wait(mProcThread->mEndLock);
-        LOGI("wake up from proc thread");
+        ALOGI("wake up from proc thread");
         flushNoShutdown();
         mLastInputTimeUs = -1;
-        LOGI("seek done");
+        ALOGI("seek done");
     }
 }
 
 
 bool NuPlayerVPPProcessor::hasProcessingBuffer() {
-    LOGV("before hasProcessingBuffer");
+    ALOGV("before hasProcessingBuffer");
     //printBuffers();
     bool hasProcBuffer = false;
     for (uint32_t i = 0; i < mInputBufferNum; i++) {
@@ -511,14 +511,14 @@ bool NuPlayerVPPProcessor::hasProcessingBuffer() {
     }
     mInputLoadPoint = 0;
     mOutputLoadPoint = 0;
-    LOGV("after hasProcessingBuffer");
-    LOGI("hasProcessingBuffer %d", hasProcBuffer);
+    ALOGV("after hasProcessingBuffer");
+    ALOGI("hasProcessingBuffer %d", hasProcBuffer);
     //printBuffers();
     return hasProcBuffer;
 }
 
 void NuPlayerVPPProcessor::flushNoShutdown() {
-    LOGV("before flushNoShutdown");
+    ALOGV("before flushNoShutdown");
     //printBuffers();
     for (uint32_t i = 0; i < mInputBufferNum; i++) {
         CHECK(mInput[i].mStatus != VPP_BUFFER_PROCESSING);
@@ -534,14 +534,14 @@ void NuPlayerVPPProcessor::flushNoShutdown() {
             mOutput[i].resetBuffer(mOutput[i].mGraphicBuffer);
         }
     }
-    LOGV("after flushNoShutdown");
+    ALOGV("after flushNoShutdown");
     printBuffers();
 }
 
 void NuPlayerVPPProcessor::setEOS() {
     if (!mThreadRunning)
         return;
-    LOGI("set eos");
+    ALOGI("set eos");
     mEOS = true;
     if (mProcThread != NULL) {
         mProcThread->mEOS = true;
@@ -550,7 +550,7 @@ void NuPlayerVPPProcessor::setEOS() {
 }
 
 void NuPlayerVPPProcessor::flushShutdown() {
-    LOGV("flushShutdown");
+    ALOGV("flushShutdown");
 
     if(!mThreadRunning)
         return;
@@ -592,12 +592,12 @@ uint32_t NuPlayerVPPProcessor::getVppOutputFps() {
 void NuPlayerVPPProcessor::setDisplayMode(int32_t mode) {
     if (mWorker != NULL) {
         //check if frame rate conversion needed if HDMI connection status changed
-        LOGV("display mode change. Thread  %p", &mProcThread);
-        LOGI("old/new/connect_Bit mode %d %d %d",
+        ALOGV("display mode change. Thread  %p", &mProcThread);
+        ALOGI("old/new/connect_Bit mode %d %d %d",
                  mWorker->getDisplayMode(),  mode, MDS_HDMI_CONNECTED);
         if ((mWorker->getDisplayMode() != mode) && (mProcThread != NULL)) {
             mProcThread->notifyCheckFrc();
-            LOGI("NeedCheckFrc change");
+            ALOGI("NeedCheckFrc change");
         }
         mWorker->setDisplayMode(mode);
     }
@@ -606,12 +606,12 @@ void NuPlayerVPPProcessor::setDisplayMode(int32_t mode) {
 status_t NuPlayerVPPProcessor::configFrc4Hdmi(bool enableFrc4Hdmi) {
 
     status_t status = STATUS_OK;
-    LOGI("configFrc4Hdmi %d", enableFrc4Hdmi);
+    ALOGI("configFrc4Hdmi %d", enableFrc4Hdmi);
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
     if (enableFrc4Hdmi) {
         status_t status = mWorker->configFrc4Hdmi(enableFrc4Hdmi, &mMds);
         if (status != STATUS_OK) {
-            LOGE("failed to enable FRC for HDMI");
+            ALOGE("failed to enable FRC for HDMI");
             return status;
         }
 
@@ -627,7 +627,7 @@ status_t NuPlayerVPPProcessor::configFrc4Hdmi(bool enableFrc4Hdmi) {
             mWorker->mFrcOn = frcOn;
             mWorker->mFrcRate = frcRate;
         } else if (mThreadRunning) {
-            LOGW("Configure VPP FRC for HDMI too late");
+            ALOGW("Configure VPP FRC for HDMI too late");
         }
     }
 #endif

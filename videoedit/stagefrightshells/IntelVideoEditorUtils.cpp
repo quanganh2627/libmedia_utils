@@ -450,15 +450,15 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
 status_t removeAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
         const uint8_t *data, size_t size, MetaData *param)
 {
-    LOGV("removeAVCCodecSpecificData begin");
-    LOGV("Inputdataaddr = %p,Inputsize = %d", data,size);
+    ALOGV("removeAVCCodecSpecificData begin");
+    ALOGV("Inputdataaddr = %p,Inputsize = %d", data,size);
     if ( (pOutputData == NULL) || (pOutputSize == NULL) ) {
-        LOGE("output is invalid");
+        ALOGE("output is invalid");
         return ERROR_MALFORMED;
     }
 
     if (size < 4) {
-        LOGE("Codec specific data length too short: %d", size);
+        ALOGE("Codec specific data length too short: %d", size);
         return ERROR_MALFORMED;
     }
 
@@ -480,7 +480,7 @@ status_t removeAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
         type = (*(tmp + 4)) & 0x1F;
         if (type == kNalUnitTypeSeqParamSet) {
             if (gotPps) {
-                LOGE("SPS must come before PPS");
+                ALOGE("SPS must come before PPS");
                 return ERROR_MALFORMED;
             }
             if (!gotSps) {
@@ -490,7 +490,7 @@ status_t removeAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
                 &paramSetLen);
         } else if (type == kNalUnitTypePicParamSet) {
             if (!gotSps) {
-                LOGE("SPS must come before PPS");
+                ALOGE("SPS must come before PPS");
                 return ERROR_MALFORMED;
             }
             if (!gotPps) {
@@ -499,7 +499,7 @@ status_t removeAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
             nextStartCode = parseParamSet(&ctx, tmp + 4, bytesLeft - 4, type,
                 &paramSetLen);
         } else {
-            LOGE("Only SPS and PPS Nal units are expected");
+            ALOGE("Only SPS and PPS Nal units are expected");
             return ERROR_MALFORMED;
         }
         if (nextStartCode == NULL) {
@@ -508,7 +508,7 @@ status_t removeAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
         bytesLeft -= nextStartCode - tmp;
         tmp = nextStartCode;
         outputSize += (4 + paramSetLen);
-        LOGV("DSI size is %d!",outputSize);
+        ALOGV("DSI size is %d!",outputSize);
         if(gotSps && gotPps)
         {
             break;
@@ -516,8 +516,8 @@ status_t removeAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
     }
     *pOutputData = (uint8_t *)(data + outputSize);
     *pOutputSize = outputSize;
-    LOGV("Outputdataaddr = %p,Outputsize = %d", *pOutputData, *pOutputSize);
-    LOGV("removeAVCCodecSpecificData end");
+    ALOGV("Outputdataaddr = %p,Outputsize = %d", *pOutputData, *pOutputSize);
+    ALOGV("removeAVCCodecSpecificData end");
     return OK;
 }
 }// namespace android

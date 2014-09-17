@@ -47,7 +47,7 @@ IntelVideoEditorEncoderSource::IntelVideoEditorEncoderSource(
         mIsEOS(false),
         mState(CREATED),
         mEncFormat(format) {
-    LOGV("IntelVideoEditorEncoderSource::IntelVideoEditorEncoderSource");
+    ALOGV("IntelVideoEditorEncoderSource::IntelVideoEditorEncoderSource");
 }
 
 IntelVideoEditorEncoderSource::~IntelVideoEditorEncoderSource() {
@@ -62,25 +62,25 @@ status_t IntelVideoEditorEncoderSource::start(MetaData *meta) {
     Mutex::Autolock autolock(mLock);
     status_t err = OK;
 
-    LOGV("IntelVideoEditorEncoderSource::start() begin");
+    ALOGV("IntelVideoEditorEncoderSource::start() begin");
 
     if( CREATED != mState ) {
-        LOGV("IntelVideoEditorEncoderSource::start: invalid state %d", mState);
+        ALOGV("IntelVideoEditorEncoderSource::start: invalid state %d", mState);
         return UNKNOWN_ERROR;
     }
     mState = STARTED;
     sp<BufferShareRegistry> r = BufferShareRegistry::getInstance();
     if (r->sourceRequestToEnableSharingMode() == BS_SUCCESS) {
-        LOGI("Shared buffer mode available\n");
+        ALOGI("Shared buffer mode available\n");
         mUseSharedBuffers = true;
         mGroup = NULL;
     }
     else
     {
-        LOGE("Shared buffer mode not available\n");
+        ALOGE("Shared buffer mode not available\n");
         return UNKNOWN_ERROR;
     }
-    LOGV("IntelVideoEditorEncoderSource::start() END (0x%x)", err);
+    ALOGV("IntelVideoEditorEncoderSource::start() END (0x%x)", err);
     return err;
 }
 
@@ -88,24 +88,24 @@ status_t IntelVideoEditorEncoderSource::getSharedBuffers()
 {
     Mutex::Autolock autolock(mLock);
 
-    LOGV("IntelVideoEditorEncoderSource::getSharedBuffers begin");
+    ALOGV("IntelVideoEditorEncoderSource::getSharedBuffers begin");
     sp<BufferShareRegistry> r = BufferShareRegistry::getInstance();
     SharedBufferType *bufs = NULL;
     int buf_cnt = 0;
 
     if (r->sourceEnterSharingMode() != BS_SUCCESS) {
-        LOGE("sourceEnterSharingMode failed\n");
+        ALOGE("sourceEnterSharingMode failed\n");
         return UNKNOWN_ERROR;
     }
 
     if (r->sourceGetSharedBuffer(NULL, &buf_cnt) != BS_SUCCESS) {
-        LOGE("sourceGetSharedBuffer failed, unable to get buffer count\n");
+        ALOGE("sourceGetSharedBuffer failed, unable to get buffer count\n");
         return UNKNOWN_ERROR;
     }
 
     bufs = new SharedBufferType[buf_cnt];
     if (r->sourceGetSharedBuffer(bufs, &buf_cnt) != BS_SUCCESS) {
-        LOGE("sourceGetSharedBuffer failed, unable to retrieve buffers\n");
+        ALOGE("sourceGetSharedBuffer failed, unable to retrieve buffers\n");
         delete [] bufs;
         return UNKNOWN_ERROR;
     }
@@ -119,18 +119,18 @@ status_t IntelVideoEditorEncoderSource::getSharedBuffers()
 
     delete [] bufs;
 
-    LOGV("IntelVideoEditorAVCEncoderSource::getSharedBuffers end");
+    ALOGV("IntelVideoEditorAVCEncoderSource::getSharedBuffers end");
     return OK;
 }
 
 
 status_t IntelVideoEditorEncoderSource::stop() {
 
-    LOGV("IntelVideoEditorAVCEncoderSource::stop() begin");
+    ALOGV("IntelVideoEditorAVCEncoderSource::stop() begin");
     status_t err = OK;
 
     if( STARTED != mState ) {
-        LOGV("IntelVideoEditorAVCEncoderSource::stop: invalid state %d", mState);
+        ALOGV("IntelVideoEditorAVCEncoderSource::stop: invalid state %d", mState);
         return UNKNOWN_ERROR;
     }
 
@@ -150,18 +150,18 @@ status_t IntelVideoEditorEncoderSource::stop() {
         mFirstBufferLink = mFirstBufferLink->nextLink;
         delete tmpLink;
     }
-    LOGV("IntelVideoEditorEncoderSource::stop : %d buffer remained", i);
+    ALOGV("IntelVideoEditorEncoderSource::stop : %d buffer remained", i);
     mFirstBufferLink = NULL;
     mLastBufferLink = NULL;
     mState = CREATED;
 
-    LOGV("IntelVideoEditorEncoderSource::stop() END (0x%x)", err);
+    ALOGV("IntelVideoEditorEncoderSource::stop() END (0x%x)", err);
     return err;
 }
 
 sp<MetaData> IntelVideoEditorEncoderSource::getFormat() {
 
-    LOGV("IntelVideoEditorEncoderSource::getFormat");
+    ALOGV("IntelVideoEditorEncoderSource::getFormat");
     return mEncFormat;
 }
 
@@ -169,28 +169,28 @@ status_t IntelVideoEditorEncoderSource::read(MediaBuffer **buffer,
         const ReadOptions *options) {
     Mutex::Autolock autolock(mLock);
 
-    LOGV("IntelVideoEditorEncoderSource::read() begin");
+    ALOGV("IntelVideoEditorEncoderSource::read() begin");
 
     MediaSource::ReadOptions readOptions;
     status_t err = OK;
     MediaBufferChain* tmpLink = NULL;
 
     if ( STARTED != mState ) {
-        LOGV("IntelVideoEditorEncoderSource::read: invalid state %d", mState);
+        ALOGV("IntelVideoEditorEncoderSource::read: invalid state %d", mState);
         return UNKNOWN_ERROR;
     }
 
     while (mFirstBufferLink == NULL && !mIsEOS) {
-        LOGV("Wait for buffer in IntelVideoEditorEncoderSource::read()");
+        ALOGV("Wait for buffer in IntelVideoEditorEncoderSource::read()");
         mBufferCond.wait(mLock);
     }
 
-    LOGV("Get the buffer in IntelVideoEditorEncoderSource::read()!");
+    ALOGV("Get the buffer in IntelVideoEditorEncoderSource::read()!");
 
     // End of stream?
     if (mFirstBufferLink == NULL) {
         *buffer = NULL;
-        LOGV("IntelVideoEditorEncoderSource::read : EOS");
+        ALOGV("IntelVideoEditorEncoderSource::read : EOS");
         return ERROR_END_OF_STREAM;
     }
 
@@ -205,19 +205,19 @@ status_t IntelVideoEditorEncoderSource::read(MediaBuffer **buffer,
     delete tmpLink;
     mNbBuffer--;
 
-    LOGV("IntelVideoEditorEncoderSource::read() END (0x%x)", err);
+    ALOGV("IntelVideoEditorEncoderSource::read() END (0x%x)", err);
     return err;
 }
 
 int32_t IntelVideoEditorEncoderSource::storeBuffer(MediaBuffer *buffer) {
     Mutex::Autolock autolock(mLock);
 
-    LOGV("IntelVideoEditorEncoderSource::storeBuffer() begin");
+    ALOGV("IntelVideoEditorEncoderSource::storeBuffer() begin");
 
     status_t err = OK;
 
     if( NULL == buffer ) {
-        LOGV("IntelVideoEditorEncoderSource::storeBuffer : reached EOS");
+        ALOGV("IntelVideoEditorEncoderSource::storeBuffer : reached EOS");
         mIsEOS = true;
     } else {
         MediaBufferChain* newLink = new MediaBufferChain;
@@ -232,17 +232,17 @@ int32_t IntelVideoEditorEncoderSource::storeBuffer(MediaBuffer *buffer) {
         mNbBuffer++;
     }
     mBufferCond.signal();
-    LOGV("IntelVideoEditorEncoderSource::storeBuffer() end");
+    ALOGV("IntelVideoEditorEncoderSource::storeBuffer() end");
     return mNbBuffer;
 }
 
 int32_t IntelVideoEditorEncoderSource::requestBuffer(MediaBuffer **buffer) {
     status_t err = OK;
-    LOGV("IntelVideoEditorEncoderSource::requestBuffer() begin");
+    ALOGV("IntelVideoEditorEncoderSource::requestBuffer() begin");
     if (!mGroup && mUseSharedBuffers) {
         err = getSharedBuffers();
         if (err != OK) {
-            LOGE("shared buffer setup failed\n");
+            ALOGE("shared buffer setup failed\n");
             return err;
         }
     }
@@ -250,16 +250,16 @@ int32_t IntelVideoEditorEncoderSource::requestBuffer(MediaBuffer **buffer) {
     if (mGroup) {
         err = mGroup->acquire_buffer(buffer);
     } else {
-        LOGE("Fail to get media buffer group");
+        ALOGE("Fail to get media buffer group");
         return UNKNOWN_ERROR;
     }
 
-    LOGV("requestBuffer buffer addr = 0x%p",(uint8_t *)(*buffer)->data());
+    ALOGV("requestBuffer buffer addr = 0x%p",(uint8_t *)(*buffer)->data());
     if (err != OK) {
-        LOGE("Fail to get shared buffers");
+        ALOGE("Fail to get shared buffers");
         return UNKNOWN_ERROR;
     }
-    LOGV("IntelVideoEditorEncoderSource::requestBuffer() end");
+    ALOGV("IntelVideoEditorEncoderSource::requestBuffer() end");
     return err;
 }
 }

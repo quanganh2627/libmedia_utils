@@ -45,7 +45,7 @@ VPPProcThread::VPPProcThread(bool canCallJava, VPPWorker* vppWorker,
 }
 
 VPPProcThread::~VPPProcThread() {
-    LOGV("VPPProcThread is deleted");
+    ALOGV("VPPProcThread is deleted");
 }
 
 status_t VPPProcThread::readyToRun() {
@@ -72,7 +72,7 @@ bool VPPProcThread::getBufForFirmwareOutput(Vector< sp<GraphicBuffer> > *fillBuf
        *fillBufNum = 1;
        sp<GraphicBuffer> fillBuf = mOutput[mOutputFillIdx].mGraphicBuffer.get();
        fillBufList->push_back(fillBuf);
-       LOGV("End flag %d", __LINE__);
+       ALOGV("End flag %d", __LINE__);
        return true;
     }
 
@@ -82,14 +82,14 @@ bool VPPProcThread::getBufForFirmwareOutput(Vector< sp<GraphicBuffer> > *fillBuf
             sp<GraphicBuffer> fillBuf = mOutput[fillPos].mGraphicBuffer.get();
             fillBufList->push_back(fillBuf);
         } else {
-            LOGV(" buffer status error %d line %d ...", mOutput[fillPos].mStatus, __LINE__);
+            ALOGV(" buffer status error %d line %d ...", mOutput[fillPos].mStatus, __LINE__);
             break;
         }
     }
 
     *fillBufNum  = i;
     if (i < needFillNum) {
-        LOGE("falied to get fill buffer, status mOutPutFillIdx %d i %d, fillBufNum %d", mOutputFillIdx, i, needFillNum);
+        ALOGE("falied to get fill buffer, status mOutPutFillIdx %d i %d, fillBufNum %d", mOutputFillIdx, i, needFillNum);
         bRet = false;
     }
 
@@ -120,7 +120,7 @@ int VPPProcThread::updateFirmwareOutputBufStatus(Vector< sp<GraphicBuffer> > fil
            mInputProcIdx = 0;
            mOutputProcIdx = 0;
        }
-       LOGV("End flag  finished %d", __LINE__);
+       ALOGV("End flag  finished %d", __LINE__);
     } else if (mOutput[mOutputFillIdx].mStatus == VPP_BUFFER_PROCESSING) {
         for(uint32_t i = 0; i < fillBufNum; i++) {
             uint32_t outputVppPos = (mOutputFillIdx + i) % mOutputBufferNum;
@@ -134,7 +134,7 @@ int VPPProcThread::updateFirmwareOutputBufStatus(Vector< sp<GraphicBuffer> > fil
         }
         mOutputFillIdx = (mOutputFillIdx + fillBufNum) % mOutputBufferNum;
    } else {
-          LOGE("Shoud not be here");
+          ALOGE("Shoud not be here");
    }
 
    return bPipelineFlushCompleted;
@@ -173,18 +173,18 @@ bool VPPProcThread::getBufForFirmwareInput(Vector< sp<GraphicBuffer> > *procBufL
             procBufList->push_back(procBuf);
             i++;
         } else {
-            LOGV("mOutputProcIdx %d i %d buf status %d", mOutputProcIdx,
+            ALOGV("mOutputProcIdx %d i %d buf status %d", mOutputProcIdx,
                       i, mOutput[procPos].mStatus);
         }
 
         if (mOutput[mOutputProcIdx].mStatus == VPP_BUFFER_END_FLAG) {
-              LOGE("End flag should not be here");
+              ALOGE("End flag should not be here");
         }
     } while ((i < needProcNum) && (mOutput[procPos].mStatus == VPP_BUFFER_FREE));
 
     *procBufNum = i;
     bGetBufSuccess = (*procBufNum  == needProcNum);
-    LOGV("bGetBuf %d mOutputProcIdx %d i %d buf status %d", bGetBufSuccess,mOutputProcIdx, i, mOutput[procPos].mStatus);
+    ALOGV("bGetBuf %d mOutputProcIdx %d i %d buf status %d", bGetBufSuccess,mOutputProcIdx, i, mOutput[procPos].mStatus);
 
     return bGetBufSuccess;
 }
@@ -263,28 +263,28 @@ bool VPPProcThread::threadLoop() {
         mNeedCheckFrc = false;
         mVPPWorker->calculateFrc(&frcOn, &frcRate);
         if ((frcOn != mVPPWorker->mFrcOn) || (frcRate != mVPPWorker->mFrcRate)) {
-            LOGI("mNumTaskInProcesing %d", mNumTaskInProcesing);
+            ALOGI("mNumTaskInProcesing %d", mNumTaskInProcesing);
             mFrcChange = true;
             mVPPWorker->mUpdatedFrcRate = frcRate;
             mVPPWorker->mUpdatedFrcOn = frcOn;
         } else {
-            LOGI("No FRC change needed. Keep current FRC");
+            ALOGI("No FRC change needed. Keep current FRC");
         }
     }
 
-    LOGV("mNumTaskInProcesing %d", mNumTaskInProcesing);
+    ALOGV("mNumTaskInProcesing %d", mNumTaskInProcesing);
     while ((mNumTaskInProcesing > 0 && (!bPendingOnFirmware || mbFlushPipelineInProcessing)) && bGetBufSuccess ) {
         fillBufList.clear();
         bGetBufSuccess = getBufForFirmwareOutput(&fillBufList, &fillBufNum);
-        LOGV("bGetOutput %d, buf num %d", bGetBufSuccess, fillBufNum);
+        ALOGV("bGetOutput %d, buf num %d", bGetBufSuccess, fillBufNum);
         if (bGetBufSuccess) {
             status_t ret = mVPPWorker->fill(fillBufList, fillBufNum);
             if (ret == STATUS_OK) {
                 mNumTaskInProcesing--;
-                LOGV("mNumTaskInProcesing: %d ...", mNumTaskInProcesing);
+                ALOGV("mNumTaskInProcesing: %d ...", mNumTaskInProcesing);
                 bool bPipelineFlusheCompleted = updateFirmwareOutputBufStatus(fillBufList, fillBufNum);
                 if (bPipelineFlusheCompleted) {
-                    LOGI("bPipelineFlusheCompleted");
+                    ALOGI("bPipelineFlusheCompleted");
                     mSeek = false;
                     mEOS = false;
                     if (mFrcChange &&
@@ -298,13 +298,13 @@ bool VPPProcThread::threadLoop() {
                     mbFlushPipelineInProcessing = false;
                     mVPPWorker->reset();
                     Mutex::Autolock endLock(mEndLock);
-                    LOGV("send end signal, mInputFillIdx = %d",mInputFillIdx);
+                    ALOGV("send end signal, mInputFillIdx = %d",mInputFillIdx);
                     mEndCond.signal();
                 }
             } else if (ret == STATUS_DATA_RENDERING) {
                 bPendingOnFirmware = true;
                 if (mSeek || mEOS || mFrcChange) {
-                    LOGI("PendingOnFirmware %d, TaskInProcesing %d, flushing %d, Eos/Seek/Frc %d/%d/%d",
+                    ALOGI("PendingOnFirmware %d, TaskInProcesing %d, flushing %d, Eos/Seek/Frc %d/%d/%d",
                               bPendingOnFirmware ,mNumTaskInProcesing, mbFlushPipelineInProcessing,
                               mEOS, mSeek, mFrcChange);
                     mRunCond.waitRelative(mLock, 2000000);
@@ -316,7 +316,7 @@ bool VPPProcThread::threadLoop() {
             }
         }
     }
-    LOGV("after mNumTaskInProcesing %d ...", mNumTaskInProcesing);
+    ALOGV("after mNumTaskInProcesing %d ...", mNumTaskInProcesing);
 
     bInputReady = (mInput[mInputProcIdx].mStatus == VPP_BUFFER_LOADED) ? true : false;
     bOutputBufFree = isOutputBufFree();
@@ -324,12 +324,12 @@ bool VPPProcThread::threadLoop() {
 
     mWait = (!bInputReady || !bOutputBufFree) && (!mSeek && !mEOS && !mFrcChange);
     if (mWait) {
-        LOGV("wait for input/outpu ...");
+        ALOGV("wait for input/outpu ...");
         mRunCond.wait(mLock);
-        LOGV("wake up from mLock ...");
+        ALOGV("wake up from mLock ...");
     }
 
-    LOGV("before send: bInputReady %d flush: %d flushinProcess %d", bInputReady, bFlushPipeline, mbFlushPipelineInProcessing);
+    ALOGV("before send: bInputReady %d flush: %d flushinProcess %d", bInputReady, bFlushPipeline, mbFlushPipelineInProcessing);
 
     if (((bInputReady && bOutputBufFree) || bFlushPipeline) && !mbFlushPipelineInProcessing ) {
         bool bGetInBuf = getBufForFirmwareInput(&procBufList, &inputBuf, bFlushPipeline, &procBufNum);
@@ -344,16 +344,16 @@ bool VPPProcThread::threadLoop() {
                 mNumTaskInProcesing++;
                 if (bFlushPipeline) {
                     mbFlushPipelineInProcessing = true;
-                    LOGI("Vpp FlushPipeline set to driver");
+                    ALOGI("Vpp FlushPipeline set to driver");
                 }
                 updateFirmwareInputBufStatus(procBufList, procBufNum, timeUs, bFlushPipeline);
             } else {
-                LOGE("process error %d ...", __LINE__);
+                ALOGE("process error %d ...", __LINE__);
             }
         }
     }
 
-    LOGV("Process End: bInputReady %d  tasks %d outbufFree %d", bInputReady, mNumTaskInProcesing, bOutputBufFree);
+    ALOGV("Process End: bInputReady %d  tasks %d outbufFree %d", bInputReady, mNumTaskInProcesing, bOutputBufFree);
 
    return true;
 }

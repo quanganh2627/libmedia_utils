@@ -53,7 +53,7 @@ static Vector<ISVComponent*> g_isv_components;
 OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_Init(void)
 {
     int ret;
-    LOGD_IF(ISV_CORE_DEBUG, "%s: enter", __func__);
+    ALOGD_IF(ISV_CORE_DEBUG, "%s: enter", __func__);
 
     pthread_mutex_lock(&g_module_lock);
     if (!g_initialized) {
@@ -105,16 +105,16 @@ OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_Init(void)
     }
     pthread_mutex_unlock(&g_module_lock);
 
-    LOGD_IF(ISV_CORE_DEBUG, "%s: exit done", __func__);
+    ALOGD_IF(ISV_CORE_DEBUG, "%s: exit done", __func__);
     return OMX_ErrorNone;
 }
 
 OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_Deinit(void)
 {
-    LOGD_IF(ISV_CORE_DEBUG, "%s: enter", __func__);
+    ALOGD_IF(ISV_CORE_DEBUG, "%s: enter", __func__);
     OMX_ERRORTYPE ret = OMX_ErrorNone;
 
-    LOGV("%s: enter", __func__);
+    ALOGV("%s: enter", __func__);
     if (g_initialized == 0)
         return OMX_ErrorNone;
 
@@ -128,7 +128,7 @@ OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_Deinit(void)
 
     g_initialized = 0;
 
-    LOGD_IF(ISV_CORE_DEBUG, "%s: exit %d", __func__, ret);
+    ALOGD_IF(ISV_CORE_DEBUG, "%s: exit %d", __func__, ret);
     return ret;
 }
 
@@ -137,12 +137,12 @@ OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_ComponentNameEnum(
     OMX_IN OMX_U32 nNameLength,
     OMX_IN OMX_U32 nIndex)
 {
-    LOGD_IF(ISV_CORE_DEBUG, "%s: enter", __func__);
+    ALOGD_IF(ISV_CORE_DEBUG, "%s: enter", __func__);
     pthread_mutex_lock(&g_module_lock);
     OMX_U32 relativeIndex = nIndex;
     if (nIndex >= g_nr_comp) {
         pthread_mutex_unlock(&g_module_lock);
-        LOGD_IF(ISV_CORE_DEBUG, "%s: exit done", __func__);
+        ALOGD_IF(ISV_CORE_DEBUG, "%s: exit done", __func__);
         return OMX_ErrorNoMore;
     }
 
@@ -152,12 +152,12 @@ OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_ComponentNameEnum(
         }
         if (relativeIndex < g_cores[i].mNumComponents) {
             pthread_mutex_unlock(&g_module_lock);
-            LOGD_IF(ISV_CORE_DEBUG, "%s: found %luth component %s", __func__, nIndex, cComponentName);
+            ALOGD_IF(ISV_CORE_DEBUG, "%s: found %luth component %s", __func__, nIndex, cComponentName);
             return ((*(g_cores[i].mComponentNameEnum))(cComponentName, nNameLength, relativeIndex));
         } else relativeIndex -= g_cores[i].mNumComponents;
     }
     pthread_mutex_unlock(&g_module_lock);
-    LOGD_IF(ISV_CORE_DEBUG, "%s: exit error!!!", __func__);
+    ALOGD_IF(ISV_CORE_DEBUG, "%s: exit error!!!", __func__);
     return OMX_ErrorUndefined;
 }
 
@@ -171,20 +171,20 @@ OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_GetHandle(
     OMX_ERRORTYPE ret;
     OMX_HANDLETYPE tempHandle;
 
-    LOGD_IF(ISV_CORE_DEBUG, "%s: enter, try to get %s", __func__, cComponentName);
+    ALOGD_IF(ISV_CORE_DEBUG, "%s: enter, try to get %s", __func__, cComponentName);
     pthread_mutex_lock(&g_module_lock);
     
     // create a isv component instant
     ISVComponent *pISVComponent = new ISVComponent(pAppData);
     if (!pISVComponent) {
-        LOGE("%s: failed to alloc isv omx component", __func__);
+        ALOGE("%s: failed to alloc isv omx component", __func__);
         pthread_mutex_unlock(&g_module_lock);
         return OMX_ErrorInsufficientResources;
     }
 
     OMX_CALLBACKTYPE *pISVCallBacks = pISVComponent->getCallBacks(pCallBacks);
     if (!pISVCallBacks) {
-        LOGE("%s: failed to get isv callback functions", __func__);
+        ALOGE("%s: failed to get isv callback functions", __func__);
         pthread_mutex_unlock(&g_module_lock);
         return OMX_ErrorInsufficientResources;
     }
@@ -205,14 +205,14 @@ OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_GetHandle(
            
             *pHandle = pISVComponent->getBaseComponent();
 
-            LOGD_IF(ISV_CORE_DEBUG, "%s: found component %s, pHandle %p", __func__, cComponentName, *pHandle);
+            ALOGD_IF(ISV_CORE_DEBUG, "%s: found component %s, pHandle %p", __func__, cComponentName, *pHandle);
             pthread_mutex_unlock(&g_module_lock);
             return OMX_ErrorNone;
         }
     }
     pthread_mutex_unlock(&g_module_lock);
 
-    LOGE("%s(): exit failure, %s not found", __func__, cComponentName);
+    ALOGE("%s(): exit failure, %s not found", __func__, cComponentName);
     return OMX_ErrorInvalidComponent;
 }
 
@@ -221,7 +221,7 @@ OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_FreeHandle(
 {
     OMX_ERRORTYPE ret;
 
-    LOGD_IF(ISV_CORE_DEBUG, "%s: enter, try to free component hanle %p", __func__, hComponent);
+    ALOGD_IF(ISV_CORE_DEBUG, "%s: enter, try to free component hanle %p", __func__, hComponent);
     
     pthread_mutex_lock(&g_module_lock);
 
@@ -230,19 +230,19 @@ OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_FreeHandle(
         if (static_cast<OMX_HANDLETYPE>(pComp->getBaseComponent()) == hComponent) {
             OMX_ERRORTYPE omx_res = pComp->freeComponent();
             if (omx_res != OMX_ErrorNone) {
-                LOGE("%s: free OMX handle %p failed", __func__, hComponent);
+                ALOGE("%s: free OMX handle %p failed", __func__, hComponent);
                 pthread_mutex_unlock(&g_module_lock);
                 return omx_res;
             }
             delete pComp;
             g_isv_components.removeAt(i);
-            LOGD_IF(ISV_CORE_DEBUG, "%s: free component %p success", __func__, hComponent);
+            ALOGD_IF(ISV_CORE_DEBUG, "%s: free component %p success", __func__, hComponent);
             pthread_mutex_unlock(&g_module_lock);
             return OMX_ErrorNone;
         }
     }
     pthread_mutex_unlock(&g_module_lock);
-    LOGE("%s(): exit failure, component %p not found", __func__, hComponent);
+    ALOGE("%s(): exit failure, component %p not found", __func__, hComponent);
     return OMX_ErrorInvalidComponent;
 }
 
@@ -267,7 +267,7 @@ OMX_API OMX_ERRORTYPE OMX_GetComponentsOfRole (
     OMX_INOUT OMX_U32 *pNumComps,
     OMX_INOUT OMX_U8  **compNames)
 {
-    LOGD_IF(ISV_CORE_DEBUG, "%s: enter", __func__);
+    ALOGD_IF(ISV_CORE_DEBUG, "%s: enter", __func__);
     return OMX_ErrorNotImplemented;
 }
 
@@ -276,7 +276,7 @@ OMX_API OMX_ERRORTYPE OMX_GetRolesOfComponent (
     OMX_INOUT OMX_U32 *pNumRoles,
     OMX_OUT OMX_U8 **roles)
 {
-    LOGD_IF(ISV_CORE_DEBUG, "%s: enter", __func__);
+    ALOGD_IF(ISV_CORE_DEBUG, "%s: enter", __func__);
     pthread_mutex_lock(&g_module_lock);
     for (OMX_U32 j = 0; j < CORE_NUMBER; j++) {
         if (g_cores[j].mLibHandle == NULL) {
@@ -318,12 +318,12 @@ OMX_API OMX_ERRORTYPE OMX_GetRolesOfComponent (
         }
 
         pthread_mutex_unlock(&g_module_lock);
-        LOGD_IF(ISV_CORE_DEBUG, "%s: exit done", __func__);
+        ALOGD_IF(ISV_CORE_DEBUG, "%s: exit done", __func__);
         return OMX_ErrorNone;
     }
     pthread_mutex_unlock(&g_module_lock);
 
-    LOGE("%s: invalid component", __func__);
+    ALOGE("%s: invalid component", __func__);
     return OMX_ErrorInvalidComponent;
 }
 

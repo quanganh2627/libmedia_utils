@@ -71,7 +71,7 @@ VPPProcThread::VPPProcThread(bool canCallJava,
 }
 
 VPPProcThread::~VPPProcThread() {
-    LOGV("VPPProcThread is deleted");
+    ALOGV("VPPProcThread is deleted");
     flush();
     mOutputBuffers.clear();
     mInputBuffers.clear();
@@ -91,7 +91,7 @@ status_t VPPProcThread::readyToRun()
 
 void VPPProcThread::start()
 {
-    LOGD_IF(ISV_THREAD_DEBUG, "VPPProcThread::start");
+    ALOGD_IF(ISV_THREAD_DEBUG, "VPPProcThread::start");
     this->run("VPPProcThread", ANDROID_PRIORITY_NORMAL);
     mThreadRunning = true;
     return;
@@ -99,7 +99,7 @@ void VPPProcThread::start()
 
 void VPPProcThread::stop()
 {
-    LOGD_IF(ISV_THREAD_DEBUG, "VPPProcThread::stop");
+    ALOGD_IF(ISV_THREAD_DEBUG, "VPPProcThread::stop");
     if(mThreadRunning) {
         this->requestExit();
         {
@@ -123,7 +123,7 @@ bool VPPProcThread::getBufForFirmwareOutput(Vector<buffer_handle_t> *fillBufList
     needFillNum = mVPPWorker->getFillBufCount();
     if (mOutputProcIdx < needFillNum ||
             mInputProcIdx < 1) {
-        LOGE("%s: no enough input or output buffer which need to be sync", __func__);
+        ALOGE("%s: no enough input or output buffer which need to be sync", __func__);
         return false;
     }
 
@@ -150,12 +150,12 @@ status_t VPPProcThread::updateFirmwareOutputBufStatus(uint32_t fillBufNum) {
     OMX_ERRORTYPE err;
 
     if (mInputBuffers.empty()) {
-        LOGE("%s: input buffer queue is empty. no buffer need to be sync", __func__);
+        ALOGE("%s: input buffer queue is empty. no buffer need to be sync", __func__);
         return UNKNOWN_ERROR;
     }
 
     if (mOutputBuffers.size() < fillBufNum) {
-        LOGE("%s: no enough output buffer which need to be sync", __func__);
+        ALOGE("%s: no enough output buffer which need to be sync", __func__);
         return UNKNOWN_ERROR;
     }
     // remove one buffer from intput buffer queue
@@ -164,12 +164,12 @@ status_t VPPProcThread::updateFirmwareOutputBufStatus(uint32_t fillBufNum) {
         inputBuffer = mInputBuffers.itemAt(0);
         err = mpOwner->releaseBuffer(kPortIndexInput, inputBuffer, false);
         if (err != OMX_ErrorNone) {
-            LOGE("%s: failed to fillInputBuffer", __func__);
+            ALOGE("%s: failed to fillInputBuffer", __func__);
             return UNKNOWN_ERROR;
         }
 
         mInputBuffers.removeAt(0);
-        LOGD_IF(ISV_THREAD_DEBUG, "%s: fetch buffer %u from input buffer queue for fill to decoder, and then queue size is %d", __func__,
+        ALOGD_IF(ISV_THREAD_DEBUG, "%s: fetch buffer %u from input buffer queue for fill to decoder, and then queue size is %d", __func__,
                 inputBuffer, mInputBuffers.size());
         mInputProcIdx--;
     }
@@ -191,11 +191,11 @@ status_t VPPProcThread::updateFirmwareOutputBufStatus(uint32_t fillBufNum) {
             //return filled buffers for rendering
             err = mpOwner->releaseBuffer(kPortIndexOutput, outputBuffer, false);
             if (err != OMX_ErrorNone) {
-                LOGE("%s: failed to releaseOutputBuffer", __func__);
+                ALOGE("%s: failed to releaseOutputBuffer", __func__);
                 return UNKNOWN_ERROR;
             }
 
-            LOGD_IF(ISV_THREAD_DEBUG, "%s: fetch buffer %u(timestamp %.2f ms) from output buffer queue for render, and then queue size is %d", __func__,
+            ALOGD_IF(ISV_THREAD_DEBUG, "%s: fetch buffer %u(timestamp %.2f ms) from output buffer queue for render, and then queue size is %d", __func__,
                     outputBuffer, outputBuffer->nTimeStamp/1E3, mOutputBuffers.size());
         }
         // remove filled buffers from output buffer queue
@@ -220,9 +220,9 @@ bool VPPProcThread::getBufForFirmwareInput(Vector<buffer_handle_t> *procBufList,
 
     //fetch a input buffer for processing
     {
-        LOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqiring mInputLock", __func__);
+        ALOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqiring mInputLock", __func__);
         Mutex::Autolock autoLock(mInputLock);
-        LOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqired mInputLock", __func__);
+        ALOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqired mInputLock", __func__);
         if (mbFlush) {
             procBufCount = 1;
             *inputBuf = NULL;
@@ -230,14 +230,14 @@ bool VPPProcThread::getBufForFirmwareInput(Vector<buffer_handle_t> *procBufList,
             inputBuffer = mInputBuffers.itemAt(mInputProcIdx);
             *inputBuf = reinterpret_cast<buffer_handle_t>(inputBuffer->pBuffer);
         }
-        LOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: releasing mInputLock", __func__);
+        ALOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: releasing mInputLock", __func__);
     }
 
     //fetch output buffers for processing
     {
-        LOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqiring mOutputLock", __func__);
+        ALOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqiring mOutputLock", __func__);
         Mutex::Autolock autoLock(mOutputLock);
-        LOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqired mOutputLock", __func__);
+        ALOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqired mOutputLock", __func__);
         if (mbFlush) {
             outputBuffer = mOutputBuffers.itemAt(0);
             procBufList->push_back(reinterpret_cast<buffer_handle_t>(outputBuffer->pBuffer));
@@ -248,7 +248,7 @@ bool VPPProcThread::getBufForFirmwareInput(Vector<buffer_handle_t> *procBufList,
             }
         }
         *procBufNum = procBufCount;
-        LOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: releasing mOutputLock", __func__);
+        ALOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: releasing mOutputLock", __func__);
     }
 
     return true;
@@ -281,7 +281,7 @@ status_t VPPProcThread::updateFirmwareInputBufStatus(uint32_t procBufNum)
 
 bool VPPProcThread::isReadytoRun()
 {
-    LOGD_IF(ISV_THREAD_DEBUG, "%s: mVPPWorker->getProcBufCount() return %d", __func__,
+    ALOGD_IF(ISV_THREAD_DEBUG, "%s: mVPPWorker->getProcBufCount() return %d", __func__,
             mVPPWorker->getProcBufCount());
     if (mInputProcIdx < mInputBuffers.size() 
             && (mOutputBuffers.size() - mOutputProcIdx) >= mVPPWorker->getProcBufCount())
@@ -331,22 +331,22 @@ bool VPPProcThread::threadLoop() {
                 mNumTaskInProcesing++;
                 updateFirmwareInputBufStatus(procBufNum);
             } else {
-                LOGE("process error %d ...", __LINE__);
+                ALOGE("process error %d ...", __LINE__);
             }
         }
     }
 
-    LOGV("mNumTaskInProcesing %d", mNumTaskInProcesing);
+    ALOGV("mNumTaskInProcesing %d", mNumTaskInProcesing);
     while (mNumTaskInProcesing > mVPPWorker->mNumForwardReferences && bGetBufSuccess ) {
         fillBufList.clear();
         bGetBufSuccess = getBufForFirmwareOutput(&fillBufList, &fillBufNum);
-        LOGD_IF(ISV_THREAD_DEBUG, "%s: bGetOutput %d, buf num %d", __func__,
+        ALOGD_IF(ISV_THREAD_DEBUG, "%s: bGetOutput %d, buf num %d", __func__,
                 bGetBufSuccess, fillBufNum);
         if (bGetBufSuccess) {
             status_t ret = mVPPWorker->fill(fillBufList, fillBufNum);
             if (ret == STATUS_OK) {
                 mNumTaskInProcesing--;
-                LOGV("mNumTaskInProcesing: %d ...", mNumTaskInProcesing);
+                ALOGV("mNumTaskInProcesing: %d ...", mNumTaskInProcesing);
                 updateFirmwareOutputBufStatus(fillBufNum);
             } else {
                 mError = true;
@@ -378,16 +378,16 @@ void VPPProcThread::addOutput(OMX_BUFFERHEADERTYPE* output)
 
     {
         //push the buffer into the output queue if it is not full
-        LOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqiring mOutputLock", __func__);
+        ALOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqiring mOutputLock", __func__);
         Mutex::Autolock autoLock(mOutputLock);
-        LOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqired mOutputLock", __func__);
+        ALOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqired mOutputLock", __func__);
 
         mOutputBuffers.push_back(output);
-        LOGD_IF(ISV_THREAD_DEBUG, "%s: hold pBuffer %u in output buffer queue. Input queue size is %d, mInputProIdx %d.\
+        ALOGD_IF(ISV_THREAD_DEBUG, "%s: hold pBuffer %u in output buffer queue. Input queue size is %d, mInputProIdx %d.\
                 Output queue size is %d, mOutputProcIdx %d", __func__,
                 output, mInputBuffers.size(), mInputProcIdx,
                 mOutputBuffers.size(), mOutputProcIdx);
-        LOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: releasing mOutputLock", __func__);
+        ALOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: releasing mOutputLock", __func__);
     }
 
     {
@@ -415,18 +415,18 @@ status_t VPPProcThread::configFilters(OMX_BUFFERHEADERTYPE* buffer)
                     return NOT_ENOUGH_DATA;
                 } else {
                     if (mFilterParam.frameRate == 50 || mFilterParam.frameRate == 60) {
-                        LOGD_IF(ISV_THREAD_DEBUG, "%s: %d fps don't need do FRC, so disable FRC", __func__,
+                        ALOGD_IF(ISV_THREAD_DEBUG, "%s: %d fps don't need do FRC, so disable FRC", __func__,
                                 mFilterParam.frameRate);
                         mFilters &= ~FilterFrameRateConversion;
                         mFilterParam.frcRate = FRC_RATE_1X;
                     } else {
                         mFilterParam.frcRate = mISVProfile->getFRCRate(mFilterParam.frameRate);
-                        LOGD_IF(ISV_THREAD_DEBUG, "%s: calculate fps is %d, frc rate is %d", __func__,
+                        ALOGD_IF(ISV_THREAD_DEBUG, "%s: calculate fps is %d, frc rate is %d", __func__,
                                 mFilterParam.frameRate, mFilterParam.frcRate);
                     }
                 }
             } else {
-                LOGD_IF(ISV_THREAD_DEBUG, "%s: exceed max retry to get a valid frame rate(%d), disable FRC", __func__,
+                ALOGD_IF(ISV_THREAD_DEBUG, "%s: exceed max retry to get a valid frame rate(%d), disable FRC", __func__,
                         mFilterParam.frameRate);
                 mFilters &= ~FilterFrameRateConversion;
                 mFilterParam.frcRate = FRC_RATE_1X;
@@ -441,7 +441,7 @@ status_t VPPProcThread::configFilters(OMX_BUFFERHEADERTYPE* buffer)
         mFilters &= ~FilterDeinterlacing;
 
     if (mFilters == 0) {
-        LOGI("%s: no filter need to be config, bypass VPP", __func__);
+        ALOGI("%s: no filter need to be config, bypass VPP", __func__);
         return UNKNOWN_ERROR;
     }
 
@@ -472,11 +472,11 @@ void VPPProcThread::addInput(OMX_BUFFERHEADERTYPE* input)
     if (ret == NOT_ENOUGH_DATA) {
         // release this buffer if frc is not ready.
         mpOwner->releaseBuffer(kPortIndexInput, input, false);
-        LOGD_IF(ISV_THREAD_DEBUG, "%s: frc rate is not ready, release this buffer %u, fps %d", __func__,
+        ALOGD_IF(ISV_THREAD_DEBUG, "%s: frc rate is not ready, release this buffer %u, fps %d", __func__,
                 input, mFilterParam.frameRate);
         return;
     } else if (ret == UNKNOWN_ERROR) {
-        LOGD_IF(ISV_THREAD_DEBUG, "%s: configFilters failed, bypass VPP", __func__);
+        ALOGD_IF(ISV_THREAD_DEBUG, "%s: configFilters failed, bypass VPP", __func__);
         mbBypass = true;
         mpOwner->releaseBuffer(kPortIndexOutput, input, false);
         return;
@@ -484,16 +484,16 @@ void VPPProcThread::addInput(OMX_BUFFERHEADERTYPE* input)
 
     {
         //put the decoded buffer into fill buffer queue
-        LOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqiring mInputLock", __func__);
+        ALOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqiring mInputLock", __func__);
         Mutex::Autolock autoLock(mInputLock);
-        LOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqired mInputLock", __func__);
+        ALOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqired mInputLock", __func__);
 
         mInputBuffers.push_back(input);
-        LOGD_IF(ISV_THREAD_DEBUG, "%s: hold pBuffer %u in input buffer queue. Intput queue size is %d, mInputProIdx %d.\
+        ALOGD_IF(ISV_THREAD_DEBUG, "%s: hold pBuffer %u in input buffer queue. Intput queue size is %d, mInputProIdx %d.\
                 Output queue size is %d, mOutputProcIdx %d", __func__,
                 input, mInputBuffers.size(), mInputProcIdx,
                 mOutputBuffers.size(), mOutputProcIdx);
-        LOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: releasing mInputLock", __func__);
+        ALOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: releasing mInputLock", __func__);
     }
 
     {
@@ -506,21 +506,21 @@ void VPPProcThread::addInput(OMX_BUFFERHEADERTYPE* input)
 void VPPProcThread::notifyFlush()
 {
     if (mInputBuffers.empty() && mOutputBuffers.empty()) {
-        LOGD_IF(ISV_THREAD_DEBUG, "%s: input and ouput buffer queue is empty, nothing need to do", __func__);
+        ALOGD_IF(ISV_THREAD_DEBUG, "%s: input and ouput buffer queue is empty, nothing need to do", __func__);
         return;
     }
 
     Mutex::Autolock autoLock(mLock);
     mbFlush = true;
     mRunCond.signal();
-    LOGD_IF(ISV_THREAD_DEBUG, "wake up proc thread");
+    ALOGD_IF(ISV_THREAD_DEBUG, "wake up proc thread");
     return;
 }
 
 void VPPProcThread::waitFlushFinished()
 {
     Mutex::Autolock endLock(mEndLock);
-    LOGD_IF(ISV_THREAD_DEBUG, "waiting mEnd lock(seek finish) ");
+    ALOGD_IF(ISV_THREAD_DEBUG, "waiting mEnd lock(seek finish) ");
     while(mbFlush) {
         mEndCond.wait(mEndLock);
     }
@@ -535,7 +535,7 @@ void VPPProcThread::flush()
         while (!mInputBuffers.empty()) {
             pBuffer = mInputBuffers.itemAt(0);
             mpOwner->releaseBuffer(kPortIndexInput, pBuffer, true);
-            LOGD_IF(ISV_THREAD_DEBUG, "%s: Flush the pBuffer %u in input buffer queue.", __func__, pBuffer);
+            ALOGD_IF(ISV_THREAD_DEBUG, "%s: Flush the pBuffer %u in input buffer queue.", __func__, pBuffer);
             mInputBuffers.removeAt(0);
         }
     }
@@ -544,7 +544,7 @@ void VPPProcThread::flush()
         while (!mOutputBuffers.empty()) {
             pBuffer = mOutputBuffers.itemAt(0);
             mpOwner->releaseBuffer(kPortIndexOutput, pBuffer, true);
-            LOGD_IF(ISV_THREAD_DEBUG, "%s: Flush the pBuffer %u in output buffer queue.", __func__, pBuffer);
+            ALOGD_IF(ISV_THREAD_DEBUG, "%s: Flush the pBuffer %u in output buffer queue.", __func__, pBuffer);
             mOutputBuffers.removeAt(0);
         }
     }

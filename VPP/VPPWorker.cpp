@@ -26,7 +26,7 @@
 #define CHECK_VASTATUS(str) \
     do { \
         if (vaStatus != VA_STATUS_SUCCESS) { \
-                LOGE("%s failed\n", str); \
+                ALOGE("%s failed\n", str); \
                 return STATUS_ERROR;}   \
         }while(0);
 
@@ -118,14 +118,14 @@ bool VPPWorker::isSupport() const {
     int num_entrypoints = vaMaxNumEntrypoints(mVADisplay);
     VAEntrypoint * entrypoints = (VAEntrypoint *)malloc(num_entrypoints * sizeof(VAEntrypoint));
     if (entrypoints == NULL) {
-        LOGE("failed to malloc entrypoints array\n");
+        ALOGE("failed to malloc entrypoints array\n");
         return false;
     }
 
     // check if it contains VPP entry point VAEntrypointVideoProc
     VAStatus vaStatus = vaQueryConfigEntrypoints(mVADisplay, VAProfileNone, entrypoints, &num_entrypoints);
     if (vaStatus != VA_STATUS_SUCCESS) {
-        LOGE("vaQueryConfigEntrypoints failed");
+        ALOGE("vaQueryConfigEntrypoints failed");
         return false;
     }
     for (int i = 0; !support && i < num_entrypoints; i++) {
@@ -182,12 +182,12 @@ uint32_t VPPWorker::getFillBufCount() {
 }
 
 status_t VPPWorker::setupVA() {
-    LOGV("setupVA");
+    ALOGV("setupVA");
     if (mVAStarted)
         return STATUS_OK;
 
     if (mDisplay != NULL) {
-        LOGE("VA is particially started");
+        ALOGE("VA is particially started");
         return STATUS_ERROR;
     }
     mDisplay = new Display;
@@ -195,7 +195,7 @@ status_t VPPWorker::setupVA() {
 
     mVADisplay = vaGetDisplay(mDisplay);
     if (mVADisplay == NULL) {
-        LOGE("vaGetDisplay failed");
+        ALOGE("vaGetDisplay failed");
         return STATUS_ERROR;
     }
 
@@ -205,7 +205,7 @@ status_t VPPWorker::setupVA() {
 
     // Check if VPP entry point is supported
     if (!isSupport()) {
-        LOGE("VPP is not supported on current platform");
+        ALOGE("VPP is not supported on current platform");
         return STATUS_NOT_SUPPORT;
     }
 
@@ -216,11 +216,11 @@ status_t VPPWorker::setupVA() {
     CHECK_VASTATUS("vaGetConfigAttributes");
 
     if ((attrib.value & VA_RT_FORMAT_YUV420) == 0) {
-        LOGE("attribute is %x vs wanted %x", attrib.value, VA_RT_FORMAT_YUV420);
+        ALOGE("attribute is %x vs wanted %x", attrib.value, VA_RT_FORMAT_YUV420);
         return STATUS_NOT_SUPPORT;
     }
 
-    LOGV("ready to create config");
+    ALOGV("ready to create config");
     // Create the configuration
     vaStatus = vaCreateConfig(mVADisplay, VAProfileNone, VAEntrypointVideoProc, &attrib, 1, &mVAConfig);
     CHECK_VASTATUS("vaCreateConfig");
@@ -255,7 +255,7 @@ status_t VPPWorker::setupVA() {
     }
     vaStatus = vaQuerySurfaceAttributes(mVADisplay, mVAConfig, outAttribs, &num);
     if (vaStatus != VA_STATUS_SUCCESS) {
-        LOGE("vaQuerySurfaceAttributs fail!");
+        ALOGE("vaQuerySurfaceAttributs fail!");
         delete []outAttribs;
         return STATUS_ERROR;
     }
@@ -287,7 +287,7 @@ status_t VPPWorker::setupVA() {
     mVAExtBuf->offsets[3] = 0;
     mVAExtBuf->flags = VA_SURFACE_ATTRIB_MEM_TYPE_ANDROID_GRALLOC;
     if (mGraphicBufferConfig.colorFormat == OMX_INTEL_COLOR_FormatYUV420PackedSemiPlanar_Tiled) {
-        LOGV("set TILING flag");
+        ALOGV("set TILING flag");
         mVAExtBuf->flags |= VA_SURFACE_EXTBUF_DESC_ENABLE_TILING;
     }
     mVAExtBuf->private_data = mNativeWindow.get(); //pass nativeWindow through private_data
@@ -329,12 +329,12 @@ status_t VPPWorker::setupVA() {
     CHECK_VASTATUS("vaCreateSurfaces");
 
     // Create Context
-    LOGV("ready to create context");
+    ALOGV("ready to create context");
     vaStatus = vaCreateContext(mVADisplay, mVAConfig, mWidth, mHeight, 0, mSurfaces, mNumSurfaces, &mVAContext);
     CHECK_VASTATUS("vaCreateContext");
 
     mVAStarted = true;
-    LOGV("VA has been successfully started");
+    ALOGV("VA has been successfully started");
     return STATUS_OK;
 }
 
@@ -391,10 +391,10 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
     //initialize vpp status here
     isVppOn();
 
-    LOGE("mVPPOn = %d, VPP_COMMON_ON = %d, VPP_FRC_ON = %d", mVPPOn, VPP_COMMON_ON, VPP_FRC_ON);
+    ALOGE("mVPPOn = %d, VPP_COMMON_ON = %d, VPP_FRC_ON = %d", mVPPOn, VPP_COMMON_ON, VPP_FRC_ON);
 #ifdef TARGET_VPP_USE_GEN
     if (mVPPOn & VPP_COMMON_ON) {
-        LOGV("vpp is on in settings");
+        ALOGV("vpp is on in settings");
         if (area <= VGA_AREA) {
             mDenoiseOn = true;
         }
@@ -403,18 +403,18 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
 
         return STATUS_OK;
     } else {
-        LOGW("all the filters are off, do not do VPP");
+        ALOGW("all the filters are off, do not do VPP");
         return STATUS_NOT_SUPPORT;
     }
 #endif
     // limit resolution that VPP supported for **Merifield/Moorefield**: <QCIF or >1080P
     if ((mHeight < 144) || (mHeight > 1080) || (area > HD1080P_AREA)) {
-        LOGW("unspported resolution %d x %d, limit (176x144 - 1920x1080)", mWidth, mHeight);
+        ALOGW("unspported resolution %d x %d, limit (176x144 - 1920x1080)", mWidth, mHeight);
         return STATUS_NOT_SUPPORT;
     }
 
     if (mVPPOn & VPP_COMMON_ON) {
-        LOGV("vpp is on in settings");
+        ALOGV("vpp is on in settings");
 
         // QCIF to QVGA
         if (area <= QVGA_AREA) {
@@ -446,21 +446,21 @@ status_t VPPWorker::configFilters(const uint32_t width, const uint32_t height, c
         }
 
     } else if (mVPPOn & VPP_FRC_ON) {
-        LOGV("FRC is on in Settings");
+        ALOGV("FRC is on in Settings");
         calcFrcByInputFps(&mFrcOn, &mFrcRate);
-        LOGV("FRC enable %d, FrcRate %d", mFrcOn, mFrcRate);
+        ALOGV("FRC enable %d, FrcRate %d", mFrcOn, mFrcRate);
     }
 
     // enable sharpen always while FRC is on
     if (mFrcOn)
         mSharpenOn = true;
 
-    LOGI("width=%d, height=%d, fps=%d, slowmotion=%d, \
+    ALOGI("width=%d, height=%d, fps=%d, slowmotion=%d, \
             mDeblockOn=%d, mDenoiseOn=%d, mSharpenOn=%d, mColorOn=%d, mFrcOn=%d, mFrcRate=%d",
           mWidth, mHeight, fps, slowMotionFactor, mDeblockOn, mDenoiseOn, mSharpenOn, mColorOn, mFrcOn, mFrcRate);
 
     if (!mDeblockOn && !mDenoiseOn && !mSharpenOn && !mColorOn && !mFrcOn) {
-        LOGW("all the filters are off, do not do VPP, either FRC");
+        ALOGW("all the filters are off, do not do VPP, either FRC");
         return STATUS_NOT_SUPPORT;
     }
     return STATUS_OK;
@@ -480,7 +480,7 @@ status_t VPPWorker::calcFrcByInputFps(bool *FrcOn, FRC_RATE *FrcRate) {
     } else {
         *FrcOn = false;
         *FrcRate = FRC_RATE_1X;
-        LOGI("Unsupported input frame rate %d. VPP FRC is OFF.", mInputFps);
+        ALOGI("Unsupported input frame rate %d. VPP FRC is OFF.", mInputFps);
     }
 
     return STATUS_OK;
@@ -494,19 +494,19 @@ status_t VPPWorker::calcFrcByMatchHdmiCap(bool *FrcOn, FRC_RATE *FrcRate) {
         return STATUS_ERROR;
     }
     if ((currHdmiTiming.width <= 0) || (currHdmiTiming.height <=0)) {
-        LOGW("Current HDMI time set is invalid wxh: %d x %d ", currHdmiTiming.width, currHdmiTiming.height);
+        ALOGW("Current HDMI time set is invalid wxh: %d x %d ", currHdmiTiming.width, currHdmiTiming.height);
         return STATUS_ERROR;
     }
 
     const int32_t width = currHdmiTiming.width;
     const int32_t height = currHdmiTiming.height;
-    LOGI("current HDMI setting %d x %d ", currHdmiTiming.width, currHdmiTiming.height);
-    LOGI("hdmi curretn setting supported fps (in current resolution)");
+    ALOGI("current HDMI setting %d x %d ", currHdmiTiming.width, currHdmiTiming.height);
+    ALOGI("hdmi curretn setting supported fps (in current resolution)");
     //get hdmi supported FPS by of current resolution
     for (int32_t i = 0; i < hdmiListCount; i++) {
         if((width == hdmiTimingList[i].width) && (height == hdmiTimingList[i].height)) {
               fpsSet[fpsCnt] = hdmiTimingList[i].refresh;
-              LOGI("%d", fpsSet[fpsCnt]);
+              ALOGI("%d", fpsSet[fpsCnt]);
               fpsCnt++;
          }
     }
@@ -529,11 +529,11 @@ status_t VPPWorker::calcFrcByMatchHdmiCap(bool *FrcOn, FRC_RATE *FrcRate) {
             }
             break;
         defalt:
-            LOGI("VPP FRC output cannot match HDMI capability. VPP FRC is OFF.Input %d", mInputFps);
+            ALOGI("VPP FRC output cannot match HDMI capability. VPP FRC is OFF.Input %d", mInputFps);
             break;
     }
 
-    LOGI("VPP FRC for HDMI frcOn %d, rate %d ", *FrcOn, *FrcRate);
+    ALOGI("VPP FRC for HDMI frcOn %d, rate %d ", *FrcOn, *FrcRate);
 
     return STATUS_OK;
 }
@@ -551,7 +551,7 @@ bool VPPWorker::isFpsSupport(int32_t fps, int32_t *fpsSet, int32_t fpsSetCnt) {
 }
 
 status_t VPPWorker::setupFilters() {
-    LOGV("setupFilters");
+    ALOGV("setupFilters");
     VAProcFilterParameterBuffer deblock, denoise, sharpen;
     VAProcFilterParameterBufferDeinterlacing deint;
     VAProcFilterParameterBufferColorBalance color[COLOR_NUM];
@@ -769,7 +769,7 @@ status_t VPPWorker::setupFilters() {
                 }
                 break;
             default:
-                LOGE("Not supported filter\n");
+                ALOGE("Not supported filter\n");
                 break;
         }
     }
@@ -777,7 +777,7 @@ status_t VPPWorker::setupFilters() {
 }
 
 status_t VPPWorker::setupPipelineCaps() {
-    LOGV("setupPipelineCaps");
+    ALOGV("setupPipelineCaps");
     //TODO color standards
     VAProcPipelineCaps pipelineCaps;
     VAStatus vaStatus;
@@ -804,7 +804,7 @@ status_t VPPWorker::setupPipelineCaps() {
 status_t VPPWorker::process(sp<GraphicBuffer> inputGraphicBuffer,
                              Vector< sp<GraphicBuffer> > outputGraphicBuffer,
                              uint32_t outputCount, bool isEOS, uint32_t flags) {
-    LOGV("process: outputCount=%d, mInputIndex=%d", outputCount, mInputIndex);
+    ALOGV("process: outputCount=%d, mInputIndex=%d", outputCount, mInputIndex);
     VASurfaceID input;
     VASurfaceID output[MAX_FRC_OUTPUT];
     VABufferID pipelineId;
@@ -814,19 +814,19 @@ status_t VPPWorker::process(sp<GraphicBuffer> inputGraphicBuffer,
     uint32_t i;
 
     if (outputCount < 1) {
-       LOGE("invalid outputCount");
+       ALOGE("invalid outputCount");
        return STATUS_ERROR;
     }
     // map GraphicBuffer to VASurface
     input = mapBuffer(inputGraphicBuffer);
     if (input == VA_INVALID_SURFACE && !isEOS) {
-        LOGE("invalid input buffer");
+        ALOGE("invalid input buffer");
         return STATUS_ERROR;
     }
     for (i = 0; i < outputCount; i++) {
         output[i] = mapBuffer(outputGraphicBuffer[i]);
         if (output[i] == VA_INVALID_SURFACE) {
-            LOGE("invalid output buffer");
+            ALOGE("invalid output buffer");
             return STATUS_ERROR;
         }
     }
@@ -853,7 +853,7 @@ status_t VPPWorker::process(sp<GraphicBuffer> inputGraphicBuffer,
             &pipelineId);
     CHECK_VASTATUS("vaCreateBuffer for VAProcPipelineParameterBufferType");
 
-    LOGV("before vaBeginPicture");
+    ALOGV("before vaBeginPicture");
     vaStatus = vaBeginPicture(mVADisplay, mVAContext, output[0]);
     CHECK_VASTATUS("vaBeginPicture");
 
@@ -930,21 +930,21 @@ status_t VPPWorker::process(sp<GraphicBuffer> inputGraphicBuffer,
     vaStatus = vaUnmapBuffer(mVADisplay, pipelineId);
     CHECK_VASTATUS("vaUnmapBuffer for pipeline parameter buffer");
 
-    LOGV("before vaRenderPicture");
+    ALOGV("before vaRenderPicture");
     // Send parameter to driver
     vaStatus = vaRenderPicture(mVADisplay, mVAContext, &pipelineId, 1);
     CHECK_VASTATUS("vaRenderPicture");
-    LOGV("before vaEndPicture");
+    ALOGV("before vaEndPicture");
     vaStatus = vaEndPicture(mVADisplay, mVAContext);
     CHECK_VASTATUS("vaEndPicture");
 
     mInputIndex++;
-    LOGV("process, exit");
+    ALOGV("process, exit");
     return STATUS_OK;
 }
 
 status_t VPPWorker::fill(Vector< sp<GraphicBuffer> > outputGraphicBuffer, uint32_t outputCount) {
-    LOGV("fill, outputCount=%d, mOutputIndex=%d",outputCount, mOutputIndex);
+    ALOGV("fill, outputCount=%d, mOutputIndex=%d",outputCount, mOutputIndex);
     // get output surface
     VASurfaceID output[MAX_FRC_OUTPUT];
     VAStatus vaStatus;
@@ -957,27 +957,27 @@ status_t VPPWorker::fill(Vector< sp<GraphicBuffer> > outputGraphicBuffer, uint32
 
         output[i] = mapBuffer(outputGraphicBuffer[i]);
         if (output[i] == VA_INVALID_SURFACE) {
-            LOGE("invalid output buffer");
+            ALOGE("invalid output buffer");
             return STATUS_ERROR;
         }
 
         vaStatus = vaQuerySurfaceStatus(mVADisplay, output[i],&surStatus);
         CHECK_VASTATUS("vaQuerySurfaceStatus");
         if (surStatus == VASurfaceRendering) {
-            LOGV("Rendering %d", i);
+            ALOGV("Rendering %d", i);
             /* The behavior of driver is: all output of one process task are return in one interruption.
                The whole outputs of one FRC task are all ready or none of them is ready.
                If the behavior changed, it hurts the performance.
             */
             if (0 != i) {
-                LOGW("*****Driver behavior changed. The performance is hurt.");
-                LOGW("Please check driver behavior: all output of one task return in one interruption.");
+                ALOGW("*****Driver behavior changed. The performance is hurt.");
+                ALOGW("Please check driver behavior: all output of one task return in one interruption.");
             }
             vaStatus = STATUS_DATA_RENDERING;
             break;
         }
         if ((surStatus != VASurfaceRendering) && (surStatus != VASurfaceReady)) {
-            LOGE("surface statu Error %d", surStatus);
+            ALOGE("surface statu Error %d", surStatus);
             vaStatus = STATUS_ERROR;
         }
 
@@ -990,7 +990,7 @@ status_t VPPWorker::fill(Vector< sp<GraphicBuffer> > outputGraphicBuffer, uint32
     if (vaStatus == STATUS_OK)
         mOutputIndex++;
 
-    LOGV("fill, exit");
+    ALOGV("fill, exit");
     return vaStatus;
 }
 
@@ -1033,7 +1033,7 @@ status_t VPPWorker::dumpYUVFrameData(VASurfaceID surfaceID) {
 
     ret = writeNV12(mWidth, mHeight, data_ptr, image.pitches[0], image.pitches[1]);
     if (ret != STATUS_OK) {
-        ALOGV("writeNV12 error");
+        AALOGV("writeNV12 error");
         return STATUS_ERROR;
     }
 
@@ -1048,7 +1048,7 @@ status_t VPPWorker::dumpYUVFrameData(VASurfaceID surfaceID) {
 
 status_t VPPWorker::reset() {
     status_t ret;
-    LOGD("reset");
+    ALOGD("reset");
     mInputIndex = 0;
     mOutputIndex = 0;
     mNumFilterBuffers = 0;
@@ -1079,7 +1079,7 @@ uint32_t VPPWorker::getVppOutputFps() {
         outputFps = mInputFps * mFrcRate;
     }
 
-    LOGI("vpp is on in settings %d %d %d", outputFps,  mInputFps, mFrcRate);
+    ALOGI("vpp is on in settings %d %d %d", outputFps,  mInputFps, mFrcRate);
     return outputFps;
 }
 
@@ -1098,15 +1098,15 @@ bool VPPWorker::isHdmiConnected() {
 
 status_t VPPWorker::getHdmiData() {
     if (!(isHdmiConnected())) {
-        LOGW("HDMI is NOT connected. Cannot get HDMI data");
+        ALOGW("HDMI is NOT connected. Cannot get HDMI data");
         return STATUS_ERROR;
     }
     if ((mMds == NULL) || (hdmiTimingList == NULL)) {
-        LOGW("Error. Input parameter is invalid.");
+        ALOGW("Error. Input parameter is invalid.");
         return STATUS_ERROR;
     }
     status_t ret = (*mMds)->getHdmiMetaData(&currHdmiTiming, hdmiTimingList,&hdmiListCount);
-    LOGI("HDMI setting: %d x %d @ %d, count %d", currHdmiTiming.width, currHdmiTiming.height,
+    ALOGI("HDMI setting: %d x %d @ %d, count %d", currHdmiTiming.width, currHdmiTiming.height,
               currHdmiTiming.refresh, hdmiListCount);
 
     return ret;
@@ -1121,7 +1121,7 @@ status_t VPPWorker::configFrc4Hdmi(bool enableFrc4Hdmi, sp<VPPMDSListener>* pmds
         if (pmds == NULL) {
             mEnableFrc4Hdmi = false;
             status = STATUS_ERROR;
-            LOGE("MDS is NULL");
+            ALOGE("MDS is NULL");
         }
 
         mMds = pmds;
@@ -1130,7 +1130,7 @@ status_t VPPWorker::configFrc4Hdmi(bool enableFrc4Hdmi, sp<VPPMDSListener>* pmds
         hdmiTimingList = new MDSHdmiTiming[HDMI_TIMING_MAX];
         if (hdmiTimingList == NULL) {
             status = STATUS_ERROR;
-            LOGE("failed to allocat memory for VPP FRC for HDMI ");
+            ALOGE("failed to allocat memory for VPP FRC for HDMI ");
         }
     }
 
@@ -1148,7 +1148,7 @@ status_t VPPWorker::calculateFrc(bool *pFrcOn, FRC_RATE *pFrcRate) {
         return STATUS_OK;
     }
 
-    LOGV("EnableFrc4Hdmi %d  hdmiConnected %d", mEnableFrc4Hdmi, isHdmiConnected());
+    ALOGV("EnableFrc4Hdmi %d  hdmiConnected %d", mEnableFrc4Hdmi, isHdmiConnected());
     if (mEnableFrc4Hdmi && (isHdmiConnected())) {
         status = getHdmiData();
         if (status != STATUS_ERROR) {
@@ -1160,7 +1160,7 @@ status_t VPPWorker::calculateFrc(bool *pFrcOn, FRC_RATE *pFrcRate) {
         status = calcFrcByInputFps(pFrcOn, pFrcRate);
     }
 
-    LOGI("FrcRate %d  mFrcOn %d", *pFrcRate, *pFrcOn);
+    ALOGI("FrcRate %d  mFrcOn %d", *pFrcRate, *pFrcOn);
     return status;
 }
 
@@ -1208,7 +1208,7 @@ status_t VPPWorker::writeNV12(int width, int height, unsigned char *out_buf, int
 }
 
 uint32_t VPPWorker::isVppOn() {
-    LOGE("VPPWorkder::isVppOn");
+    ALOGE("VPPWorkder::isVppOn");
     sp<IServiceManager> sm = defaultServiceManager();
     if (sm == NULL) {
         ALOGE("%s: Failed to get service manager", __func__);
@@ -1227,7 +1227,7 @@ uint32_t VPPWorker::isVppOn() {
     }
 
     mVPPOn = mdsInfoProvider->getVppState();
-    LOGE("VPPWorkder::isVppOn, mVPPOn = %d", mVPPOn);
+    ALOGE("VPPWorkder::isVppOn, mVPPOn = %d", mVPPOn);
 
     return mVPPOn;
 }
