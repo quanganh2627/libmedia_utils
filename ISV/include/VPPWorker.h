@@ -215,6 +215,7 @@ class VPPWorker {
         Mutex mPipelineBufferLock; // to protect access to mPipelineBuffers
         VASurfaceID *mForwardReferences;
         VASurfaceID mPrevInput;
+        VASurfaceID mPrevOutput;
 
         // VPP Filters Buffers
         uint32_t mNumFilterBuffers;

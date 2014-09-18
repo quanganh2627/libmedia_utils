@@ -95,8 +95,8 @@ bool VPPProcThread::getBufForFirmwareOutput(Vector<buffer_handle_t> *fillBufList
 
     //output data available
     needFillNum = mVPPWorker->getFillBufCount();
-    if (mOutputBuffers.size() < needFillNum ||
-            mInputBuffers.empty()) {
+    if (mOutputProcIdx < needFillNum ||
+            mInputProcIdx < 1) {
         LOGE("%s: no enough input or output buffer which need to be sync", __func__);
         return false;
     }

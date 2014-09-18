@@ -59,11 +59,9 @@ ISVComponent::ISVComponent(
         mUseAndroidNativeBuffer(false),
         mUseAndroidNativeBuffer2(false),
         mVPPEnabled(false),
-        mVPPOn(false),
         mVPPFlushing(false),
         mInitialized(false)
 {
-    LOGI("%s", __func__);
     memset(&mFilterParam, 0, sizeof(mFilterParam));
     memset(&mBaseComponent, 0, sizeof(OMX_COMPONENTTYPE));
     /* handle initialization */
@@ -91,6 +89,9 @@ ISVComponent::ISVComponent(
     mBaseComponent.UseEGLImage = NULL;
     mBaseComponent.ComponentRoleEnum = ComponentRoleEnum;
     g_isv_components.push_back(static_cast<ISVComponent*>(this));
+
+    mVPPOn = ISVProfile::isFRCOn() || ISVProfile::isVPPOn();
+    LOGI("%s: mVPPOn %d", __func__, mVPPOn);
 }
 
 ISVComponent::~ISVComponent()
@@ -110,6 +111,7 @@ ISVComponent::~ISVComponent()
     memset(&mBaseComponent, 0, sizeof(OMX_COMPONENTTYPE));
     memset(&mFilterParam, 0, sizeof(mFilterParam));
     deinit();
+    mVPPOn = false;
 }
 
 status_t ISVComponent::init(int32_t width, int32_t height)
@@ -126,16 +128,14 @@ status_t ISVComponent::init(int32_t width, int32_t height)
     if (mProcThreadObserver == NULL)
         mProcThreadObserver = new ISVProcThreadObserver(&mBaseComponent, mComponent, mpCallBacks);
 
-    mVPPOn = mISVProfile->isFRCOn() || mISVProfile->isVPPOn();
-
     // get platform VPP cap first
     mFilters = mISVProfile->getFilterStatus();
 
     // turn off filters if dynamic vpp/frc setting is off
-    if (!mISVProfile->isVPPOn())
+    if (!ISVProfile::isVPPOn())
         mFilters &= FilterFrameRateConversion;
 
-    if (!mISVProfile->isFRCOn())
+    if (!ISVProfile::isFRCOn())
         mFilters &= ~FilterFrameRateConversion;
 
     frcOn = mFilters & FilterFrameRateConversion;
@@ -158,7 +158,8 @@ status_t ISVComponent::init(int32_t width, int32_t height)
     //FIXME: only for test without enabling VPP setting
     //mVPPOn = true;
     //mFilters |= FilterSharpening;
-    LOGD_IF(ISV_COMPONENT_DEBUG, "%s: mVPPOn %d, mFilters 0x%08x", __func__, mVPPOn, mFilters);
+    LOGD_IF(ISV_COMPONENT_DEBUG, "%s: mVPPOn %d, mFilters 0x%08x, width %d, height %d", __func__,
+            mVPPOn, mFilters, width, height);
     mInitialized = true;
     return STATUS_OK;
 }
@@ -178,7 +179,6 @@ void ISVComponent::deinit()
     mProcThreadObserver = NULL;
     mISVProfile = NULL;
 
-    mVPPOn = false;
     mFilters = 0;
     mInitialized = false;
 }
@@ -252,7 +252,7 @@ OMX_ERRORTYPE ISVComponent::ISV_GetParameter(
 
     OMX_ERRORTYPE err = OMX_GetParameter(mComponent, nParamIndex, pComponentParameterStructure);
 
-    if (err == OMX_ErrorNone && mVPPEnabled) {
+    if (err == OMX_ErrorNone && mVPPEnabled && mVPPOn) {
         OMX_PARAM_PORTDEFINITIONTYPE *def =
             static_cast<OMX_PARAM_PORTDEFINITIONTYPE*>(pComponentParameterStructure);
 
@@ -295,14 +295,14 @@ OMX_ERRORTYPE ISVComponent::ISV_SetParameter(
     }
 
     OMX_ERRORTYPE err = OMX_SetParameter(mComponent, nIndex, pComponentParameterStructure);
-    if (err == OMX_ErrorNone && mVPPEnabled) {
+    if (err == OMX_ErrorNone && mVPPEnabled && mVPPOn) {
         if (nIndex == OMX_IndexParamPortDefinition) {
             OMX_PARAM_PORTDEFINITIONTYPE *def =
                 static_cast<OMX_PARAM_PORTDEFINITIONTYPE*>(pComponentParameterStructure);
 
             if (def->nPortIndex == kPortIndexOutput) {
                 //set the buffer count we should fill to decoder before feed buffer to VPP
-                mNumDecoderBuffersBak = mNumDecoderBuffers = def->nBufferCountActual - mNumISVBuffers + EXTRA_INPUT_NUM;
+                mNumDecoderBuffersBak = mNumDecoderBuffers = def->nBufferCountActual - MIN_OUTPUT_NUM - UNDEQUEUED_NUM;
                 OMX_VIDEO_PORTDEFINITIONTYPE *video_def = &def->format.video;
                 //FIXME: we don't support scaling yet, so set src region equal to dst region
                 mFilterParam.srcWidth = mFilterParam.dstWidth = video_def->nFrameWidth;
@@ -317,6 +317,8 @@ OMX_ERRORTYPE ISVComponent::ISV_SetParameter(
                         mHeight = mFilterParam.srcHeight;
                     }
                 }
+                LOGD_IF(ISV_COMPONENT_DEBUG, "%s: def->nBufferCountActual %d, mNumDecoderBuffersBak %d", __func__,
+                        def->nBufferCountActual, mNumDecoderBuffersBak);
                 if (mVPP && STATUS_OK != mVPP->setBufferCount(def->nBufferCountActual)) {
                     LOGE("%s: failed to set ISV buffer count, set VPPEnabled -->false", __func__);
                     mVPPEnabled = false;
@@ -471,6 +473,7 @@ OMX_ERRORTYPE ISVComponent::ISV_UseBuffer(
 #ifndef USE_IVP
     if(err == OMX_ErrorNone
             && mVPPEnabled
+            && mVPPOn
             && mUseAndroidNativeBuffer2) {
         if (mVPP) {
             if (STATUS_OK != mVPP->useBuffer(reinterpret_cast<buffer_handle_t>(pBuffer))) {
@@ -526,7 +529,7 @@ OMX_ERRORTYPE ISVComponent::ISV_FreeBuffer(
     LOGD_IF(ISV_COMPONENT_DEBUG, "%s: pBuffer %u", __func__, pBuffer);
 
     OMX_ERRORTYPE err = OMX_FreeBuffer(mComponent, nPortIndex, pBuffer);
-    if(err == OMX_ErrorNone && mVPPEnabled) {
+    if(err == OMX_ErrorNone && mVPPEnabled && mVPPOn) {
         if (mVPP) {
             if (STATUS_OK != mVPP->freeBuffer(reinterpret_cast<buffer_handle_t>(pBuffer->pBuffer)))
                 LOGW("%s: buffer handle %u has not been registered into ISV", __func__);
@@ -708,7 +711,7 @@ OMX_ERRORTYPE ISVComponent::ISV_SetCallbacks(
 {
     LOGD_IF(ISV_COMPONENT_DEBUG, "%s", __func__);
 
-    if (mVPPEnabled) {
+    if (mVPPEnabled && mVPPOn) {
         if (mpISVCallBacks)
             free(mpISVCallBacks);
         mpISVCallBacks->EventHandler = EventHandler;

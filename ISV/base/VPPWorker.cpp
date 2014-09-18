@@ -56,7 +56,8 @@ VPPWorker::VPPWorker()
     mDisplay(NULL), mVADisplay(NULL),
     mVAConfig(VA_INVALID_ID),
     mCanSupportAndroidGralloc(false),
-    mForwardReferences(NULL), mPrevInput(0),
+    mForwardReferences(NULL),
+    mPrevInput(0), mPrevOutput(0),
     mNumFilterBuffers(0), mFilters(0),
     mInputIndex(0), mOutputIndex(0) {
     memset(&mFilterBuffers, 0, VAProcFilterCount * sizeof(VABufferID));
@@ -844,7 +845,7 @@ status_t VPPWorker::process(buffer_handle_t inputGraphicBuffer,
     CHECK_VASTATUS("vaEndPicture");
     
     if (isEOS) {
-        vaStatus = vaSyncSurface(mVADisplay, output[0]);
+        vaStatus = vaSyncSurface(mVADisplay, mPrevOutput);
         CHECK_VASTATUS("vaSyncSurface");
         if (VA_STATUS_SUCCESS != vaDestroyBuffer(mVADisplay, pipelineId)) {
             LOGE("%s: failed to destroy va buffer %d", __func__, pipelineId);
@@ -853,6 +854,7 @@ status_t VPPWorker::process(buffer_handle_t inputGraphicBuffer,
         return STATUS_OK;
     }
 
+    mPrevOutput = output[0];
     mInputIndex++;
 
     Mutex::Autolock autoLock(mPipelineBufferLock);

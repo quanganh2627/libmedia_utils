@@ -35,8 +35,11 @@
 
 #define ISV_COMPONENT_DEBUG 0
 
-#define MIN_ISV_BUFFER_NUM 12   // 2.5Frc need to hold 6 output buffers plus 3 display buffers plus 3 input buffers
-#define EXTRA_INPUT_NUM 3   // equal to forward reference frame count
+#define MIN_INPUT_NUM (4)    // forward reference frame number is 3 for merrifield/moorefield
+#define MIN_OUTPUT_NUM (6)   // 2.5FRC need hold 2 + 3 + 2 + 3= 10 buffers, without FRC we set to 6
+#define DECODE_EXTRA_NUM (7)    //?? i don't know
+#define MIN_ISV_BUFFER_NUM ((MIN_OUTPUT_NUM) + (MIN_INPUT_NUM) + (DECODE_EXTRA_NUM))
+#define UNDEQUEUED_NUM 4   // display system hold 4 buffers
 
 using namespace android;
 class ISVComponent;

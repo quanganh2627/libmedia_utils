@@ -37,7 +37,6 @@ ISVProfile::ISVProfile(const uint32_t width, const uint32_t height)
 
     mCurrentFilter = 0;
     mCurrentFrcTab = 0;
-    mVPPOn = 0;
 
     memset(mConfigs, 0, sizeof(ISVConfig) * ProcFilterCount);
 
@@ -47,7 +46,7 @@ ISVProfile::ISVProfile(const uint32_t width, const uint32_t height)
     }
 
     /* get the vpp global setting */
-    getGlobalStatus();
+    //getGlobalStatus();
 
     /* load the config data from XML file */
     getDataFromXmlFile();
@@ -84,12 +83,14 @@ uint32_t ISVProfile::getFilterStatus()
 
 bool ISVProfile::isVPPOn()
 {
-    return ((mVPPOn & VPP_COMMON_ON) == 0) ? false : true;
+    int32_t status = getGlobalStatus();
+    return (status != -1) ? (((status & VPP_COMMON_ON) != 0) ? true : false) : false;
 }
 
 bool ISVProfile::isFRCOn()
 {
-    return ((mVPPOn & VPP_FRC_ON) == 0) ? false : true;
+    int32_t status = getGlobalStatus();
+    return (status != -1) ? (((status & VPP_FRC_ON) != 0) ? true : false) : false;
 }
 
 void ISVProfile::updateFilterStatus() {
@@ -310,17 +311,18 @@ exit:
     ::fclose(fp);
 }
 
-void ISVProfile::getGlobalStatus()
+int32_t ISVProfile::getGlobalStatus()
 {
     char path[80];
     int userId = 0;
+    int32_t status = 0;
 
     snprintf(path, 80, "/data/user/%d/com.intel.vpp/shared_prefs/vpp_settings.xml", userId);
     LOGI("%s: %s",__func__, path);
     FILE *handle = fopen(path, "r");
     if(handle == NULL) {
         LOGE("%s: failed to open file %s\n", __func__, path);
-        return;
+        return -1;
     }
 
     const int MAXLEN = 1024;
@@ -329,18 +331,18 @@ void ISVProfile::getGlobalStatus()
     if(fread(buf, 1, MAXLEN, handle) <= 0) {
         LOGE("%s: failed to read vpp config file %d", __func__, userId);
         fclose(handle);
-        return;
+        return -1;
     }
     buf[MAXLEN - 1] = '\0';
 
-    mVPPOn  = 0;
     if(strstr(buf, StatusOn[0]) != NULL)
-        mVPPOn |= VPP_FRC_ON;
+        status |= VPP_FRC_ON;
 
     if(strstr(buf, StatusOn[1]) != NULL)
-        mVPPOn |= VPP_COMMON_ON;
+        status |= VPP_COMMON_ON;
 
     fclose(handle);
+    return status;
 }
 
 void ISVProfile::dumpConfigData()

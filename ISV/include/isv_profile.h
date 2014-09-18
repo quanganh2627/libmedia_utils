@@ -86,14 +86,14 @@ public:
     uint32_t getFilterStatus();
 
     /* the global setting for VPP */
-    bool isVPPOn();
+    static bool isVPPOn();
 
     /* the global setting for FRC */
-    bool isFRCOn();
+    static bool isFRCOn();
 
 private:
     /* Read the global setting for ISV */
-    void getGlobalStatus();
+    static int32_t getGlobalStatus();
 
     /* Get the config data from XML file */
     void getDataFromXmlFile(void);
@@ -130,8 +130,6 @@ private:
 private:
     uint32_t mWidth;
     uint32_t mHeight;
-
-    uint32_t mVPPOn;
 
     /* the filters' status according to resolution
      * bit 0  used for ProcFilterNone
