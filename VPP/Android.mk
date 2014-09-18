@@ -71,20 +71,8 @@ ifeq ($(TARGET_VPP_USE_GEN),true)
 	LOCAL_CFLAGS += -DTARGET_VPP_USE_GEN
 endif
 
-ifeq ($(TARGET_VPP_USE_IVP), true)
-ifeq ($(TARGET_HAS_3P), true)
-	LOCAL_CFLAGS += -DTARGET_HAS_3P
-endif
-LOCAL_SRC_FILES += ivp/VPPWorker.cpp
-LOCAL_COPY_HEADERS += \
-    ivp/iVP_api.h \
-    ivp/VPPWorker.h
-LOCAL_LDFLAGS += -L$(TARGET_OUT_SHARED_LIBRARIES) -livp
-LOCAL_CFLAGS += -DUSE_IVP
-else
 LOCAL_SRC_FILES += VPPWorker.cpp
 LOCAL_COPY_HEADERS += VPPWorker.h
-endif
 
 LOCAL_MODULE:=  libvpp
 LOCAL_MODULE_TAGS := optional
