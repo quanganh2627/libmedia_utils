@@ -58,17 +58,17 @@ typedef struct _ISVFRCRate {
 
 //FIXME: need align to ProcFilterType
 typedef enum _FilterType {
-    FilterNone                          = 0x00000000,
-    FilterNoiseReduction                = 0x00000001,
-    FilterDeinterlacing                 = 0x00000002,
-    FilterSharpening                    = 0x00000004,
-    FilterColorBalance                  = 0x00000008,
-    FilterDeblocking                    = 0x00000010,
-    FilterFrameRateConversion           = 0x00000020,
-    FilterSkinToneEnhancement           = 0x00000040,
-    FilterTotalColorCorrection          = 0x00000080,
-    FilterNonLinearAnamorphicScaling    = 0x00000100,
-    FilterImageStabilization            = 0x00000200,
+    FilterNone                          = 0x00000001,
+    FilterNoiseReduction                = 0x00000002,
+    FilterDeinterlacing                 = 0x00000004,
+    FilterSharpening                    = 0x00000008,
+    FilterColorBalance                  = 0x00000010,
+    FilterDeblocking                    = 0x00000020,
+    FilterFrameRateConversion           = 0x00000040,
+    FilterSkinToneEnhancement           = 0x00000080,
+    FilterTotalColorCorrection          = 0x00000100,
+    FilterNonLinearAnamorphicScaling    = 0x00000200,
+    FilterImageStabilization            = 0x00000400,
 } FilterType;
 
 class ISVProfile : public RefBase

@@ -43,7 +43,7 @@ public:
 class VPPProcThread : public Thread {
     public:
 
-        VPPProcThread(bool canCallJava, VPPWorker* vppWorker, sp<VPPProcThreadObserver> observer, bool frcOn, int32_t frameRate);
+        VPPProcThread(bool canCallJava, VPPWorker* vppWorker, sp<VPPProcThreadObserver> observer, uint32_t width, uint32_t height);
         virtual ~VPPProcThread();
 
         virtual status_t readyToRun();
@@ -79,12 +79,14 @@ class VPPProcThread : public Thread {
                             uint32_t *procBufNum );
         void updateFirmwareInputBufStatus(uint32_t procBufNum);
         void flush();
+        inline bool isFrameRateValid(uint32_t fps);
     private:
         sp<VPPProcThreadObserver> mpOwner;
         android_thread_id_t mThreadId;
         bool mThreadRunning;
 
         VPPWorker *mVPPWorker;
+        sp<ISVProfile> mISVProfile;
 
         Vector<OMX_BUFFERHEADERTYPE*> mOutputBuffers;
         Mutex mOutputLock; // to protect access to mOutputBuffers
@@ -103,13 +105,16 @@ class VPPProcThread : public Thread {
         Condition mEndCond;
 
         uint32_t mNumTaskInProcesing;
-        int64_t mFirstTimeStamp;
-        int32_t mFrameRate;
+        uint32_t mNumRetry;
+        int64_t mLastTimeStamp;
         bool mError;
         bool mbFlush;
         bool mFlagEnd;
-        bool mFirstInputFrame;
         bool mFrcOn;
+
+        // VPP filter configuration
+        uint32_t mFilters;
+        FilterParam mFilterParam;
 };
 
 #endif /* __VPP_THREAD_H*/

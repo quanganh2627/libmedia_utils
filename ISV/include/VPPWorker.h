@@ -110,7 +110,7 @@ class VPPWorker {
         status_t configFilters(uint32_t* filters, const FilterParam* filterParam, const uint32_t flags);
 
         // Initialize: setupVA()->setupFilters()->setupPipelineCaps()
-        status_t init(int32_t width, int32_t height);
+        status_t init(uint32_t width, uint32_t height);
 
         // Get output buffer number needed for processing
         uint32_t getProcBufCount();
@@ -152,7 +152,7 @@ class VPPWorker {
         bool isSupport() const;
 
         // Create VA context
-        status_t setupVA(int32_t width, int32_t height);
+        status_t setupVA(uint32_t width, uint32_t height);
 
         // Destroy VA context
         status_t terminateVA();
@@ -203,8 +203,8 @@ class VPPWorker {
         // VA common variables
         bool mVAStarted;
         VAContextID mVAContext;
-        int32_t mWidth;
-        int32_t mHeight;
+        uint32_t mWidth;
+        uint32_t mHeight;
         Display * mDisplay;
         VADisplay mVADisplay;
         VAConfigID mVAConfig;
@@ -231,6 +231,7 @@ class VPPWorker {
         // status
         uint32_t mInputIndex;
         uint32_t mOutputIndex;
+        uint32_t mOutputCount;
 
         // FIXME: not very sure how to check color standard
         VAProcColorStandardType in_color_standards[VAProcColorStandardCount];

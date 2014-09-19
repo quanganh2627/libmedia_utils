@@ -59,13 +59,14 @@ VPPWorker::VPPWorker()
     mForwardReferences(NULL),
     mPrevInput(0), mPrevOutput(0),
     mNumFilterBuffers(0), mFilters(0),
-    mInputIndex(0), mOutputIndex(0) {
+    mInputIndex(0), mOutputIndex(0),
+    mOutputCount(0) {
     memset(&mFilterBuffers, 0, VAProcFilterCount * sizeof(VABufferID));
     memset(&mFilterParam, 0, sizeof(mFilterParam));
     mBuffers.clear();
 }
 
-status_t VPPWorker::init(int32_t width, int32_t height) {
+status_t VPPWorker::init(uint32_t width, uint32_t height) {
     status_t ret = STATUS_OK;
 
     if (!mVAStarted) {
@@ -316,7 +317,7 @@ uint32_t VPPWorker::getOutputBufCount(uint32_t index) {
 }
 
 
-status_t VPPWorker::setupVA(int32_t width, int32_t height) {
+status_t VPPWorker::setupVA(uint32_t width, uint32_t height) {
     LOGV("setupVA");
     if (mDisplay != NULL) {
         LOGE("VA is particially started");
@@ -404,12 +405,14 @@ status_t VPPWorker::configFilters(uint32_t* filters,
         return STATUS_ERROR;
     }
 
-    uint32_t temp = *filters;
-    mFilterParam.srcWidth = filterParam->srcWidth;
-    mFilterParam.srcHeight = filterParam->srcHeight;
-    mFilterParam.dstWidth = filterParam->dstWidth;
-    mFilterParam.dstHeight = filterParam->dstHeight;
-    mFilterParam.frameRate = filterParam->frameRate;
+    if ((int32_t)*filters != 0) {
+        mFilterParam.srcWidth = filterParam->srcWidth;
+        mFilterParam.srcHeight = filterParam->srcHeight;
+        mFilterParam.dstWidth = filterParam->dstWidth;
+        mFilterParam.dstHeight = filterParam->dstHeight;
+        mFilterParam.frameRate = filterParam->frameRate;
+        mFilterParam.frcRate = filterParam->frcRate;
+    }
 
     if ((flags & OMX_BUFFERFLAG_TFF) != 0 ||
             (flags & OMX_BUFFERFLAG_BFF) != 0)
@@ -417,11 +420,13 @@ status_t VPPWorker::configFilters(uint32_t* filters,
     else
         *filters &= ~FilterDeinterlacing;
 
-    if (*filters != mFilters) {
+    if (mFilters != *filters) {
         mFilters = *filters;
+        LOGI("%s: mFilters 0x%x, fps %d, frc rate %d", __func__, mFilters, mFilterParam.frameRate, mFilterParam.frcRate);
         ret = setupFilters();
     }
 
+    *filters = mFilters;
     return ret;
 }
 
@@ -904,10 +909,10 @@ status_t VPPWorker::fill(Vector<buffer_handle_t> outputGraphicBuffer, uint32_t o
             vaStatus = STATUS_ERROR;
         }
 #endif
-
         vaStatus = vaSyncSurface(mVADisplay, output[i]);
         CHECK_VASTATUS("vaSyncSurface");
         vaStatus = STATUS_OK;
+        mOutputCount++;
         //dumpYUVFrameData(output[i]);
     }
 
@@ -996,9 +1001,10 @@ status_t VPPWorker::reset() {
     status_t ret;
     LOGI("reset");
     LOGI("======mVPPInputCount=%d, mVPPRenderCount=%d======",
-            mInputIndex, mOutputIndex);
+            mInputIndex, mOutputCount);
     mInputIndex = 0;
     mOutputIndex = 0;
+    mOutputCount = 0;
 
     {
         Mutex::Autolock autoLock(mPipelineBufferLock);

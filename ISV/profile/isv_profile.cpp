@@ -145,9 +145,16 @@ int ISVProfile::getFilterID(const char * name)
 uint32_t ISVProfile::getResolution(const char * name)
 {
     uint32_t width = 0, height = 0;
-    char *p = NULL, str[20];
+    char *p = NULL, *str = NULL;
+    int32_t lenth = strlen(name);
 
-    strncpy(str, name, strlen(name));
+    str = (char*)malloc(lenth+1);
+    if (NULL == str) {
+        LOGE("%s: failed to malloc buffer", __func__);
+        return 0;
+    }
+    strncpy(str, name, lenth);
+    str[lenth] = '\0';
 
     p = strtok(str, "x");
     if (p)
@@ -156,6 +163,10 @@ uint32_t ISVProfile::getResolution(const char * name)
     if (p)
         height = atoi(p);
 
+    if (str) {
+        free(str);
+        str = NULL;
+    }
     return width * height;
 }
 
@@ -376,7 +387,7 @@ void ISVProfile::dumpConfigData()
             (mConfigs[i].enabled == true) ? "true" : "false",
             mConfigs[i].minResolution,
             mConfigs[i].maxResolution,
-            ((mStatus & (i << 1)) == 0) ? "false" : "true");
+            ((mStatus & (1 << i)) == 0) ? "false" : "true");
         if (mConfigs[i].paraSize) {
             LOGE("\t\t parameters: ");
             for(j = 0; j < mConfigs[i].paraSize; j++)

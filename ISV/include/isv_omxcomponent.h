@@ -35,9 +35,9 @@
 
 #define ISV_COMPONENT_DEBUG 0
 
-#define MIN_INPUT_NUM (4)    // forward reference frame number is 3 for merrifield/moorefield
-#define MIN_OUTPUT_NUM (6)   // 2.5FRC need hold 2 + 3 + 2 + 3= 10 buffers, without FRC we set to 6
-#define DECODE_EXTRA_NUM (7)    //?? i don't know
+#define MIN_INPUT_NUM (6)    // forward reference frame number is 3 for merrifield/moorefield
+#define MIN_OUTPUT_NUM (10)   // 2.5FRC need hold 2 + 3 + 2 + 3= 10 buffers, without FRC we set to 6
+#define DECODE_EXTRA_NUM (9)    //?? i don't know
 #define MIN_ISV_BUFFER_NUM ((MIN_OUTPUT_NUM) + (MIN_INPUT_NUM) + (DECODE_EXTRA_NUM))
 #define UNDEQUEUED_NUM 4   // display system hold 4 buffers
 
@@ -259,9 +259,6 @@ private:
     OMX_CALLBACKTYPE *mpISVCallBacks;
 
     VPPWorker *mVPP;
-    // VPP filter configuration
-    uint32_t mFilters;
-    FilterParam mFilterParam;
 
     // vpp thread
     sp<VPPProcThread> mProcThread;
@@ -270,15 +267,12 @@ private:
     // vpp thread observer
     sp<ISVProcThreadObserver> mProcThreadObserver;
 
-    // vpp profile
-    sp<ISVProfile> mISVProfile;
-
     // vpp input buffer count + output buffer count
     int32_t mNumISVBuffers;
     int32_t mNumDecoderBuffers;
     int32_t mNumDecoderBuffersBak;
-    int32_t mWidth;
-    int32_t mHeight;
+    uint32_t mWidth;
+    uint32_t mHeight;
     uint32_t mUseAndroidNativeBufferIndex;
 
     bool mUseAndroidNativeBuffer;
