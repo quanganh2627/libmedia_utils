@@ -73,13 +73,18 @@ class VPPProcThread : public Thread {
         VPPProcThread &operator=(const VPPProcThread &);
         bool getBufForFirmwareOutput(Vector<buffer_handle_t> *fillBufList,
                              uint32_t *fillBufNum);
-        bool updateFirmwareOutputBufStatus(uint32_t fillBufNum);
+        status_t updateFirmwareOutputBufStatus(uint32_t fillBufNum);
         bool getBufForFirmwareInput(Vector<buffer_handle_t> *procBufList,
                             buffer_handle_t *inputBuf,
                             uint32_t *procBufNum );
-        void updateFirmwareInputBufStatus(uint32_t procBufNum);
+        status_t updateFirmwareInputBufStatus(uint32_t procBufNum);
+        //flush input&ouput buffer queue
         void flush();
+        //return whether this fps is valid
         inline bool isFrameRateValid(uint32_t fps);
+        //config vpp filters
+        status_t configFilters(OMX_BUFFERHEADERTYPE* buffer);
+
     private:
         sp<VPPProcThreadObserver> mpOwner;
         android_thread_id_t mThreadId;
@@ -109,6 +114,7 @@ class VPPProcThread : public Thread {
         int64_t mLastTimeStamp;
         bool mError;
         bool mbFlush;
+        bool mbBypass;
         bool mFlagEnd;
         bool mFrcOn;
 

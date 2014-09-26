@@ -107,7 +107,7 @@ class VPPWorker {
 
     public:
         // config filters on or off based on video info
-        status_t configFilters(uint32_t* filters, const FilterParam* filterParam, const uint32_t flags);
+        status_t configFilters(uint32_t filters, const FilterParam* filterParam);
 
         // Initialize: setupVA()->setupFilters()->setupPipelineCaps()
         status_t init(uint32_t width, uint32_t height);

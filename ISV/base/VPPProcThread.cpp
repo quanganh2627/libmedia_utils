@@ -18,6 +18,7 @@
 #include <math.h>
 #include "VPPProcThread.h"
 #include "isv_profile.h"
+#include <utils/Errors.h>
 
 //#define LOG_NDEBUG 0
 #undef LOG_TAG
@@ -43,6 +44,7 @@ VPPProcThread::VPPProcThread(bool canCallJava,
     mLastTimeStamp(0),
     mError(false),
     mbFlush(false),
+    mbBypass(false),
     mFlagEnd(false),
     mFilters(0)
 {
@@ -141,7 +143,7 @@ bool VPPProcThread::getBufForFirmwareOutput(Vector<buffer_handle_t> *fillBufList
 }
 
 
-bool VPPProcThread::updateFirmwareOutputBufStatus(uint32_t fillBufNum) {
+status_t VPPProcThread::updateFirmwareOutputBufStatus(uint32_t fillBufNum) {
     int64_t timeUs;
     OMX_BUFFERHEADERTYPE *outputBuffer;
     OMX_BUFFERHEADERTYPE *inputBuffer;
@@ -149,12 +151,12 @@ bool VPPProcThread::updateFirmwareOutputBufStatus(uint32_t fillBufNum) {
 
     if (mInputBuffers.empty()) {
         LOGE("%s: input buffer queue is empty. no buffer need to be sync", __func__);
-        return false;
+        return UNKNOWN_ERROR;
     }
 
     if (mOutputBuffers.size() < fillBufNum) {
         LOGE("%s: no enough output buffer which need to be sync", __func__);
-        return false;
+        return UNKNOWN_ERROR;
     }
     // remove one buffer from intput buffer queue
     {
@@ -163,7 +165,7 @@ bool VPPProcThread::updateFirmwareOutputBufStatus(uint32_t fillBufNum) {
         err = mpOwner->releaseBuffer(kPortIndexInput, inputBuffer, false);
         if (err != OMX_ErrorNone) {
             LOGE("%s: failed to fillInputBuffer", __func__);
-            return false;
+            return UNKNOWN_ERROR;
         }
 
         mInputBuffers.removeAt(0);
@@ -181,26 +183,26 @@ bool VPPProcThread::updateFirmwareOutputBufStatus(uint32_t fillBufNum) {
             outputBuffer = mOutputBuffers.itemAt(i);
             if (fillBufNum > 1) {
                 if(mFilterParam.frameRate == 15)
-                    outputBuffer->nTimeStamp = timeUs + 1000000ll * i / 30;
+                    outputBuffer->nTimeStamp = timeUs - 1000000ll * (fillBufNum - i - 1) / 30;
                 else
-                    outputBuffer->nTimeStamp = timeUs + 1000000ll * i / 60;
+                    outputBuffer->nTimeStamp = timeUs - 1000000ll * (fillBufNum - i - 1) / 60;
             }
 
             //return filled buffers for rendering
             err = mpOwner->releaseBuffer(kPortIndexOutput, outputBuffer, false);
             if (err != OMX_ErrorNone) {
                 LOGE("%s: failed to releaseOutputBuffer", __func__);
-                return false;
+                return UNKNOWN_ERROR;
             }
 
-            // remove filled buffers from output buffer queue
-            mOutputBuffers.removeAt(i);
             LOGD_IF(ISV_THREAD_DEBUG, "%s: fetch buffer %u(timestamp %.2f ms) from output buffer queue for render, and then queue size is %d", __func__,
                     outputBuffer, outputBuffer->nTimeStamp/1E3, mOutputBuffers.size());
         }
+        // remove filled buffers from output buffer queue
+        mOutputBuffers.removeItemsAt(0, fillBufNum);
         mOutputProcIdx -= fillBufNum;
     }
-    return true;
+    return OK;
 }
 
 
@@ -253,7 +255,7 @@ bool VPPProcThread::getBufForFirmwareInput(Vector<buffer_handle_t> *procBufList,
 }
 
 
-void VPPProcThread::updateFirmwareInputBufStatus(uint32_t procBufNum)
+status_t VPPProcThread::updateFirmwareInputBufStatus(uint32_t procBufNum)
 {
     OMX_BUFFERHEADERTYPE *outputBuffer;
     OMX_BUFFERHEADERTYPE *inputBuffer;
@@ -273,7 +275,7 @@ void VPPProcThread::updateFirmwareInputBufStatus(uint32_t procBufNum)
         //outputBuffer->pMarkData = intputBuffer->pMarkData;
     }
     mOutputProcIdx += procBufNum;
-    return;
+    return OK;
 }
 
 
@@ -368,6 +370,12 @@ void VPPProcThread::addOutput(OMX_BUFFERHEADERTYPE* output)
         mpOwner->releaseBuffer(kPortIndexOutput, output, true);
     }
 
+    if (mbBypass) {
+        // return this buffer to decoder
+        mpOwner->releaseBuffer(kPortIndexInput, output, false);
+        return;
+    }
+
     {
         //push the buffer into the output queue if it is not full
         LOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqiring mOutputLock", __func__);
@@ -394,32 +402,17 @@ inline bool VPPProcThread::isFrameRateValid(uint32_t fps)
     return (fps == 15 || fps == 24 || fps == 25 || fps == 30 || fps == 50 || fps == 60) ? true : false;
 }
 
-void VPPProcThread::addInput(OMX_BUFFERHEADERTYPE* input)
+status_t VPPProcThread::configFilters(OMX_BUFFERHEADERTYPE* buffer)
 {
-    if (mbFlush) {
-        mpOwner->releaseBuffer(kPortIndexInput, input, true);
-        return;
-    }
-
-    if (input->nFlags & OMX_BUFFERFLAG_EOS) {
-        mpOwner->releaseBuffer(kPortIndexInput, input, true);
-        notifyFlush();
-        return;
-    }
-
     if ((mFilters & FilterFrameRateConversion) != 0) {
         if (!isFrameRateValid(mFilterParam.frameRate)) {
             if (mNumRetry++ < MAX_RETRY_NUM) {
-                int64_t deltaTime = input->nTimeStamp - mLastTimeStamp;
-                mLastTimeStamp = input->nTimeStamp;
+                int64_t deltaTime = buffer->nTimeStamp - mLastTimeStamp;
+                mLastTimeStamp = buffer->nTimeStamp;
                 if (deltaTime != 0)
                     mFilterParam.frameRate = ceil(1.0 / deltaTime * 1E6);
                 if (!isFrameRateValid(mFilterParam.frameRate)) {
-                    // release this buffer if frc is not ready.
-                    mpOwner->releaseBuffer(kPortIndexInput, input, false);
-                    LOGD_IF(ISV_THREAD_DEBUG, "%s: frc rate is not ready, release this buffer %p, fps %d", __func__,
-                            input, mFilterParam.frameRate);
-                    return;
+                    return NOT_ENOUGH_DATA;
                 } else {
                     if (mFilterParam.frameRate == 50 || mFilterParam.frameRate == 60) {
                         LOGD_IF(ISV_THREAD_DEBUG, "%s: %d fps don't need do FRC, so disable FRC", __func__,
@@ -441,8 +434,53 @@ void VPPProcThread::addInput(OMX_BUFFERHEADERTYPE* input)
         }
     }
 
-    //config filters after mFilterParam ready
-    mVPPWorker->configFilters(&mFilters, &mFilterParam, input->nFlags);
+    if ((buffer->nFlags & OMX_BUFFERFLAG_TFF) != 0 ||
+            (buffer->nFlags & OMX_BUFFERFLAG_BFF) != 0)
+        mFilters |= FilterDeinterlacing;
+    else
+        mFilters &= ~FilterDeinterlacing;
+
+    if (mFilters == 0) {
+        LOGI("%s: no filter need to be config, bypass VPP", __func__);
+        return UNKNOWN_ERROR;
+    }
+
+    //config filters to mVPPWorker
+    return (mVPPWorker->configFilters(mFilters, &mFilterParam) == STATUS_OK) ? OK : UNKNOWN_ERROR;
+}
+
+void VPPProcThread::addInput(OMX_BUFFERHEADERTYPE* input)
+{
+    if (mbFlush) {
+        mpOwner->releaseBuffer(kPortIndexInput, input, true);
+        return;
+    }
+
+    if (mbBypass) {
+        // return this buffer to framework
+        mpOwner->releaseBuffer(kPortIndexOutput, input, false);
+        return;
+    }
+
+    if (input->nFlags & OMX_BUFFERFLAG_EOS) {
+        mpOwner->releaseBuffer(kPortIndexInput, input, true);
+        notifyFlush();
+        return;
+    }
+
+    status_t ret = configFilters(input);
+    if (ret == NOT_ENOUGH_DATA) {
+        // release this buffer if frc is not ready.
+        mpOwner->releaseBuffer(kPortIndexInput, input, false);
+        LOGD_IF(ISV_THREAD_DEBUG, "%s: frc rate is not ready, release this buffer %u, fps %d", __func__,
+                input, mFilterParam.frameRate);
+        return;
+    } else if (ret == UNKNOWN_ERROR) {
+        LOGD_IF(ISV_THREAD_DEBUG, "%s: configFilters failed, bypass VPP", __func__);
+        mbBypass = true;
+        mpOwner->releaseBuffer(kPortIndexOutput, input, false);
+        return;
+    }
 
     {
         //put the decoded buffer into fill buffer queue

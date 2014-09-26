@@ -58,10 +58,11 @@ VPPWorker::VPPWorker()
     mCanSupportAndroidGralloc(false),
     mForwardReferences(NULL),
     mPrevInput(0), mPrevOutput(0),
-    mNumFilterBuffers(0), mFilters(0),
+    mNumFilterBuffers(0),
+    mFilterFrc(VA_INVALID_ID), mFilters(0),
     mInputIndex(0), mOutputIndex(0),
     mOutputCount(0) {
-    memset(&mFilterBuffers, 0, VAProcFilterCount * sizeof(VABufferID));
+    memset(&mFilterBuffers, VA_INVALID_ID, VAProcFilterCount * sizeof(VABufferID));
     memset(&mFilterParam, 0, sizeof(mFilterParam));
     mBuffers.clear();
 }
@@ -394,9 +395,8 @@ status_t VPPWorker::terminateVA() {
     return STATUS_OK;
 }
 
-status_t VPPWorker::configFilters(uint32_t* filters,
-                                  const FilterParam* filterParam,
-                                  const uint32_t flags)
+status_t VPPWorker::configFilters(uint32_t filters,
+                                  const FilterParam* filterParam)
 {
     status_t ret = STATUS_OK;
 
@@ -405,7 +405,7 @@ status_t VPPWorker::configFilters(uint32_t* filters,
         return STATUS_ERROR;
     }
 
-    if ((int32_t)*filters != 0) {
+    if (filters != 0) {
         mFilterParam.srcWidth = filterParam->srcWidth;
         mFilterParam.srcHeight = filterParam->srcHeight;
         mFilterParam.dstWidth = filterParam->dstWidth;
@@ -414,19 +414,12 @@ status_t VPPWorker::configFilters(uint32_t* filters,
         mFilterParam.frcRate = filterParam->frcRate;
     }
 
-    if ((flags & OMX_BUFFERFLAG_TFF) != 0 ||
-            (flags & OMX_BUFFERFLAG_BFF) != 0)
-        *filters |= FilterDeinterlacing;
-    else
-        *filters &= ~FilterDeinterlacing;
-
-    if (mFilters != *filters) {
-        mFilters = *filters;
+    if (mFilters != filters) {
+        mFilters = filters;
         LOGI("%s: mFilters 0x%x, fps %d, frc rate %d", __func__, mFilters, mFilterParam.frameRate, mFilterParam.frcRate);
         ret = setupFilters();
     }
 
-    *filters = mFilters;
     return ret;
 }
 
@@ -463,6 +456,8 @@ status_t VPPWorker::setupFilters() {
                 LOGW("%s: failed to destroy va buffer %d", __func__, mFilterBuffers[i]);
                 //return STATUS_ERROR;
         }
+        memset(&mFilterBuffers, VA_INVALID_ID, VAProcFilterCount * sizeof(VABufferID));
+        mFilterFrc = VA_INVALID_ID;
         mNumFilterBuffers = 0;
     }
 
@@ -721,6 +716,11 @@ status_t VPPWorker::process(buffer_handle_t inputGraphicBuffer,
     VAStatus vaStatus;
     uint32_t i;
 
+    if (mFilters == 0) {
+        LOGE("%s: filters have not been initialized.", __func__);
+        return STATUS_ERROR;
+    }
+
     if (outputCount < 1) {
        LOGE("invalid outputCount");
        return STATUS_ERROR;
@@ -940,6 +940,8 @@ VPPWorker::~VPPWorker() {
                 LOGW("%s: failed to destroy va buffer id %d", __func__, mFilterBuffers[i]);
         }
         mNumFilterBuffers = 0;
+        memset(&mFilterBuffers, VA_INVALID_ID, VAProcFilterCount * sizeof(VABufferID));
+        mFilterFrc = VA_INVALID_ID;
     }
 
     {
@@ -1025,6 +1027,8 @@ status_t VPPWorker::reset() {
                 //return STATUS_ERROR;
         }
         mNumFilterBuffers = 0;
+        memset(&mFilterBuffers, VA_INVALID_ID, VAProcFilterCount * sizeof(VABufferID));
+        mFilterFrc = VA_INVALID_ID;
     }
     
     // we need to clear the cache for reference surfaces
