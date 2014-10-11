@@ -46,7 +46,7 @@ status_t ISVBuffer::initBufferInfo()
         }
 
         if (mGrallocHandle != 0) {
-            if ((uint32_t)metaData->pHandle != mGrallocHandle) {
+            if ((unsigned long)metaData->pHandle != mGrallocHandle) {
                 if (STATUS_OK != mWorker->freeSurface(&mSurface)) {
                     ALOGE("%s: free surface %d failed.", __func__, mSurface);
                     return UNKNOWN_ERROR;
@@ -54,7 +54,7 @@ status_t ISVBuffer::initBufferInfo()
             } else
                 return OK;
         }
-        mGrallocHandle = (uint32_t)metaData->pHandle;
+        mGrallocHandle = (unsigned long)metaData->pHandle;
     } else {
         if (mSurface != -1)
             return OK;
@@ -114,12 +114,12 @@ status_t ISVBufferManager::setBufferCount(int32_t size)
     return OK;
 }
 
-status_t ISVBufferManager::freeBuffer(uint32_t handle)
+status_t ISVBufferManager::freeBuffer(unsigned long handle)
 {
     Mutex::Autolock autoLock(mBufferLock);
     for (uint32_t i = 0; i < mBuffers.size(); i++) {
         ISVBuffer* isvBuffer = mBuffers.itemAt(i);
-        if (isvBuffer->getHandle() == (uint32_t)handle) {
+        if (isvBuffer->getHandle() == handle) {
             delete isvBuffer;
             mBuffers.removeAt(i);
             ALOGD_IF(ISV_BUFFER_MANAGER_DEBUG, "%s: remove handle 0x%08x, and then mBuffers.size() %d", __func__,
@@ -132,7 +132,7 @@ status_t ISVBufferManager::freeBuffer(uint32_t handle)
     return UNKNOWN_ERROR;
 }
 
-status_t ISVBufferManager::useBuffer(uint32_t handle)
+status_t ISVBufferManager::useBuffer(unsigned long handle)
 {
     Mutex::Autolock autoLock(mBufferLock);
     if (handle == 0 || mBuffers.size() >= mBuffers.capacity())
@@ -140,7 +140,7 @@ status_t ISVBufferManager::useBuffer(uint32_t handle)
 
     for (uint32_t i = 0; i < mBuffers.size(); i++) {
         ISVBuffer* isvBuffer = mBuffers.itemAt(i);
-        if (isvBuffer->getHandle() == (uint32_t)handle) {
+        if (isvBuffer->getHandle() == handle) {
             ALOGE("%s: this buffer 0x%08x has already been registered", __func__, handle);
             return UNKNOWN_ERROR;
         }
@@ -163,14 +163,14 @@ status_t ISVBufferManager::useBuffer(const sp<ANativeWindowBuffer> nativeBuffer)
 
     for (uint32_t i = 0; i < mBuffers.size(); i++) {
         ISVBuffer* isvBuffer = mBuffers.itemAt(i);
-        if (isvBuffer->getHandle() == (uint32_t)nativeBuffer->handle) {
+        if (isvBuffer->getHandle() == (unsigned long)nativeBuffer->handle) {
             ALOGE("%s: this buffer 0x%08x has already been registered", __func__, nativeBuffer->handle);
             return UNKNOWN_ERROR;
         }
     }
 
     ISVBuffer* isvBuffer = new ISVBuffer(mWorker,
-            (uint32_t)nativeBuffer->handle, (uint32_t)nativeBuffer->handle,
+            (unsigned long)nativeBuffer->handle, (unsigned long)nativeBuffer->handle,
             nativeBuffer->width, nativeBuffer->height,
             nativeBuffer->stride, nativeBuffer->format,
             mMetaDataMode ? ISVBuffer::ISV_BUFFER_METADATA : ISVBuffer::ISV_BUFFER_GRALLOC);
@@ -181,12 +181,12 @@ status_t ISVBufferManager::useBuffer(const sp<ANativeWindowBuffer> nativeBuffer)
     return OK;
 }
 
-ISVBuffer* ISVBufferManager::mapBuffer(uint32_t handle)
+ISVBuffer* ISVBufferManager::mapBuffer(unsigned long handle)
 {
     Mutex::Autolock autoLock(mBufferLock);
     for (uint32_t i = 0; i < mBuffers.size(); i++) {
         ISVBuffer* isvBuffer = mBuffers.itemAt(i);
-        if (isvBuffer->getHandle() == (uint32_t)handle)
+        if (isvBuffer->getHandle() == handle)
             return isvBuffer;
     }
     return NULL;

@@ -199,7 +199,7 @@ status_t ISVWorker::terminateVA() {
 }
 
 status_t ISVWorker::allocSurface(uint32_t* width, uint32_t* height,
-        uint32_t stride, uint32_t format, uint32_t handle, int32_t* surfaceId)
+        uint32_t stride, uint32_t format, unsigned long handle, int32_t* surfaceId)
 {
     if (mWidth == 0 || mHeight == 0) {
         ALOGE("%s: isv worker has not been initialized.", __func__);
@@ -591,6 +591,11 @@ status_t ISVWorker::process(ISVBuffer* inputBuffer, Vector<ISVBuffer*> outputBuf
     VAStatus vaStatus;
     uint32_t i;
 
+    if (isEOS && mInputIndex == 0) {
+        ALOGV("%s: don't need to flush VSP", __func__);
+        return STATUS_OK;
+    }
+
     if (mFilters == 0) {
         ALOGE("%s: filters have not been initialized.", __func__);
         return STATUS_ERROR;
@@ -610,6 +615,7 @@ status_t ISVWorker::process(ISVBuffer* inputBuffer, Vector<ISVBuffer*> outputBuf
         ALOGE("invalid input buffer");
         return STATUS_ERROR;
     }
+
     for (i = 0; i < outputCount; i++) {
         output[i] = outputBuffer[i]->getSurface();
         if (output[i] == VA_INVALID_SURFACE) {

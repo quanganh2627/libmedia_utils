@@ -143,7 +143,7 @@ bool ISVProcessor::getBufForFirmwareOutput(Vector<ISVBuffer*> *fillBufList,uint3
     for (i = 0; i < needFillNum; i++) {
         //fetch the render buffer from the top of output buffer queue
         outputBuffer = mOutputBuffers.itemAt(i);
-        uint32_t fillHandle = reinterpret_cast<uint32_t>(outputBuffer->pBuffer);
+        unsigned long fillHandle = reinterpret_cast<unsigned long>(outputBuffer->pBuffer);
         ISVBuffer* fillBuf = mBufferManager->mapBuffer(fillHandle);
         fillBufList->push_back(fillBuf);
     }
@@ -238,7 +238,7 @@ bool ISVProcessor::getBufForFirmwareInput(Vector<ISVBuffer*> *procBufList,
             *inputBuf = NULL;
         } else {
             inputBuffer = mInputBuffers.itemAt(mInputProcIdx);
-            uint32_t inputHandle = reinterpret_cast<uint32_t>(inputBuffer->pBuffer);
+            unsigned long inputHandle = reinterpret_cast<unsigned long>(inputBuffer->pBuffer);
             *inputBuf = mBufferManager->mapBuffer(inputHandle);
         }
         ALOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: releasing mInputLock", __func__);
@@ -251,12 +251,12 @@ bool ISVProcessor::getBufForFirmwareInput(Vector<ISVBuffer*> *procBufList,
         ALOGD_IF(ISV_COMPONENT_LOCK_DEBUG, "%s: acqired mOutputLock", __func__);
         if (mbFlush) {
             outputBuffer = mOutputBuffers.itemAt(0);
-            uint32_t outputHandle = reinterpret_cast<uint32_t>(outputBuffer->pBuffer);
+            unsigned long outputHandle = reinterpret_cast<unsigned long>(outputBuffer->pBuffer);
             procBufList->push_back(mBufferManager->mapBuffer(outputHandle));
         } else {
             for (int32_t i = 0; i < procBufCount; i++) {
                 outputBuffer = mOutputBuffers.itemAt(mOutputProcIdx + i);
-                uint32_t outputHandle = reinterpret_cast<uint32_t>(outputBuffer->pBuffer);
+                unsigned long outputHandle = reinterpret_cast<unsigned long>(outputBuffer->pBuffer);
                 procBufList->push_back(mBufferManager->mapBuffer(outputHandle));
             }
         }
@@ -325,22 +325,22 @@ bool ISVProcessor::threadLoop() {
             if (!mbFlush)
                 flags = mInputBuffers[mInputProcIdx]->nFlags;
             status_t ret = mISVWorker->process(inputBuf, procBufList, procBufNum, mbFlush, flags);
-            // for seek and EOS
-            if (mbFlush) {
-                mISVWorker->reset();
-                flush();
-
-                mNumTaskInProcesing = 0;
-                mInputProcIdx = 0;
-                mOutputProcIdx = 0;
-
-                mbFlush = false;
-
-                Mutex::Autolock endLock(mEndLock);
-                mEndCond.signal();
-                return true;
-            }
             if (ret == STATUS_OK) {
+                // for seek and EOS
+                if (mbFlush) {
+                    mISVWorker->reset();
+                    flush();
+
+                    mNumTaskInProcesing = 0;
+                    mInputProcIdx = 0;
+                    mOutputProcIdx = 0;
+
+                    mbFlush = false;
+
+                    Mutex::Autolock endLock(mEndLock);
+                    mEndCond.signal();
+                    return true;
+                }
                 mNumTaskInProcesing++;
                 updateFirmwareInputBufStatus(procBufNum);
             } else {

@@ -484,7 +484,7 @@ OMX_ERRORTYPE ISVComponent::ISV_UseBuffer(
             && nPortIndex == kPortIndexOutput
             /*&& mUseAndroidNativeBuffer2*/) {
         if (mISVBufferManager != NULL) {
-            if (OK != mISVBufferManager->useBuffer(reinterpret_cast<uint32_t>(pBuffer))) {
+            if (OK != mISVBufferManager->useBuffer(reinterpret_cast<unsigned long>(pBuffer))) {
                 ALOGE("%s: failed to register graphic buffers to ISV, set mVPPEnabled -->false", __func__);
                 mVPPEnabled = false;
             } else
@@ -541,7 +541,7 @@ OMX_ERRORTYPE ISVComponent::ISV_FreeBuffer(
             && mVPPEnabled
             && mVPPOn
             && nPortIndex == kPortIndexOutput) {
-        if (mISVBufferManager != NULL && OK != mISVBufferManager->freeBuffer(reinterpret_cast<uint32_t>(pBuffer->pBuffer)))
+        if (mISVBufferManager != NULL && OK != mISVBufferManager->freeBuffer(reinterpret_cast<unsigned long>(pBuffer->pBuffer)))
             ALOGW("%s: pBuffer %p has not been registered into ISV", __func__, pBuffer);
     }
     return err;
@@ -581,7 +581,7 @@ OMX_ERRORTYPE ISVComponent::ISV_FillThisBuffer(
         return OMX_FillThisBuffer(mComponent, pBuffer);
 
     if (mISVBufferManager != NULL) {
-        ISVBuffer* isvBuffer = mISVBufferManager->mapBuffer(reinterpret_cast<uint32_t>(pBuffer->pBuffer));
+        ISVBuffer* isvBuffer = mISVBufferManager->mapBuffer(reinterpret_cast<unsigned long>(pBuffer->pBuffer));
         if (isvBuffer == NULL) {
             ALOGE("%s: failed to map ISVBuffer, set mVPPEnabled -->false", __func__);
             mVPPEnabled = false;
