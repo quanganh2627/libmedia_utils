@@ -6,7 +6,9 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES := \
 	omx/isv_omxcore.cpp \
 	omx/isv_omxcomponent.cpp \
-	base/VPPProcThread.cpp \
+	base/isv_bufmanager.cpp \
+	base/isv_processor.cpp \
+	base/isv_worker.cpp \
 	profile/isv_profile.cpp
 
 LOCAL_MODULE_TAGS := optional
@@ -27,7 +29,8 @@ LOCAL_C_INCLUDES := \
 	$(TARGET_OUT_HEADERS)/libmedia_utils_vpp \
 	$(TARGET_OUT_HEADERS)/display \
 	$(TARGET_OUT_HEADERS)/khronos/openmax \
-	$(TARGET_OUT_HEADERS)/libva
+	$(TARGET_OUT_HEADERS)/libva \
+	$(TARGET_OUT_HEADERS)/pvr/hal
 
 ifeq ($(USE_MEDIASDK),true)
 	LOCAL_CFLAGS += -DUSE_MEDIASDK
@@ -37,14 +40,6 @@ ifeq ($(TARGET_VPP_USE_GEN),true)
 	LOCAL_CFLAGS += -DTARGET_VPP_USE_GEN
 endif
 
-
-ifeq ($(TARGET_VPP_USE_IVP),true)
-	LOCAL_CFLAGS += -DUSE_IVP
-	LOCAL_SRC_FILES += base/isv_worker.cpp
-	LOCAL_LDFLAGS += -L$(TARGET_OUT_SHARED_LIBRARIES) -livp
-else
-	LOCAL_SRC_FILES += base/VPPWorker.cpp
-endif
 
 include $(BUILD_SHARED_LIBRARY)
 

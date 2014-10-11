@@ -24,14 +24,10 @@
 #include <utils/Vector.h>
 #include <utils/RefBase.h>
 #include "isv_omxcore.h"
-#include "VPPProcThread.h"
+#include "isv_processor.h"
 #include "isv_profile.h"
-
-#ifdef USE_IVP
 #include "isv_worker.h"
-#else
-#include "VPPWorker.h"
-#endif
+#include "isv_bufmanager.h"
 
 #define ISV_COMPONENT_DEBUG 0
 
@@ -44,7 +40,7 @@
 using namespace android;
 class ISVComponent;
 
-class ISVProcThreadObserver: public VPPProcThreadObserver
+class ISVProcThreadObserver: public ISVProcessorObserver
 {
 public:
     ISVProcThreadObserver(OMX_COMPONENTTYPE *pBaseComponent, OMX_COMPONENTTYPE *pComponent, OMX_CALLBACKTYPE *pCallBacks);
@@ -258,10 +254,9 @@ private:
     ISVOMXCore *mCore;                  // owend by mComponent
     OMX_CALLBACKTYPE *mpISVCallBacks;
 
-    VPPWorker *mVPP;
+    // buffer manager
+    sp<ISVBufferManager> mISVBufferManager;
 
-    // vpp thread
-    sp<VPPProcThread> mProcThread;
     bool mThreadRunning;
 
     // vpp thread observer
@@ -274,6 +269,7 @@ private:
     uint32_t mWidth;
     uint32_t mHeight;
     uint32_t mUseAndroidNativeBufferIndex;
+    uint32_t mStoreMetaDataInBuffersIndex;
 
     bool mUseAndroidNativeBuffer;
     bool mUseAndroidNativeBuffer2;
@@ -282,6 +278,15 @@ private:
     bool mVPPOn;
     bool mVPPFlushing;
     bool mInitialized;
+#ifdef TARGET_VPP_USE_GEN
+    // vpp thread
+    sp<ISVProcessor> mProcThread;
+#else
+    static sp<ISVProcessor> mProcThread;
+#endif
+    // protect create mProcThread instance
+    bool mOwnProcessor;
+    static pthread_mutex_t ProcThreadInstanceLock;
 };
 
 #endif  // #define ISV_OMXCOMPONENT_H_

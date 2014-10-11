@@ -15,48 +15,19 @@
  *
  */
 
-#ifndef VPPWorker_H_
-#define VPPWorker_H_
+#ifndef __ISVWorker_H_
+#define __ISVWorker_H_
+
+#include <va/va.h>
+#include <va/va_vpp.h>
+#include <va/va_android.h>
+#include <OMX_Component.h>
+#include <utils/RefBase.h>
+#include "isv_profile.h"
+#include "isv_bufmanager.h"
 
 #define ANDROID_DISPLAY_HANDLE 0x18C34078
-#define MAX_GRAPHIC_BUFFER_NUMBER 64 // TODO: use GFX limitation first
 #define Display unsigned int
-#include <stdint.h>
-#include <utils/Errors.h>
-#include <utils/RefBase.h>
-//#include "iVP_api.h"
-
-using namespace android;
-
-//FIXME: copy from OMX_VPP.h
-/**
- * Enumeration of possible image filter types
- */
-typedef enum OMX_INTEL_IMAGEFILTERTYPE {
-    OMX_INTEL_ImageFilterDenoise            = 0x00000001, /**< extension for Intel Denoise */
-    OMX_INTEL_ImageFilterDeinterlace        = 0x00000002, /**< extension for Intel de-interlace */
-    OMX_INTEL_ImageFilterSharpness          = 0x00000004, /**< extension for Intel sharpness */
-    OMX_INTEL_ImageFilterScale              = 0x00000008, /**< extension for Intel Scaling*/
-    OMX_INTEL_ImageFilterColorBalance       = 0x00000010, /**< extension for Intel Colorbalance*/
-    OMX_INTEL_ImageFilter3P                 = 0x00000020, /**< extension for 3P */
-} OMX_INTEL_IMAGEFILTERTYPE;
-
-/**
- * Enumeration of possible configure index for video processing
- */
-typedef enum  _OMX_INTEL_VPP_INDEXTYPE {
-    /* Vendor specific area for storing indices */
-    OMX_INTEL_IndexConfigVPPStart
-        = ((OMX_INDEXTYPE)OMX_IndexVendorStartUnused + 0xA0000), /**< reference: OMX_CONFIG_VPPStart */
-
-    OMX_INTEL_IndexConfigFilterType,              /**< reference: OMX_INTEL_CONFIG_FILTERTYPE */
-    OMX_INTEL_IndexConfigDenoiseLevel,            /**< reference: OMX_INTEL_CONFIG_DENOISETYPE */
-    OMX_INTEL_IndexConfigDeinterlaceLevel,        /**< reference: OMX_INTEL_CONFIG_DEINTERLACETYPE */
-    OMX_INTEL_IndexConfigColorBalanceLevel,       /**< reference: OMX_INTEL_CONFIG_COLORBALANCETYPE */
-    OMX_INTEL_IndexConfigSharpnessLevel,          /**< reference: OMX_INTEL_CONFIG_SHARPNESSTYPE */
-    OMX_INTEL_IndexConfigScaleLevel,              /**< reference: OMX_INTEL_CONFIG_SCALARTYPE */
-    OMX_INTEL_IndexConfigIntel3PLevel,            /**< reference: OMX_INTEL_CONFIG_INTEL3PTYPE */
-} OMX_INTEL_VPP_INDEX;
 
 //FIXME: copy from OMX_Core.h
 
@@ -72,13 +43,16 @@ typedef enum  _OMX_INTEL_VPP_INDEXTYPE {
  */
 #define OMX_BUFFERFLAG_BFF 0x00020000
 
-enum VPPWorkerStatus {
+using namespace android;
+
+typedef enum
+{
     STATUS_OK = 0,
     STATUS_NOT_SUPPORT,
     STATUS_ALLOCATION_ERROR,
     STATUS_ERROR,
     STATUS_DATA_RENDERING
-};
+} vpp_status;
 
 typedef enum
 {
@@ -105,80 +79,124 @@ typedef struct {
     filter_t scalarType;
     uint32_t frameRate;
     uint32_t hasEncoder;
+    FRC_RATE frcRate;
 } FilterParam;
 
-typedef enum _INTEL_SCAN_TYPE
+class ISVBuffer;
+
+class ISVWorker : public RefBase
 {
-    INTEL_SCAN_PROGRESSIV      = 0,  /* Progressive*/
-    INTEL_SCAN_TOPFIELD        = 1,  /* Top field */
-    INTEL_SCAN_BOTTOMFIELD     = 2   /* Bottom field */
-} INTEL_SCAN_TYPE;
-
-typedef enum _INTEL_VIDEOSOURCE_TYPE
-{
-    INTEL_VideoSourceUnKnown      = 0,/* unKnown stream */
-    INTEL_VideoSourceCamera       = 1,/* Camera stream */
-    INTEL_VideoSourceVideoEditor  = 2,/* Video Editor stream */
-    INTEL_VideoSourceTranscode    = 3,/* Transcode stream */
-    INTEL_VideoSourceVideoConf    = 4,/* Video Conference stream*/
-    INTEL_VideoSourceMax          = 5 /* Reserve for future use*/
-} INTEL_VIDEOSOURCE_TYPE;
-
-typedef enum _INTEL_FRAME_TYPE
-{
-    INTEL_I_FRAME      = 0,  /* I frame */
-    INTEL_P_FRAME      = 1,  /* P frame */
-    INTEL_B_FRAME      = 2   /* B Frame */
-} INTEL_FRAME_TYPE;
-
-typedef union _INTEL_PRIVATE_VIDEOINFO{
-    struct {
-        unsigned int legacy       : 16;   /*reserved for legacy OMX usage*/
-        INTEL_SCAN_TYPE eScanType : 2;    /*Progressive or interlace*/
-        INTEL_VIDEOSOURCE_TYPE eVideoSource: 3 ; /*Camera,VideoEdtor, etc. */
-        INTEL_FRAME_TYPE  ePictureType : 2; /*I/P/B*/
-        unsigned int      nFrameRate   : 7; /*frame rate*/
-        unsigned int      reserved     : 1; /*reserved for extension*/
-    }videoinfo;
-    unsigned int value;
-}INTEL_PRIVATE_VIDEOINFO;
-
-class VPPWorker {
 
     public:
-        static VPPWorker* getInstance();
-
         // config filters on or off based on video info
-        status_t configFilters(uint32_t* filters, const FilterParam* filterParam, const uint32_t flags);
+        status_t configFilters(uint32_t filters, const FilterParam* filterParam);
 
         // Initialize: setupVA()->setupFilters()->setupPipelineCaps()
-        status_t init();
+        status_t init(uint32_t width, uint32_t height);
+
+        // Get output buffer number needed for processing
+        uint32_t getProcBufCount();
+
+        // Get output buffer number needed for filling
+        uint32_t getFillBufCount();
 
         // Send input and output buffers to VSP to begin processing
-        status_t process(buffer_handle_t input, buffer_handle_t output, uint32_t outputCount, bool isEOS, uint32_t flags);
+        status_t process(ISVBuffer* input, Vector<ISVBuffer*> output, uint32_t outputCount, bool isEOS, uint32_t flags);
+
+        // Fill output buffers given, it's a blocking call
+        status_t fill(Vector<ISVBuffer*> output, uint32_t outputCount);
 
         // reset index
         status_t reset();
-        // update VPP status
-        bool isVppOn();
 
-        ~VPPWorker();
+        // set video display mode
+        void setDisplayMode(int32_t mode);
+
+        // get video display mode
+        int32_t getDisplayMode();
+
+        // check HDMI connection status
+        bool isHdmiConnected();
+
+        uint32_t getVppOutputFps();
+
+        // alloc/free VA surface
+        status_t allocSurface(uint32_t* width, uint32_t* height,
+                uint32_t stride, uint32_t format, uint32_t handle, int32_t* surfaceId);
+        status_t freeSurface(int32_t* surfaceId);
+
+        ISVWorker();
+        ~ISVWorker();
 
     private:
-        VPPWorker();
+        // Check if VPP is supported
+        bool isSupport() const;
 
-        VPPWorker(const VPPWorker &);
-        VPPWorker &operator=(const VPPWorker &);
+        // Create VA context
+        status_t setupVA(uint32_t width, uint32_t height);
+
+        // Destroy VA context
+        status_t terminateVA();
+
+        // Get output buffer number needed for processing
+        uint32_t getOutputBufCount(uint32_t index);
+
+        // Check filter caps and create filter buffers
+        status_t setupFilters();
+
+        // Setup pipeline caps
+        status_t setupPipelineCaps();
+
+        //check if the input fps is suportted in array fpsSet.
+        bool isFpsSupport(int32_t fps, int32_t *fpsSet, int32_t fpsSetCnt);
+
+        // Debug only
+        // Dump YUV frame
+        status_t dumpYUVFrameData(VASurfaceID surfaceID);
+        status_t writeNV12(int width, int height, unsigned char *out_buf, int y_pitch, int uv_pitch);
+
+        ISVWorker(const ISVWorker &);
+        ISVWorker &operator=(const ISVWorker &);
+
+    public:
+        uint32_t mNumForwardReferences;
 
     private:
-        static VPPWorker* mVPPWorker;
+        // VA common variables
+        bool mVAStarted;
+        VAContextID mVAContext;
+        uint32_t mWidth;
+        uint32_t mHeight;
+        Display * mDisplay;
+        VADisplay mVADisplay;
+        VAConfigID mVAConfig;
 
-        iVPCtxID mVPContext;
-        bool mVPStarted;
+        // Forward References Surfaces
+        Vector<VABufferID> mPipelineBuffers;
+        Mutex mPipelineBufferLock; // to protect access to mPipelineBuffers
+        VASurfaceID *mForwardReferences;
+        VASurfaceID mPrevInput;
+        VASurfaceID mPrevOutput;
+
+        // VPP Filters Buffers
+        uint32_t mNumFilterBuffers;
+        VABufferID mFilterBuffers[VAProcFilterCount];
+
+        // VPP filter configuration
+        VABufferID mFilterFrc;
 
         // VPP filter configuration
         uint32_t mFilters;
         FilterParam mFilterParam;
+
+        // status
+        uint32_t mInputIndex;
+        uint32_t mOutputIndex;
+        uint32_t mOutputCount;
+
+        // FIXME: not very sure how to check color standard
+        VAProcColorStandardType in_color_standards[VAProcColorStandardCount];
+        VAProcColorStandardType out_color_standards[VAProcColorStandardCount];
 };
 
-#endif //VPPWorker_H_
+#endif //__ISVWorker_H_

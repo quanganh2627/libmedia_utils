@@ -212,6 +212,8 @@ OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_GetHandle(
     }
     pthread_mutex_unlock(&g_module_lock);
 
+    delete pISVComponent;
+    pISVComponent = NULL;
     ALOGE("%s(): exit failure, %s not found", __func__, cComponentName);
     return OMX_ErrorInvalidComponent;
 }
