@@ -60,7 +60,7 @@ LOCAL_C_INCLUDES := \
 	external/skia/include/effects \
 	external/skia/src/effects \
 	external/skia/include/images \
-	vendor/intel/PRIVATE/external/libjpeg-turbo \
+	vendor/intel/external/libjpeg-turbo \
 	external/skia/src/lazy \
 	external/skia/src/images \
 	external/skia/third_party/etc1 \
