@@ -38,6 +38,8 @@ ISVProfile::ISVProfile(const uint32_t width, const uint32_t height)
     mCurrentFilter = 0;
     mCurrentFrcTab = 0;
 
+    mStatus = 0;
+
     memset(mConfigs, 0, sizeof(ISVConfig) * ProcFilterCount);
 
     for (i = 0; i < MAX_TAB_SIZE; i++) {
