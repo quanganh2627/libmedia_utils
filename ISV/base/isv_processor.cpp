@@ -16,9 +16,10 @@
  */
 
 #include <math.h>
+#include <utils/Errors.h>
 #include "isv_processor.h"
 #include "isv_profile.h"
-#include <utils/Errors.h>
+#include "isv_omxcomponent.h"
 
 //#define LOG_NDEBUG 0
 #undef LOG_TAG
@@ -49,17 +50,8 @@ ISVProcessor::ISVProcessor(bool canCallJava,
     mFlagEnd(false),
     mFilters(0)
 {
-    if (mISVWorker == NULL) {
-        mISVWorker = new ISVWorker();
-        if (STATUS_OK != mISVWorker->init(width, height)) {
-            ALOGE("%s: mVPP init failed", __func__);
-        }
-    }
-
-    mBufferManager->setWorker(mISVWorker);
     //FIXME: for 1920 x 1088, we also consider it as 1080p
-    if (mISVProfile == NULL)
-        mISVProfile = new ISVProfile(width, (height == 1088) ? 1080 : height);
+    mISVProfile = new ISVProfile(width, (height == 1088) ? 1080 : height);
 
     // get platform ISV cap first
     mFilters = mISVProfile->getFilterStatus();
@@ -85,7 +77,6 @@ ISVProcessor::~ISVProcessor() {
     mOutputBuffers.clear();
     mInputBuffers.clear();
 
-    mISVWorker = NULL;
     mISVProfile = NULL;
     mFilters = 0;
     memset(&mFilterParam, 0, sizeof(mFilterParam));
@@ -101,6 +92,15 @@ status_t ISVProcessor::readyToRun()
 void ISVProcessor::start()
 {
     ALOGD_IF(ISV_THREAD_DEBUG, "ISVProcessor::start");
+
+    if (mISVWorker == NULL) {
+        mISVWorker = new ISVWorker();
+        if (STATUS_OK != mISVWorker->init(mFilterParam.srcWidth, mFilterParam.srcHeight))
+            ALOGE("%s: mISVWorker init failed", __func__);
+    }
+
+    mBufferManager->setWorker(mISVWorker);
+
     this->run("ISVProcessor", ANDROID_PRIORITY_NORMAL);
     mThreadRunning = true;
     return;
@@ -109,6 +109,7 @@ void ISVProcessor::start()
 void ISVProcessor::stop()
 {
     ALOGD_IF(ISV_THREAD_DEBUG, "ISVProcessor::stop");
+
     if(mThreadRunning) {
         this->requestExit();
         {
@@ -118,6 +119,11 @@ void ISVProcessor::stop()
         this->requestExitAndWait();
         mThreadRunning = false;
     }
+
+    if (STATUS_OK != mISVWorker->deinit())
+        ALOGE("%s: mISVWorker deinit failed", __func__);
+
+    mISVWorker = NULL;
     return;
 }
 
@@ -491,7 +497,7 @@ void ISVProcessor::addOutput(OMX_BUFFERHEADERTYPE* output)
         return;
     }
 
-    if (mbBypass) {
+    if (mbBypass || mOutputBuffers.size() >= MIN_OUTPUT_NUM) {
         // return this buffer to decoder
         mpOwner->releaseBuffer(kPortIndexInput, output, false);
         return;

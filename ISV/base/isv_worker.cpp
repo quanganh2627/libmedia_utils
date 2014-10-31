@@ -51,7 +51,7 @@ using namespace android;
 
 ISVWorker::ISVWorker()
     :mNumForwardReferences(0),
-    mVAStarted(false), mVAContext(VA_INVALID_ID),
+    mVAContext(VA_INVALID_ID),
     mWidth(0), mHeight(0),
     mDisplay(NULL), mVADisplay(NULL),
     mVAConfig(VA_INVALID_ID),
@@ -63,20 +63,6 @@ ISVWorker::ISVWorker()
     mOutputCount(0) {
     memset(&mFilterBuffers, VA_INVALID_ID, VAProcFilterCount * sizeof(VABufferID));
     memset(&mFilterParam, 0, sizeof(mFilterParam));
-}
-
-status_t ISVWorker::init(uint32_t width, uint32_t height) {
-    status_t ret = STATUS_OK;
-
-    if (!mVAStarted) {
-        if (STATUS_OK != setupVA(width, height)) {
-            ALOGE("%s: failed to setupVA", __func__);
-            return ret;
-        }
-        mVAStarted = true;
-    }
-
-    return ret;
 }
 
 bool ISVWorker::isSupport() const {
@@ -121,8 +107,9 @@ uint32_t ISVWorker::getOutputBufCount(uint32_t index) {
 }
 
 
-status_t ISVWorker::setupVA(uint32_t width, uint32_t height) {
-    ALOGV("setupVA");
+status_t ISVWorker::init(uint32_t width, uint32_t height) {
+    ALOGV("init");
+
     if (mDisplay != NULL) {
         ALOGE("VA is particially started");
         return STATUS_ERROR;
@@ -174,7 +161,33 @@ status_t ISVWorker::setupVA(uint32_t width, uint32_t height) {
     return STATUS_OK;
 }
 
-status_t ISVWorker::terminateVA() {
+status_t ISVWorker::deinit() {
+    {
+        Mutex::Autolock autoLock(mPipelineBufferLock);
+        while (!mPipelineBuffers.isEmpty()) {
+            VABufferID pipelineBuffer = mPipelineBuffers.itemAt(0);
+            if (VA_STATUS_SUCCESS != vaDestroyBuffer(mVADisplay, pipelineBuffer))
+                ALOGW("%s: failed to destroy va buffer id %d", __func__, pipelineBuffer);
+            mPipelineBuffers.removeAt(0);
+        }
+    }
+
+    if (mNumFilterBuffers != 0) {
+        for (uint32_t i = 0; i < mNumFilterBuffers; i++) {
+            if(VA_STATUS_SUCCESS != vaDestroyBuffer(mVADisplay, mFilterBuffers[i]))
+                ALOGW("%s: failed to destroy va buffer id %d", __func__, mFilterBuffers[i]);
+        }
+        mNumFilterBuffers = 0;
+        memset(&mFilterBuffers, VA_INVALID_ID, VAProcFilterCount * sizeof(VABufferID));
+        mFilterFrc = VA_INVALID_ID;
+    }
+
+    if (mForwardReferences != NULL) {
+        free(mForwardReferences);
+        mForwardReferences = NULL;
+        mNumForwardReferences = 0;
+    }
+
     if (mVAContext != VA_INVALID_ID) {
          vaDestroyContext(mVADisplay, mVAContext);
          mVAContext = VA_INVALID_ID;
@@ -253,7 +266,7 @@ status_t ISVWorker::allocSurface(uint32_t* width, uint32_t* height,
     attribs[2].value.type = VAGenericValueTypeInteger;
     attribs[2].value.value.i = VA_SURFACE_ATTRIB_USAGE_HINT_VPP_READ;
 
-    ALOGD("%s: Ext buffer: width %d, height %d, data_size %d, pitch %d", __func__,
+    ALOGV("%s: Ext buffer: width %d, height %d, data_size %d, pitch %d", __func__,
             vaExtBuf.width, vaExtBuf.height, vaExtBuf.data_size, vaExtBuf.pitches[0]);
     VAStatus vaStatus = vaCreateSurfaces(mVADisplay, VA_RT_FORMAT_YUV420, vaExtBuf.width,
                                  vaExtBuf.height, (VASurfaceID*)surfaceId, 1, attribs, 3);
@@ -815,38 +828,6 @@ status_t ISVWorker::fill(Vector<ISVBuffer*> outputBuffer, uint32_t outputCount) 
 
     ALOGV("fill, exit");
     return vaStatus;
-}
-
-ISVWorker::~ISVWorker() {
-    if (mNumFilterBuffers != 0) {
-        for (uint32_t i = 0; i < mNumFilterBuffers; i++) {
-            if(VA_STATUS_SUCCESS != vaDestroyBuffer(mVADisplay, mFilterBuffers[i]))
-                ALOGW("%s: failed to destroy va buffer id %d", __func__, mFilterBuffers[i]);
-        }
-        mNumFilterBuffers = 0;
-        memset(&mFilterBuffers, VA_INVALID_ID, VAProcFilterCount * sizeof(VABufferID));
-        mFilterFrc = VA_INVALID_ID;
-    }
-
-    {
-        Mutex::Autolock autoLock(mPipelineBufferLock);
-        while (!mPipelineBuffers.isEmpty()) {
-            VABufferID pipelineBuffer = mPipelineBuffers.itemAt(0);
-            if (VA_STATUS_SUCCESS != vaDestroyBuffer(mVADisplay, pipelineBuffer))
-                ALOGW("%s: failed to destroy va buffer id %d", __func__, pipelineBuffer);
-            mPipelineBuffers.removeAt(0);
-        }
-    }
-
-    if (mForwardReferences != NULL) {
-        free(mForwardReferences);
-        mForwardReferences = NULL;
-        mNumForwardReferences = 0;
-    }
-
-    terminateVA();
-    mFilters = 0;
-    memset(&mFilterParam, 0, sizeof(mFilterParam));
 }
 
 // Debug only

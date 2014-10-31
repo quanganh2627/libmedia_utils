@@ -93,6 +93,7 @@ class ISVWorker : public RefBase
 
         // Initialize: setupVA()->setupFilters()->setupPipelineCaps()
         status_t init(uint32_t width, uint32_t height);
+        status_t deinit();
 
         // Get output buffer number needed for processing
         uint32_t getProcBufCount();
@@ -126,17 +127,11 @@ class ISVWorker : public RefBase
         status_t freeSurface(int32_t* surfaceId);
 
         ISVWorker();
-        ~ISVWorker();
+        ~ISVWorker() {}
 
     private:
         // Check if VPP is supported
         bool isSupport() const;
-
-        // Create VA context
-        status_t setupVA(uint32_t width, uint32_t height);
-
-        // Destroy VA context
-        status_t terminateVA();
 
         // Get output buffer number needed for processing
         uint32_t getOutputBufCount(uint32_t index);
@@ -163,7 +158,6 @@ class ISVWorker : public RefBase
 
     private:
         // VA common variables
-        bool mVAStarted;
         VAContextID mVAContext;
         uint32_t mWidth;
         uint32_t mHeight;
