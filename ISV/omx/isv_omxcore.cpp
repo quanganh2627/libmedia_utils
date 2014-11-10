@@ -98,7 +98,6 @@ OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_Init(void)
             } else {
                 pthread_mutex_unlock(&g_module_lock);
                 ALOGW("OMX IL core not found");
-                return OMX_ErrorUndefined; // Do we need to return error message
             }
         }
         g_initialized = 1;

@@ -326,13 +326,13 @@ bool ISVWorker::isFpsSupport(int32_t fps, int32_t *fpsSet, int32_t fpsSetCnt) {
 
 status_t ISVWorker::setupFilters() {
     ALOGV("setupFilters");
-    VAProcFilterParameterBuffer deblock, denoise, sharpen;
+    VAProcFilterParameterBuffer deblock, denoise, sharpen, stde;
     VAProcFilterParameterBufferDeinterlacing deint;
     VAProcFilterParameterBufferColorBalance color[COLOR_NUM];
     VAProcFilterParameterBufferFrameRateConversion frc;
-    VABufferID deblockId, denoiseId, deintId, sharpenId, colorId, frcId;
+    VABufferID deblockId, denoiseId, deintId, sharpenId, colorId, frcId, stdeId;
     uint32_t numCaps;
-    VAProcFilterCap deblockCaps, denoiseCaps, sharpenCaps, frcCaps;
+    VAProcFilterCap deblockCaps, denoiseCaps, sharpenCaps, frcCaps, stdeCaps;
     VAProcFilterCapDeinterlacing deinterlacingCaps[VAProcDeinterlacingCount];
     VAProcFilterCapColorBalance colorCaps[COLOR_NUM];
     VAStatus vaStatus;
@@ -445,7 +445,17 @@ status_t ISVWorker::setupFilters() {
                     CHECK_VASTATUS("vaQueryVideoProcFilterCaps for sharpening");
                     // create parameter buffer
                     sharpen.type = VAProcFilterSharpening;
+#ifdef TARGET_VPP_USE_GEN
+                    char propValueString[PROPERTY_VALUE_MAX];
+
+                    // placeholder for vpg driver: can't support sharpness factor auto adjust, so leave config to user.
+                    property_get("vpp.filter.sharpen.factor", propValueString, "64.0");
+                    sharpen.value = atof(propValueString);
+                    sharpen.value = (sharpen.value < 0.0f) ? 0.0f : sharpen.value;
+                    sharpen.value = (sharpen.value > 64.0f) ? 64.0f : sharpen.value;
+#else
                     sharpen.value = sharpenCaps.range.default_value;
+#endif
                     vaStatus = vaCreateBuffer(mVADisplay, mVAContext,
                         VAProcFilterParameterBufferType, sizeof(sharpen), 1,
                         &sharpen, &sharpenId);
@@ -553,8 +563,38 @@ status_t ISVWorker::setupFilters() {
                     mFilterFrc = frcId;
                 }
                 break;
+            case VAProcFilterSkinToneEnhancement:
+                if((mFilters & FilterSkinToneEnhancement) != 0) {
+                    // check filter caps
+                    numCaps = 1;
+                    vaStatus = vaQueryVideoProcFilterCaps(mVADisplay, mVAContext,
+                            VAProcFilterSkinToneEnhancement,
+                            &stdeCaps,
+                            &numCaps);
+                    CHECK_VASTATUS("vaQueryVideoProcFilterCaps for skintone");
+                    // create parameter buffer
+                    stde.type = VAProcFilterSkinToneEnhancement;
+#ifdef TARGET_VPP_USE_GEN
+                    char propValueString[PROPERTY_VALUE_MAX];
+
+                    // placeholder for vpg driver: can't support skintone factor auto adjust, so leave config to user.
+                    property_get("vpp.filter.skintone.factor", propValueString, "8.0");
+                    stde.value = atof(propValueString);
+                    stde.value = (stde.value < 0.0f) ? 0.0f : stde.value;
+                    stde.value = (stde.value > 8.0f) ? 8.0f : stde.value;
+#else
+                    stde.value = stdeCaps.range.default_value;
+#endif
+                    vaStatus = vaCreateBuffer(mVADisplay, mVAContext,
+                        VAProcFilterParameterBufferType, sizeof(stde), 1,
+                        &stde, &stdeId);
+                    CHECK_VASTATUS("vaCreateBuffer for skintone");
+                    mFilterBuffers[mNumFilterBuffers] = stdeId;
+                    mNumFilterBuffers++;
+                }
+                break;
             default:
-                ALOGE("Not supported filter\n");
+                ALOGW("%s: Not supported filter 0x%08x", __func__, supportedFilters[i]);
                 break;
         }
     }
@@ -867,8 +907,10 @@ status_t ISVWorker::dumpYUVFrameData(VASurfaceID surfaceID) {
 status_t ISVWorker::reset() {
     status_t ret;
     ALOGI("reset");
-    ALOGI("======mVPPInputCount=%d, mVPPRenderCount=%d======",
-            mInputIndex, mOutputCount);
+    if (mOutputCount > 0) {
+        ALOGI("======mVPPInputCount=%d, mVPPRenderCount=%d======",
+                mInputIndex, mOutputCount);
+    }
     mInputIndex = 0;
     mOutputIndex = 0;
     mOutputCount = 0;
