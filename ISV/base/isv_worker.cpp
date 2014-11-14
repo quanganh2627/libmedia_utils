@@ -15,9 +15,12 @@
  *
  */
 #include <cutils/properties.h>
+#include <system/graphics.h>
 #include "isv_worker.h"
 #ifndef TARGET_VPP_USE_GEN
 #include <OMX_IntelColorFormatExt.h>
+#else
+#include <ufo/graphics.h>
 #endif
 
 //#define LOG_NDEBUG 0
@@ -228,20 +231,47 @@ status_t ISVWorker::allocSurface(uint32_t* width, uint32_t* height,
     VASurfaceAttribExternalBuffers vaExtBuf;
 
     memset(&vaExtBuf, 0, sizeof(VASurfaceAttribExternalBuffers));
-    vaExtBuf.pixel_format = VA_FOURCC_NV12;
+    switch(format) {
+        case HAL_PIXEL_FORMAT_YV12:
+            vaExtBuf.pixel_format = VA_FOURCC_YV12;
+            vaExtBuf.num_planes = 3;
+            vaExtBuf.pitches[0] = stride;
+            vaExtBuf.pitches[1] = stride / 2;
+            vaExtBuf.pitches[2] = stride / 2;
+            vaExtBuf.pitches[3] = 0;
+            vaExtBuf.offsets[0] = 0;
+            vaExtBuf.offsets[1] = stride * *height;
+            vaExtBuf.offsets[2] = vaExtBuf.offsets[1] + (stride / 2) * (*height / 2);
+            vaExtBuf.offsets[3] = 0;
+            break;
+#ifdef TARGET_VPP_USE_GEN
+        case HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL:
+        case HAL_PIXEL_FORMAT_NV12_X_TILED_INTEL:
+        //it will be removed in future, it indicate the same format with HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL
+        case HAL_PIXEL_FORMAT_YUV420PackedSemiPlanar_Tiled_INTEL:
+#else
+        case OMX_INTEL_COLOR_FormatYUV420PackedSemiPlanar_Tiled:
+        case OMX_INTEL_COLOR_FormatYUV420PackedSemiPlanar:
+#endif
+            vaExtBuf.pixel_format = VA_FOURCC_NV12;
+            vaExtBuf.num_planes = 2;
+            vaExtBuf.pitches[0] = stride;
+            vaExtBuf.pitches[1] = stride;
+            vaExtBuf.pitches[2] = 0;
+            vaExtBuf.pitches[3] = 0;
+            vaExtBuf.offsets[0] = 0;
+            vaExtBuf.offsets[1] = stride * *height;
+            vaExtBuf.offsets[2] = 0;
+            vaExtBuf.offsets[3] = 0;
+            break;
+        default:
+            ALOGE("%s: can't support this format 0x%08x", __func__, format);
+            return STATUS_ERROR;
+    }
     vaExtBuf.width = *width;
     vaExtBuf.height = *height;
     vaExtBuf.data_size = stride * *height * 1.5;
     vaExtBuf.num_buffers = 1;
-    vaExtBuf.num_planes = 2;
-    vaExtBuf.pitches[0] = stride;
-    vaExtBuf.pitches[1] = stride;
-    vaExtBuf.pitches[2] = 0;
-    vaExtBuf.pitches[3] = 0;
-    vaExtBuf.offsets[0] = 0;
-    vaExtBuf.offsets[1] = stride * *height;
-    vaExtBuf.offsets[2] = 0;
-    vaExtBuf.offsets[3] = 0;
 #ifndef TARGET_VPP_USE_GEN
     if (format == OMX_INTEL_COLOR_FormatYUV420PackedSemiPlanar_Tiled) {
         ALOGV("set TILING flag");

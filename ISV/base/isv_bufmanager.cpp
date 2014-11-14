@@ -16,6 +16,7 @@
  */
 
 #include <media/hardware/HardwareAPI.h>
+#include <system/graphics.h>
 #include "isv_bufmanager.h"
 #ifndef TARGET_VPP_USE_GEN
 #include "hal_public.h"
@@ -84,6 +85,12 @@ status_t ISVBuffer::initBufferInfo()
     mStride = grallocHandle->iWidth;
     mColorFormat = grallocHandle->iFormat;
 #endif
+
+    //FIXME: currently, VSP doesn't support YV12 format very well, so diable ISV temporarily
+    if (mColorFormat == HAL_PIXEL_FORMAT_YV12) {
+        ALOGI("%s: VSP doesn't support YV12 very well, so disable ISV", __func__);
+        return BAD_TYPE;
+    }
 
     if (mWorker == NULL) {
         ALOGE("%s: mWorker == NULL!!", __func__);

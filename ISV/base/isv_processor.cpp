@@ -63,6 +63,10 @@ ISVProcessor::ISVProcessor(bool canCallJava,
     if (!ISVProfile::isFRCOn())
         mFilters &= ~FilterFrameRateConversion;
 
+    //FIXME: move this into profile.
+    if (width > 2048)
+        mFilters &= ~FilterSharpening;
+
     memset(&mFilterParam, 0, sizeof(mFilterParam));
     //FIXME: we don't support scaling yet, so set src region equal to dst region
     mFilterParam.srcWidth = mFilterParam.dstWidth = width;

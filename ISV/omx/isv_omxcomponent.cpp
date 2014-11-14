@@ -58,6 +58,7 @@ ISVComponent::ISVComponent(
         mNumISVBuffers(MIN_ISV_BUFFER_NUM),
         mNumDecoderBuffers(0),
         mNumDecoderBuffersBak(0),
+        mNumBypassFrames(SKIP_FRAME_NUM),
         mWidth(0),
         mHeight(0),
         mUseAndroidNativeBufferIndex(0),
@@ -281,6 +282,23 @@ OMX_ERRORTYPE ISVComponent::ISV_SetParameter(
         if (*def == ISV_AUTO) {
             mVPPEnabled = true;
             ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: mVPPEnabled -->true", __func__);
+#ifndef TARGET_VPP_USE_GEN
+            if (mVPPOn) {
+                uint32_t number = MIN_INPUT_NUM + MIN_OUTPUT_NUM;
+                OMX_INDEXTYPE index;
+                status_t error =
+                    OMX_GetExtensionIndex(
+                            mComponent,
+                            "OMX.Intel.index.vppBufferNum",
+                            &index);
+                if (error == OK) {
+                    error = OMX_SetParameter(mComponent, index, (OMX_PTR)&number);
+                } else {
+                    // ingore this error
+                    ALOGW("Get vpp number index failed");
+                }
+            }
+#endif
         } else if (*def == ISV_DISABLE)
             mVPPEnabled = false;
         return OMX_ErrorNone;
@@ -589,7 +607,7 @@ OMX_ERRORTYPE ISVComponent::ISV_FillThisBuffer(
         }
 
         if (OK != isvBuffer->initBufferInfo()) {
-            ALOGE("%s: isvBuffer %p failed to initBufferInfo", __func__, isvBuffer);
+            ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: isvBuffer %p failed to initBufferInfo", __func__, isvBuffer);
             mVPPEnabled = false;
             return OMX_FillThisBuffer(mComponent, pBuffer);
         }
@@ -633,8 +651,10 @@ OMX_ERRORTYPE ISVComponent::ISV_FillBufferDone(
         return OMX_ErrorUndefined;
     }
 
-    if(!mVPPEnabled || !mVPPOn || mVPPFlushing)
+    if(!mVPPEnabled || !mVPPOn || mVPPFlushing || mNumBypassFrames-- > 0) {
+        ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: FillBufferDone pBuffer %p, timeStamp %.2f ms", __func__, pBuffer, pBuffer->nTimeStamp/1E3);
         return mpCallBacks->FillBufferDone(&mBaseComponent, pAppData, pBuffer);
+    }
 
     mProcThread->addInput(pBuffer);
 
