@@ -449,7 +449,7 @@ status_t ISVWorker::setupFilters() {
                     char propValueString[PROPERTY_VALUE_MAX];
 
                     // placeholder for vpg driver: can't support sharpness factor auto adjust, so leave config to user.
-                    property_get("vpp.filter.sharpen.factor", propValueString, "64.0");
+                    property_get("vpp.filter.sharpen.factor", propValueString, "8.0");
                     sharpen.value = atof(propValueString);
                     sharpen.value = (sharpen.value < 0.0f) ? 0.0f : sharpen.value;
                     sharpen.value = (sharpen.value > 64.0f) ? 64.0f : sharpen.value;
