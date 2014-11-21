@@ -92,7 +92,8 @@ public:
     ~ISVBuffer();
 
     // init buffer info
-    status_t initBufferInfo();
+    // FIXME: hackFormat is for VP9, should be removed in future
+    status_t initBufferInfo(uint32_t hackFormat);
 
     // get va surface
     int32_t getSurface() { return mSurface; }

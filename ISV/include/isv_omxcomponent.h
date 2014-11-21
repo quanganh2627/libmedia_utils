@@ -41,8 +41,6 @@
 #define MIN_ISV_BUFFER_NUM      ((MIN_OUTPUT_NUM) + (MIN_INPUT_NUM))
 #define UNDEQUEUED_NUM          (4)   // display system hold 4 buffers
 
-#define SKIP_FRAME_NUM          (30)
-
 using namespace android;
 class ISVComponent;
 
@@ -272,11 +270,11 @@ private:
     int32_t mNumISVBuffers;
     int32_t mNumDecoderBuffers;
     int32_t mNumDecoderBuffersBak;
-    int64_t mNumBypassFrames;
     uint32_t mWidth;
     uint32_t mHeight;
     uint32_t mUseAndroidNativeBufferIndex;
     uint32_t mStoreMetaDataInBuffersIndex;
+    uint32_t mHackFormat;
 
     bool mUseAndroidNativeBuffer;
     bool mUseAndroidNativeBuffer2;

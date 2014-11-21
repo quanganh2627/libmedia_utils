@@ -35,7 +35,7 @@ ISVBuffer::~ISVBuffer() {
     }
 }
 
-status_t ISVBuffer::initBufferInfo()
+status_t ISVBuffer::initBufferInfo(uint32_t hackFormat)
 {
     if (mType == ISV_BUFFER_METADATA) {
         VideoDecoderOutputMetaData *metaData =
@@ -83,15 +83,8 @@ status_t ISVBuffer::initBufferInfo()
 #else
     IMG_native_handle_t* grallocHandle = (IMG_native_handle_t*)mGrallocHandle;
     mStride = grallocHandle->iWidth;
-    mColorFormat = grallocHandle->iFormat;
+    mColorFormat = (hackFormat != 0) ? hackFormat : grallocHandle->iFormat;
 #endif
-
-    //FIXME: currently, VSP doesn't support YV12 format very well, so diable ISV temporarily
-    if (mColorFormat == HAL_PIXEL_FORMAT_YV12) {
-        ALOGI("%s: VSP doesn't support YV12 very well, so disable ISV", __func__);
-        return BAD_TYPE;
-    }
-
     if (mWorker == NULL) {
         ALOGE("%s: mWorker == NULL!!", __func__);
         return UNKNOWN_ERROR;

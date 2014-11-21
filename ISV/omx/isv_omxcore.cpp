@@ -213,7 +213,7 @@ OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_GetHandle(
 
     delete pISVComponent;
     pISVComponent = NULL;
-    ALOGE("%s(): exit failure, %s not found", __func__, cComponentName);
+    ALOGD_IF(ISV_CORE_DEBUG, "%s(): exit failure, %s not found", __func__, cComponentName);
     return OMX_ErrorInvalidComponent;
 }
 

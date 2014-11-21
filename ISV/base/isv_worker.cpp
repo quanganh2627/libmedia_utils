@@ -671,39 +671,35 @@ status_t ISVWorker::process(ISVBuffer* inputBuffer, Vector<ISVBuffer*> outputBuf
     VABufferID pipelineId;
     VAProcPipelineParameterBuffer *pipeline;
     VAProcFilterParameterBufferFrameRateConversion *frc;
-    VAStatus vaStatus;
-    uint32_t i;
+    VAStatus vaStatus = STATUS_OK;
+    uint32_t i = 0;
 
-    if (isEOS && mInputIndex == 0) {
-        ALOGV("%s: don't need to flush VSP", __func__);
-        return STATUS_OK;
-    }
-
-    if (mFilters == 0) {
-        ALOGE("%s: filters have not been initialized.", __func__);
-        return STATUS_ERROR;
-    }
-
-    if (outputCount < 1) {
-       ALOGE("invalid outputCount");
-       return STATUS_ERROR;
-    }
-
-    if (inputBuffer == NULL)
+    if (isEOS) {
+        if (mInputIndex == 0) {
+            ALOGV("%s: don't need to flush VSP", __func__);
+            return STATUS_OK;
+        }
         input = VA_INVALID_SURFACE;
-    else
-        input = inputBuffer->getSurface();
-
-    if (input == VA_INVALID_SURFACE && !isEOS) {
-        ALOGE("invalid input buffer");
-        return STATUS_ERROR;
-    }
-
-    for (i = 0; i < outputCount; i++) {
-        output[i] = outputBuffer[i]->getSurface();
-        if (output[i] == VA_INVALID_SURFACE) {
-            ALOGE("invalid output buffer");
+        outputCount = 1;
+        output[0] = mPrevOutput;
+    } else {
+        if (!inputBuffer || outputBuffer.size() != outputCount) {
+            ALOGE("%s: invalid input/output buffer", __func__);
             return STATUS_ERROR;
+        }
+
+        if (outputCount < 1 || outputCount > 4) {
+            ALOGE("%s: invalid outputCount", __func__);
+            return STATUS_ERROR;
+        }
+
+        input = inputBuffer->getSurface();
+        for (i = 0; i < outputCount; i++) {
+            output[i] = outputBuffer[i]->getSurface();
+            if (output[i] == VA_INVALID_SURFACE) {
+                ALOGE("invalid output buffer");
+                return STATUS_ERROR;
+            }
         }
     }
 
@@ -936,7 +932,7 @@ status_t ISVWorker::dumpYUVFrameData(VASurfaceID surfaceID) {
 
 status_t ISVWorker::reset() {
     status_t ret;
-    ALOGI("reset");
+    ALOGV("reset");
     if (mOutputCount > 0) {
         ALOGI("======mVPPInputCount=%d, mVPPRenderCount=%d======",
                 mInputIndex, mOutputCount);

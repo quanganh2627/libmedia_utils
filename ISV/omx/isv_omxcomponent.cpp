@@ -20,6 +20,9 @@
 #include "isv_omxcomponent.h"
 #include <media/hardware/HardwareAPI.h>
 #include "isv_profile.h"
+#ifndef TARGET_VPP_USE_GEN
+#include <OMX_IntelColorFormatExt.h>
+#endif
 
 //#define LOG_NDEBUG 0
 #undef LOG_TAG
@@ -58,11 +61,11 @@ ISVComponent::ISVComponent(
         mNumISVBuffers(MIN_ISV_BUFFER_NUM),
         mNumDecoderBuffers(0),
         mNumDecoderBuffersBak(0),
-        mNumBypassFrames(SKIP_FRAME_NUM),
         mWidth(0),
         mHeight(0),
         mUseAndroidNativeBufferIndex(0),
         mStoreMetaDataInBuffersIndex(0),
+        mHackFormat(0),
         mUseAndroidNativeBuffer(false),
         mUseAndroidNativeBuffer2(false),
         mVPPEnabled(false),
@@ -101,7 +104,7 @@ ISVComponent::ISVComponent(
     g_isv_components.push_back(static_cast<ISVComponent*>(this));
 
     mVPPOn = ISVProfile::isFRCOn() || ISVProfile::isVPPOn();
-    ALOGI("%s: mVPPOn %d", __func__, mVPPOn);
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: mVPPOn %d", __func__, mVPPOn);
 
     if (mISVBufferManager == NULL) {
         mISVBufferManager = new ISVBufferManager();
@@ -111,7 +114,7 @@ ISVComponent::ISVComponent(
 
 ISVComponent::~ISVComponent()
 {
-    ALOGI("%s", __func__);
+    ALOGD_IF(ISV_COMPONENT_DEBUG, "%s", __func__);
     if (mpISVCallBacks) {
         free(mpISVCallBacks);
         mpISVCallBacks = NULL;
@@ -166,7 +169,7 @@ void ISVComponent::deinit()
         if (mProcThread != NULL) {
             mProcThread->stop();
             mProcThread = NULL;
-            ALOGI("%s: delete ISV processor ", __func__);
+            ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: delete ISV processor ", __func__);
         }
     }
     pthread_mutex_unlock(&ProcThreadInstanceLock);
@@ -254,6 +257,15 @@ OMX_ERRORTYPE ISVComponent::ISV_GetParameter(
             ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: orignal bufferCountActual %d, bufferCountMin %d",  __func__, def->nBufferCountActual, def->nBufferCountMin);
             def->nBufferCountActual += mNumISVBuffers;
             def->nBufferCountMin += mNumISVBuffers;
+#ifndef TARGET_VPP_USE_GEN
+            //FIXME: THIS IS A HACK!! Request NV12 buffer for YV12 format
+            //because VSP only support NV12 output
+            OMX_VIDEO_PORTDEFINITIONTYPE *video_def = &def->format.video;
+            if (video_def->eColorFormat == OMX_INTEL_COLOR_FormatHalYV12) {
+                mHackFormat = HAL_PIXEL_FORMAT_YV12;
+                video_def->eColorFormat = (OMX_COLOR_FORMATTYPE)OMX_INTEL_COLOR_FormatYUV420PackedSemiPlanar;
+            }
+#endif
         }
     }
 
@@ -333,17 +345,13 @@ OMX_ERRORTYPE ISVComponent::ISV_SetParameter(
                 ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: video frame width %d, height %d",  __func__, 
                         video_def->nFrameWidth, video_def->nFrameHeight);
             }
-#if 0
+
             if (def->nPortIndex == kPortIndexInput) {
                 OMX_VIDEO_PORTDEFINITIONTYPE *video_def = &def->format.video;
-                mFilterParam.frameRate = video_def->xFramerate;
 
-                if (mISVProfile != NULL && mFilterParam.frameRate != 0) {
-                    mFilterParam.frcRate = mISVProfile->getFRCRate(mFilterParam.frameRate);
-                }
-                ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: frame rate is set to %d",  __func__, mFilterParam.frameRate);
+                if (mProcThread != NULL)
+                    mProcThread->configFRC(video_def->xFramerate);
             }
-#endif
         }
 
         if (mUseAndroidNativeBuffer
@@ -606,7 +614,7 @@ OMX_ERRORTYPE ISVComponent::ISV_FillThisBuffer(
             return OMX_FillThisBuffer(mComponent, pBuffer);
         }
 
-        if (OK != isvBuffer->initBufferInfo()) {
+        if (OK != isvBuffer->initBufferInfo(mHackFormat)) {
             ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: isvBuffer %p failed to initBufferInfo", __func__, isvBuffer);
             mVPPEnabled = false;
             return OMX_FillThisBuffer(mComponent, pBuffer);
@@ -651,7 +659,7 @@ OMX_ERRORTYPE ISVComponent::ISV_FillBufferDone(
         return OMX_ErrorUndefined;
     }
 
-    if(!mVPPEnabled || !mVPPOn || mVPPFlushing || mNumBypassFrames-- > 0) {
+    if(!mVPPEnabled || !mVPPOn || mVPPFlushing || pBuffer->nFilledLen == 0) {
         ALOGD_IF(ISV_COMPONENT_DEBUG, "%s: FillBufferDone pBuffer %p, timeStamp %.2f ms", __func__, pBuffer, pBuffer->nTimeStamp/1E3);
         return mpCallBacks->FillBufferDone(&mBaseComponent, pAppData, pBuffer);
     }
