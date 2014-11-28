@@ -194,7 +194,6 @@ status_t MultiDisplayComposer::notifyHotplugLocked(
     if (mode != mMode) {
         int connection = connected ? 1 : 0;
         broadcastMessageLocked((int)MDS_MSG_MODE_CHANGE, &mMode, sizeof(mMode), false);
-        drm_hdmi_notify_audio_hotplug(connected);
     }
     // set oversan compensation and scaling type
     status_t result = UNKNOWN_ERROR;

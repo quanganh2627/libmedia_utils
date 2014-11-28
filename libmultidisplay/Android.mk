@@ -54,7 +54,7 @@ LOCAL_SRC_FILES += \
 
 LOCAL_SHARED_LIBRARIES += libdrm
 
-LOCAL_CFLAGS += -DDVI_SUPPORTED -DVPG_DRM
+LOCAL_CFLAGS += -DDVI_SUPPORTED
 
 
 LOCAL_C_INCLUDES += $(call include-path-for, frameworks-av)

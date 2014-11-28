@@ -24,9 +24,6 @@
 #include <fcntl.h>
 #include <string.h>
 #include <utils/Vector.h>
-#ifndef VPG_DRM
-#include "linux/psb_drm.h"
-#endif
 #include "drm_hdmi.h"
 #include "xf86drm.h"
 #include "xf86drmMode.h"
@@ -91,15 +88,12 @@ static drmModeConnector* getConnector(int fd, uint32_t connector_type)
 
 static drmModeConnectorPtr getHdmiConnector()
 {
-    if (gDrmCxt.hdmiConnector == NULL)
-#ifndef VPG_DRM
-        gDrmCxt.hdmiConnector = getConnector(gDrmCxt.drmFD, DRM_MODE_CONNECTOR_DVID);
-#else
+    if (gDrmCxt.hdmiConnector == NULL) {
         gDrmCxt.hdmiConnector = getConnector(gDrmCxt.drmFD, DRM_MODE_CONNECTOR_HDMIA);
         if (gDrmCxt.hdmiConnector == NULL) {
             gDrmCxt.hdmiConnector = getConnector(gDrmCxt.drmFD, DRM_MODE_CONNECTOR_HDMIB);
         }
-#endif
+    }
     if (gDrmCxt.hdmiConnector == NULL || gDrmCxt.hdmiConnector->modes == NULL) {
         ALOGW("Please check HDMI cable is connected or not");
         return NULL;
@@ -109,14 +103,7 @@ static drmModeConnectorPtr getHdmiConnector()
 
 static inline bool drm_is_preferred_flags(unsigned int flags)
 {
-#ifndef VPG_DRM
-    // prefer 16:9 over 4:3  and progressive over interlaced.
-    if ((flags & DRM_MODE_FLAG_PAR16_9) && !(flags & DRM_MODE_FLAG_INTERLACE))
-        return true;
-    return false;
-#else
     return true;
-#endif
 }
 
 static void drm_select_preferredmode(drmModeConnectorPtr connector)
@@ -220,14 +207,6 @@ bool drm_init()
 #if 0 // Don't keep prevoius device EDID
     memset(gDrmCxt.productInfo, 0,EDID_PRODUCT_INFO_LEN);
 #endif
-#ifndef VPG_DRM
-    gDrmCxt.drmFD = open(DRM_DEVICE_NAME, O_RDWR, 0);
-    if (gDrmCxt.drmFD <= 0) {
-        ALOGE("%s: Failed to open %s", __func__, DRM_DEVICE_NAME);
-        return false;
-    }
-    drmModeConnectorPtr connector = getConnector(gDrmCxt.drmFD, DRM_MODE_CONNECTOR_DVID);
-#else
     gDrmCxt.drmFD = drmOpen("i915", NULL);
     if (gDrmCxt.drmFD <= 0) {
         ALOGE("%s: Failed to open drm", __func__);
@@ -237,7 +216,6 @@ bool drm_init()
     if (connector == NULL) {
         connector = getConnector(gDrmCxt.drmFD, DRM_MODE_CONNECTOR_HDMIB);
     }
-#endif
     gDrmCxt.hdmiSupported = (connector != NULL);
     if (connector) {
         drmModeFreeConnector(connector);
@@ -268,21 +246,6 @@ bool drm_hdmi_onHdmiDisconnected(void)
 }
 
 
-bool drm_hdmi_notify_audio_hotplug(bool plugin)
-{
-#ifndef VPG_DRM
-    struct drm_psb_disp_ctrl dp_ctrl;
-    memset(&dp_ctrl, 0, sizeof(dp_ctrl));
-    dp_ctrl.cmd = DRM_PSB_HDMI_NOTIFY_HOTPLUG_TO_AUDIO;
-    dp_ctrl.u.data = (plugin == true ? 1 : 0);
-    int ret = drmCommandWriteRead(gDrmCxt.drmFD,
-            DRM_PSB_HDMI_FB_CMD, &dp_ctrl, sizeof(dp_ctrl));
-    return ret == 0;
-#else
-    return true;
-#endif
-}
-
 // return 0 - not connected, 1 - HDMI connected, 2 - DVI connected
 int drm_hdmi_getConnectionStatus()
 {
@@ -299,72 +262,11 @@ int drm_hdmi_getConnectionStatus()
     if (connector == NULL)
         return 0;
     int ret = 0;
-#ifndef VPG_DRM
-    // Read EDID, and check whether it's HDMI or DVI interface
-    for (int i = 0; i < connector->count_props; i++) {
-        drmModePropertyPtr props = drmModeGetProperty(gDrmCxt.drmFD, connector->props[i]);
-        if (!props)
-            continue;
-
-        if (props->name == NULL ||
-                strncmp(props->name, "EDID", sizeof("EDID")) != 0) {
-            drmModeFreeProperty(props);
-            continue;
-        }
-
-        uint64_t* edid = &connector->prop_values[i];
-        drmModePropertyBlobPtr edidBlob = drmModeGetPropertyBlob(gDrmCxt.drmFD, *edid);
-        if (edidBlob == NULL ||
-            edidBlob->data == NULL ||
-            edidBlob->length < HDMI_TIMING_MAX) {
-            ALOGE("%s: Invalid EDID Blob.", __func__);
-            drmModeFreeProperty(props);
-            ret = 0;
-            break;
-        }
-
-        char* edid_binary = (char *)edidBlob->data;
-        // offset of product_info
-        char* product_info = edid_binary + 8;
-        gDrmCxt.connected = true;
-#if 0   // Don't keep prevoius device EDID
-        gDrmCxt.newDevice = false;
-        if (memcmp(gDrmCxt.productInfo, product_info, EDID_PRODUCT_INFO_LEN)) {
-            ALOGI("A new HDMI sink is connected.");
-            gDrmCxt.newDevice = true;
-            memcpy(gDrmCxt.productInfo, product_info, EDID_PRODUCT_INFO_LEN);
-            //clear HDMI timings backup
-            clearHdmiTimings();
-        }
-#endif
-        drm_select_preferredmode(connector);
-
-        ret = 2; // DVI
-        if (edid_binary[126] == 0) {
-            drmModeFreeProperty(props);
-            break;
-        }
-
-        // search VSDB in extend edid
-        for (int j = 0; j <= HDMI_TIMING_MAX - 3; j++) {
-            int n = HDMI_TIMING_MAX + j;
-            if (edid_binary[n]   == 0x03 &&
-                edid_binary[n+1] == 0x0c &&
-                edid_binary[n+2] == 0x00) {
-                ret = 1; //HDMI
-                break;
-            }
-        }
-        drmModeFreeProperty(props);
-        break;
-    }
-#else
     if (connector->connection == DRM_MODE_CONNECTED) {
         gDrmCxt.connected = true;
         drm_select_preferredmode(connector);
         ret = 1; // Deault is HDMI on Gen
     }
-#endif
     ALOGD("External Display device is %d", ret);
     return ret;
 }
@@ -393,7 +295,7 @@ static int parseHdmiTimings() {
         unsigned int tmpV = connector->modes[i].vdisplay;
         unsigned int tmpR = connector->modes[i].vrefresh;
         unsigned int tmpF = connector->modes[i].flags;
-#ifdef VPG_DRM
+#if 0
         unsigned int tmpA = connector->modes[i].picture_aspect_ratio;
 #endif
         bool duplicated = false;
@@ -401,9 +303,8 @@ static int parseHdmiTimings() {
             MDSHdmiTiming* bak = gDrmCxt.hdmiTimings.itemAt(j);
             if (bak != NULL &&
                     bak->width == tmpW && bak->height == tmpV &&
-#ifndef VPG_DRM
                     bak->refresh == tmpR && bak->flags == tmpF) {
-#else
+#if 0
                     bak->refresh == tmpR && bak->flags == tmpF &&
                     bak->ratio == tmpA ) {
 #endif
@@ -423,12 +324,7 @@ static int parseHdmiTimings() {
         if (tmpF & DRM_MODE_FLAG_INTERLACE)
             dst.interlace = 1;
         dst.ratio = 0;
-#ifndef VPG_DRM
-        if (tmpF & DRM_MODE_FLAG_PAR16_9)
-            dst.ratio = 2;
-        else if (tmpF & DRM_MODE_FLAG_PAR4_3)
-            dst.ratio = 1;
-#else
+#if 0
         if (tmpA == HDMI_PICTURE_ASPECT_16_9)
             dst.ratio = 2;
         else if (tmpA == HDMI_PICTURE_ASPECT_4_3)

@@ -39,7 +39,6 @@ int  drm_get_dev_fd();
 int  drm_get_ioctl_offset();
 
 bool drm_hdmi_onHdmiDisconnected(void);
-bool drm_hdmi_notify_audio_hotplug(bool connected);
 // return 0 - disconnected, 1 - HDMI connected, 2 - DVI connected
 int  drm_hdmi_getConnectionStatus();
 int  drm_hdmi_getTimingNumber();
